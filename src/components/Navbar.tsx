@@ -98,7 +98,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* MENÚ MÓVIL (Full Screen Overlay suave) */}
+      {/* MENÚ MÓVIL(Full Screen Overlay suave) */}
       <div className={`md:hidden absolute top-20 left-0 w-full bg-white/95 backdrop-blur-xl border-b border-gray-100 shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="flex flex-col p-6 space-y-2">
           <Link href="/#nosotros" onClick={() => setIsOpen(false)} className="text-xs font-black tracking-widest text-gray-400 hover:text-black py-4 border-b border-gray-50 hover:pl-2 transition-all">
@@ -112,7 +112,7 @@ export default function Navbar() {
           </Link>
           <SignedIn>
             <Link href="/nominas" onClick={() => setIsOpen(false)} className={`mt-4 block w-full text-center text-xs font-black tracking-widest uppercase py-4 rounded-2xl ${activeBg} ${activeText}`}>
-              📂 IR A MIS NÓMINAS
+              📂 IR A MIS NÓMINAS 
             </Link>
           </SignedIn>
         </div>
