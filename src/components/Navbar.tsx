@@ -39,7 +39,7 @@ export default function Navbar() {
               CREW
             </span>
             <span className={`px-4 py-1.5 rounded-full text-[10px] font-black transition-all ${role === 'ENTRENADOR' ? 'bg-white shadow-sm text-red-600' : 'text-gray-400'}`}>
-              PRO
+              ENTR
             </span>
           </button>
 

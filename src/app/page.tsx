@@ -58,7 +58,6 @@ export default function Home() {
       <section id="calculadora" className="py-24 bg-gray-50 flex flex-col items-center">
         <div className="mb-12 text-center">
           <h2 className="text-4xl font-black tracking-tighter mb-2">Simulador Rápido</h2>
-          <p className="text-gray-400 font-bold uppercase text-[10px]">Calcula tu turno individual</p>
         </div>
         <ShiftCalculator />
       </section>

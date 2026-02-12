@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "McWallet",
-  description: "Cálculo de nómina Crew y Entrenador",
+  description: "Nómina para Crew y Entrenadores",
 };
 
 export default function RootLayout({
@@ -15,6 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // 1. ClerkProvider es EL PADRE de todo
     <ClerkProvider localization={esES}>
       <html lang="es">
         <body className="antialiased bg-white">

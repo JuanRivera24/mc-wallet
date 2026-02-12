@@ -1,16 +1,18 @@
 // src/lib/firebase.ts
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "mcwallet-tu-id.firebaseapp.com",
-  projectId: "mcwallet-tu-id",
-  storageBucket: "mcwallet-tu-id.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Evita inicializar doble en Next.js
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Inicializamos la app (Singleton para evitar errores en Next.js)
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Exportamos la base de datos para usarla en toda la app
 export const db = getFirestore(app);
