@@ -27,6 +27,7 @@ export default function NominasPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null); // Estado para el acordeón
   
   // Formulario
   const [startTime, setStartTime] = useState("14:00");
@@ -37,7 +38,7 @@ export default function NominasPage() {
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   
-  // Fecha Actual (Para validaciones visuales)
+  // Fecha Actual
   const today = new Date();
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
@@ -105,7 +106,6 @@ export default function NominasPage() {
   // --- FUNCIONES ---
 
   const handleQuickAddToday = () => {
-    // Configuramos todo para hoy automáticamente
     const now = new Date();
     setSelectedYear(now.getFullYear());
     setSelectedMonth(mesesFull[now.getMonth()]);
@@ -114,11 +114,21 @@ export default function NominasPage() {
     setShowModal(true);
   };
 
-  const handleOpenEdit = (shift: any) => {
+  const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
+    e.stopPropagation(); // Evitar que se abra el acordeón al editar
     setEditingShiftId(shift.id);
     setStartTime(shift.startTime || "14:00");
     setEndTime(shift.endTime || "22:00");
     setShowModal(true);
+  };
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evitar que se abra el acordeón
+    if(confirm("¿Eliminar turno?")) deleteDoc(doc(db, "shifts", id));
+  }
+
+  const handleToggleExpand = (id: string) => {
+    setExpandedShiftId(expandedShiftId === id ? null : id);
   };
 
   const handleSaveShift = async (isOff: boolean = false) => {
@@ -137,6 +147,8 @@ export default function NominasPage() {
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
     const manualBreak = isManualBreak ? { start: breakStart, end: breakEnd } : undefined;
+    
+    // USAMOS EL CALCULATOR MEJORADO QUE RETORNA EL DESGLOSE COMPLETO
     const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role);
 
     const payload = {
@@ -144,10 +156,19 @@ export default function NominasPage() {
       date: targetDateStr,
       startTime: isOff ? "" : startTime,
       endTime: isOff ? "" : endTime,
-      netPay: isOff ? 0 : calc.totalMoney * 0.92,
+      
+      // Guardamos TODOS los datos del desglose para mostrarlos luego
+      netPay: isOff ? 0 : calc.netPay,
+      salaryBase: isOff ? 0 : calc.salaryBase,
+      transportAux: isOff ? 0 : calc.transportAux,
+      deductions: isOff ? 0 : calc.deductions,
+      
       totalHours: isOff ? 0 : calc.totalHours,
+      hoursDay: isOff ? 0 : calc.hoursDay,
+      hoursNight: isOff ? 0 : calc.hoursNight,
+      
       isOff,
-      month: selectedMonth || mesesFull[new Date(targetDateStr).getMonth()], // Asegura mes si viene de Quick Add
+      month: selectedMonth || mesesFull[new Date(targetDateStr).getMonth()],
       year: selectedYear,
       timestamp: serverTimestamp()
     };
@@ -190,7 +211,6 @@ export default function NominasPage() {
 
             {step === 1 && (
               <div className="animate-in fade-in duration-500 space-y-10">
-                {/* LISTA DE MESES (CON HIGHLIGHT DEL MES ACTUAL) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {mesesFull.map((m) => {
                     const isCurrentMonth = m === currentMonthName && selectedYear === currentYear;
@@ -198,7 +218,7 @@ export default function NominasPage() {
                       <button key={m} onClick={() => { setSelectedMonth(m); setStep(2); }}
                         className={`p-6 rounded-[2rem] shadow-sm font-black text-lg capitalize transition-all border hover:scale-105 active:scale-95
                         ${isCurrentMonth 
-                          ? 'bg-yellow-50 border-yellow-200 text-yellow-800 ring-2 ring-yellow-100' // Estilo Mes Actual
+                          ? 'bg-yellow-50 border-yellow-200 text-yellow-800 ring-2 ring-yellow-100' 
                           : 'bg-white border-transparent hover:border-gray-200'
                         }`}>
                         {m}
@@ -206,23 +226,14 @@ export default function NominasPage() {
                     );
                   })}
                 </div>
-
                 <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-50">
                    <p className="text-[10px] font-black text-gray-400 uppercase mb-6 tracking-[0.2em] text-center">Resumen Anual {selectedYear}</p>
                    <div className="h-64"><Bar data={statsAnuales} options={{ maintainAspectRatio: false }} /></div>
                 </div>
-
-                {/* BOTÓN DE ACCESO RÁPIDO: AGREGAR HOY */}
                 <div className="flex justify-center">
-                  <button 
-                    onClick={handleQuickAddToday}
-                    className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-black hover:scale-105 transition-all flex items-center gap-3 group"
-                  >
+                  <button onClick={handleQuickAddToday} className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-black hover:scale-105 transition-all flex items-center gap-3 group">
                     <span className="text-2xl">⚡</span>
-                    <div className="text-left">
-                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Acceso Rápido</p>
-                      <p className="text-lg">Agregar turno de HOY ({today.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })})</p>
-                    </div>
+                    <div className="text-left"><p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Acceso Rápido</p><p className="text-lg">Agregar turno de HOY ({today.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })})</p></div>
                   </button>
                 </div>
               </div>
@@ -271,30 +282,46 @@ export default function NominasPage() {
                         const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                         const s = shiftsDelAno.find(shift => shift.date === dStr);
                         
-                        // COLORES DE ESTADO (Prioridad Alta)
                         if (s?.isOff) return '!bg-red-500 !text-white rounded-2xl font-bold';
                         if (s) return '!bg-green-500 !text-white rounded-2xl font-bold';
                         
-                        // DÍA SELECCIONADO (Azul)
                         if (selectedDate && date.getTime() === selectedDate.getTime()) {
                             return '!bg-blue-100 !text-blue-600 rounded-2xl font-black border-2 border-blue-200';
                         }
-
-                        // HOY (Amarillo Claro) - Solo si no tiene turno y no está seleccionado
                         const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
                         if (isToday) return '!bg-yellow-100 text-yellow-800 font-black border-2 border-yellow-200 rounded-2xl';
-
                         if (date.getDay() === 0) return 'text-red-500 font-bold';
                         return 'text-gray-700 font-bold hover:bg-gray-50 rounded-2xl';
                     }}
                     tileDisabled={isDateDisabled}
                   />
-                  {selectedDate && (
-                     <div className="mt-8 flex gap-4 animate-in fade-in slide-in-from-top-2">
-                        <button onClick={() => {setEditingShiftId(null); setShowModal(true);}} className={`${colors.secondary} text-white flex-1 py-4 rounded-2xl font-black shadow-lg uppercase text-xs tracking-widest hover:brightness-110 active:scale-95 transition-all`}>+ Agregar Turno</button>
-                        <button onClick={() => handleSaveShift(true)} className="bg-gray-100 text-gray-400 flex-1 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-50 hover:text-red-500 transition-colors">Marcar OFF</button>
-                     </div>
-                  )}
+                  
+                  {/* BOTONES DE ACCIÓN MEJORADOS */}
+                  <div className="mt-8 flex gap-4 transition-all duration-300">
+                     <button 
+                        disabled={!selectedDate}
+                        onClick={() => {setEditingShiftId(null); setShowModal(true);}} 
+                        className={`flex-1 py-4 rounded-2xl font-black shadow-lg uppercase text-xs tracking-widest transition-all
+                            ${selectedDate 
+                                ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` 
+                                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                            }`}
+                     >
+                        + Agregar Turno
+                     </button>
+                     
+                     <button 
+                        disabled={!selectedDate}
+                        onClick={() => handleSaveShift(true)} 
+                        className={`flex-1 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all
+                            ${selectedDate
+                                ? 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 cursor-pointer'
+                                : 'bg-gray-100/50 text-gray-300 cursor-not-allowed'
+                            }`}
+                     >
+                        Marcar OFF
+                     </button>
+                  </div>
                 </div>
 
                 <div className="bg-white rounded-[3rem] shadow-xl border border-gray-100 overflow-hidden">
@@ -311,23 +338,43 @@ export default function NominasPage() {
                          <div className="p-10 text-center text-gray-300 font-bold italic">No hay turnos registrados en esta quincena.</div>
                       ) : (
                          turnosFiltrados.map((s) => (
-                           <div key={s.id} className="p-6 md:p-8 hover:bg-gray-50 transition-colors flex justify-between items-center group">
-                              <div className="flex-1">
-                                 <div className="flex items-center gap-3 mb-1">
-                                    <span className={`w-3 h-3 rounded-full ${s.isOff ? 'bg-red-500' : 'bg-green-500'}`}></span>
-                                    <p className="font-black text-xl text-gray-800 capitalize">
-                                       {new Date(s.date + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
-                                    </p>
-                                 </div>
-                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide pl-6">
-                                    {s.isOff ? "Día de Descanso" : `${s.startTime} - ${s.endTime} • ${s.totalHours.toFixed(1)}h`}
-                                 </p>
-                              </div>
-                              <div className="text-right flex items-center gap-4">
-                                 {!s.isOff && ( <p className="font-black text-xl text-gray-900">${Math.floor(s.netPay).toLocaleString()}</p> )}
-                                 <button onClick={() => handleOpenEdit(s)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-black hover:text-white transition-colors">✏️</button>
-                                 <button onClick={() => deleteDoc(doc(db, "shifts", s.id))} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-500 hover:text-white transition-colors">🗑️</button>
-                              </div>
+                           <div key={s.id} onClick={() => !s.isOff && handleToggleExpand(s.id)} className={`transition-colors cursor-pointer group ${s.isOff ? '' : 'hover:bg-gray-50'}`}>
+                             {/* CABECERA DEL TURNO */}
+                             <div className="p-6 md:p-8 flex justify-between items-center">
+                               <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-1">
+                                     <span className={`w-3 h-3 rounded-full ${s.isOff ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                                     <p className="font-black text-xl text-gray-800 capitalize">
+                                        {new Date(s.date + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                                     </p>
+                                  </div>
+                                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wide pl-6">
+                                     {s.isOff ? "Día de Descanso" : `${s.startTime} - ${s.endTime} • ${s.totalHours.toFixed(1)}h`}
+                                  </p>
+                               </div>
+                               <div className="text-right flex items-center gap-4">
+                                  {!s.isOff && ( <p className="font-black text-xl text-gray-900">${Math.floor(s.netPay).toLocaleString()}</p> )}
+                                  <button onClick={(e) => handleOpenEdit(e, s)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-black hover:text-white transition-colors z-10">✏️</button>
+                                  <button onClick={(e) => handleDelete(e, s.id)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-500 hover:text-white transition-colors z-10">🗑️</button>
+                               </div>
+                             </div>
+
+                             {/* ACORDEÓN DE DETALLES (SOLO SI NO ES OFF) */}
+                             {!s.isOff && expandedShiftId === s.id && (
+                                <div className="px-8 pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
+                                   <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                      <div className="grid grid-cols-3 gap-4 text-center mb-4 pb-4 border-b border-gray-200/50">
+                                         <div><p className="text-[10px] font-bold text-gray-400 uppercase">Base (Horas)</p><p className="font-bold text-gray-700">${Math.floor(s.salaryBase || 0).toLocaleString()}</p></div>
+                                         <div><p className="text-[10px] font-bold text-green-500 uppercase">Aux. Transp</p><p className="font-bold text-green-700">+${Math.floor(s.transportAux || 0).toLocaleString()}</p></div>
+                                         <div><p className="text-[10px] font-bold text-red-400 uppercase">Deducciones</p><p className="font-bold text-red-600">-${Math.floor(s.deductions || 0).toLocaleString()}</p></div>
+                                      </div>
+                                      <div className="flex justify-center gap-6 text-xs font-bold text-gray-500">
+                                         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400 rounded-full"></span> Diurnas: {s.hoursDay?.toFixed(1) || 0}</span>
+                                         <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-900 rounded-full"></span> Nocturnas: {s.hoursNight?.toFixed(1) || 0}</span>
+                                      </div>
+                                   </div>
+                                </div>
+                             )}
                            </div>
                          ))
                       )}
@@ -335,8 +382,8 @@ export default function NominasPage() {
 
                    {turnosFiltrados.length > 0 && (
                       <div className="bg-gray-900 text-white p-6 flex justify-between items-center">
-                         <div><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Horas</p><p className="text-xl font-black text-white">{totalListaHoras.toFixed(1)} h</p></div>
-                         <div className="text-right"><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Neto</p><p className="text-3xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p></div>
+                          <div><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Horas</p><p className="text-xl font-black text-white">{totalListaHoras.toFixed(1)} h</p></div>
+                          <div className="text-right"><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Neto</p><p className="text-3xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p></div>
                       </div>
                    )}
                 </div>

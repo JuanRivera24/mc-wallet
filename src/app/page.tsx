@@ -8,45 +8,49 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function Home() {
-  const { colors, themeColor } = useTheme();
+  const { colors } = useTheme();
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-white">
       <Navbar />
 
-      {/* SECCIÓN NOSOTROS (FULL HERO) */}
-      <section id="nosotros" className={`min-h-[85vh] flex flex-col items-center justify-center px-4 text-center transition-colors duration-700 ${colors.bg}`}>
-        <div className="max-w-4xl mx-auto space-y-10">
-          <div className={`inline-block px-6 py-2 rounded-full bg-white shadow-sm border ${colors.accent} text-xs font-black uppercase tracking-widest ${colors.primary}`}>
-            Sistema de Liquidación 2026
+      {/* SECCIÓN HERO - Optimizada para Móvil */}
+      <section id="nosotros" className={`flex flex-col items-center justify-center px-5 py-16 md:min-h-[85vh] md:py-0 text-center transition-colors duration-700 ${colors.bg}`}>
+        <div className="max-w-5xl mx-auto space-y-8 md:space-y-12">
+          
+          {/* Badge pequeño */}
+          <div className={`inline-block px-4 py-1.5 rounded-full bg-white shadow-sm border ${colors.accent} text-[10px] font-black uppercase tracking-widest ${colors.primary}`}>
+            Sistema 2026
           </div>
           
-          <h1 className="text-6xl md:text-[100px] font-black text-gray-900 tracking-tighter leading-none">
-            Tu esfuerzo, <br/>
-            <span className={`${colors.primary} italic underline decoration-gray-200 underline-offset-8`}>al centavo.</span>
+          {/* TÍTULO: Agresivamente más pequeño en móvil (4xl) y gigante en PC (8xl) */}
+          <h1 className="text-4xl md:text-8xl lg:text-9xl font-black text-gray-900 tracking-tighter leading-[1.1] md:leading-none">
+            Tu esfuerzo, <br className="hidden md:block"/>
+            <span className={`${colors.primary} italic underline decoration-gray-200 underline-offset-4 md:underline-offset-8`}>al centavo.</span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-gray-600 font-medium max-w-2xl mx-auto leading-relaxed">
-            McWallet es la única app diseñada por y para empleados de <strong>Arcos Dorados Colombia</strong>. 
-            Cálculos <strong>estimados</strong> y precisos según valores oficiales 2026.
+          {/* TEXTO: Más pequeño y con menos ancho */}
+          <p className="text-base md:text-2xl text-gray-600 font-medium max-w-sm md:max-w-2xl mx-auto leading-relaxed">
+            La app diseñada por Crews para Crews. Cálculos precisos con las tablas oficiales de 2026.
           </p>
           
-          <div className="flex flex-col md:flex-row gap-4 justify-center pt-8">
-            <a href="#calculadora" className={`${colors.secondary} text-white px-12 py-5 rounded-2xl font-black text-lg shadow-2xl hover:scale-105 transition-all`}>
+          {/* BOTONES: Full ancho en móvil (w-full), normales en PC */}
+          <div className="flex flex-col w-full md:w-auto md:flex-row gap-3 md:gap-6 justify-center pt-4 md:pt-8 px-2 md:px-0">
+            <a href="#calculadora" className={`${colors.secondary} text-white w-full md:w-auto px-8 py-4 rounded-2xl font-black text-sm md:text-lg shadow-xl active:scale-95 transition-all`}>
               CALCULAR TURNO
             </a>
             
             <SignedOut>
               <SignInButton mode="modal">
-                <button className="bg-white text-gray-900 border-2 border-gray-900 px-12 py-5 rounded-2xl font-black text-lg hover:bg-gray-900 hover:text-white transition-all">
-                  INICIAR SESIÓN
+                <button className="bg-white text-gray-900 w-full md:w-auto border-2 border-gray-900 px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:bg-gray-900 hover:text-white transition-all">
+                  ENTRAR
                 </button>
               </SignInButton>
             </SignedOut>
 
             <SignedIn>
-              <Link href="/nominas" className="bg-white text-gray-900 border-2 border-gray-900 px-12 py-5 rounded-2xl font-black text-lg hover:shadow-xl transition-all">
-                📂 VER MIS NÓMINAS
+              <Link href="/nominas" className="bg-white text-gray-900 w-full md:w-auto border-2 border-gray-900 px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:shadow-xl transition-all">
+                📂 MIS NÓMINAS
               </Link>
             </SignedIn>
           </div>
@@ -55,9 +59,11 @@ export default function Home() {
 
       <RatesSection />
 
-      <section id="calculadora" className="py-24 bg-gray-50 flex flex-col items-center">
-        <div className="mb-12 text-center">
-          <h2 className="text-4xl font-black tracking-tighter mb-2">Simulador Rápido</h2>
+      {/* CALCULADORA: Menos padding en móvil */}
+      <section id="calculadora" className="py-16 md:py-24 bg-gray-50 flex flex-col items-center px-4">
+        <div className="mb-8 md:mb-12 text-center">
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mb-2">Simulador Rápido</h2>
+          <p className="text-gray-400 font-bold text-xs md:text-sm">Calcula sin guardar</p>
         </div>
         <ShiftCalculator />
       </section>
