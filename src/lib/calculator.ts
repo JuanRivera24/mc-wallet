@@ -12,19 +12,19 @@ export function calculateShift(
   const start = new Date(`${dateStr}T${startTime}`);
   let end = new Date(`${dateStr}T${endTime}`);
 
-  // Si cruza medianoche
-  if (end <= start) {
-    end.setDate(end.getDate() + 1);
-  }
+  // Si termina al día siguiente
+  if (end <= start) end.setDate(end.getDate() + 1);
 
+  let totalMinutesWorked = 0;
   let dayMinutes = 0;
   let nightMinutes = 0;
-  let totalMinutesWorked = 0;
+  let totalMoney = 0;
+
+  const rateTable = RATES[role];
 
   const current = new Date(start);
 
   while (current < end) {
-
     const currentDateStr = current.toISOString().split("T")[0];
     const hour = current.getHours();
 
@@ -33,75 +33,98 @@ export function calculateShift(
       HOLIDAYS_2026.includes(currentDateStr) ||
       isSunday(current);
 
-    const rateTable = RATES[role];
-
-    // Determinar tarifa por minuto
-    const dayRate = isFestivo ? rateTable.SUNDAY : rateTable.ORDINARY;
-    const nightRate = isFestivo
-      ? rateTable.SUNDAY_NIGHT
-      : rateTable.ORDINARY_NIGHT;
+    let ratePerHour;
 
     if (isNight) {
+      ratePerHour = isFestivo
+        ? rateTable.SUNDAY_NIGHT
+        : rateTable.ORDINARY_NIGHT;
       nightMinutes++;
     } else {
+      ratePerHour = isFestivo
+        ? rateTable.SUNDAY
+        : rateTable.ORDINARY;
       dayMinutes++;
     }
 
+    totalMoney += ratePerHour / 60;
     totalMinutesWorked++;
+
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  // 🔥 BREAK PERSONALIZADO (si existe)
+  // =========================
+  // BREAK MANUAL
+  // =========================
   if (manualBreak) {
     const breakStart = new Date(`${dateStr}T${manualBreak.start}`);
     let breakEnd = new Date(`${dateStr}T${manualBreak.end}`);
 
-    if (breakEnd <= breakStart) {
-      breakEnd.setDate(breakEnd.getDate() + 1);
-    }
+    if (breakEnd <= breakStart) breakEnd.setDate(breakEnd.getDate() + 1);
 
     const breakMinutes =
       (breakEnd.getTime() - breakStart.getTime()) / 60000;
 
     totalMinutesWorked -= breakMinutes;
 
-    // Se descuenta proporcionalmente primero de día
-    if (dayMinutes >= breakMinutes) {
-      dayMinutes -= breakMinutes;
-    } else {
-      const remaining = breakMinutes - dayMinutes;
-      dayMinutes = 0;
-      nightMinutes -= remaining;
+    // Restamos del dinero minuto a minuto
+    const breakCurrent = new Date(breakStart);
+
+    while (breakCurrent < breakEnd) {
+      const currentDateStr = breakCurrent.toISOString().split("T")[0];
+      const hour = breakCurrent.getHours();
+      const isNight = hour >= 19 || hour < 6;
+      const isFestivo =
+        HOLIDAYS_2026.includes(currentDateStr) ||
+        isSunday(breakCurrent);
+
+      let ratePerHour;
+
+      if (isNight) {
+        ratePerHour = isFestivo
+          ? rateTable.SUNDAY_NIGHT
+          : rateTable.ORDINARY_NIGHT;
+        nightMinutes--;
+      } else {
+        ratePerHour = isFestivo
+          ? rateTable.SUNDAY
+          : rateTable.ORDINARY;
+        dayMinutes--;
+      }
+
+      totalMoney -= ratePerHour / 60;
+
+      breakCurrent.setMinutes(breakCurrent.getMinutes() + 1);
     }
   }
-
-  // 🔥 BREAK AUTOMÁTICO (solo si NO hay manual)
+  // =========================
+  // BREAK AUTOMÁTICO (solo si ≥ 5.5h Y no hay manual)
+  // =========================
   else if (totalMinutesWorked >= 330) {
     const deduction = 30;
     totalMinutesWorked -= deduction;
 
+    const deductionPerMinute =
+      (rateTable.ORDINARY / 60); // aproximación conservadora
+
+    totalMoney -= deductionPerMinute * deduction;
+
     if (dayMinutes >= deduction) {
       dayMinutes -= deduction;
     } else {
-      const remaining = deduction - dayMinutes;
+      nightMinutes -= (deduction - dayMinutes);
       dayMinutes = 0;
-      nightMinutes -= remaining;
     }
   }
 
-  const hoursDay = dayMinutes / 60;
-  const hoursNight = nightMinutes / 60;
-
-  const rateTable = RATES[role];
-
-  const totalMoney =
-    (hoursDay * rateTable.ORDINARY) +
-    (hoursNight * rateTable.ORDINARY_NIGHT) +
-    TRANSPORT_AUX_DAILY;
+  // =========================
+  // SUMAMOS AUXILIO
+  // =========================
+  totalMoney += TRANSPORT_AUX_DAILY;
 
   return {
-    hoursDay,
-    hoursNight,
+    hoursDay: dayMinutes / 60,
+    hoursNight: nightMinutes / 60,
     totalHours: totalMinutesWorked / 60,
     totalMoney,
   };
