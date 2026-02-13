@@ -31,7 +31,7 @@ export default function Home() {
           
           {/* TEXTO: Más pequeño y con menos ancho */}
           <p className="text-base md:text-2xl text-gray-600 font-medium max-w-sm md:max-w-2xl mx-auto leading-relaxed">
-            Hecho por Crews para Crews con tablas oficiales 2026. Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra. Inicia sesión para guardar y ver tus nóminas.
+            Hecho por Crews para Crews con tablas oficiales 2026. Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra. hl<b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b>.
           </p>
           
           {/* BOTONES: Full ancho en móvil (w-full), normales en PC */}
@@ -63,7 +63,7 @@ export default function Home() {
       <section id="calculadora" className="py-16 md:py-24 bg-gray-50 flex flex-col items-center px-4">
         <div className="mb-8 md:mb-12 text-center">
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter mb-2">Simulador Rápido</h2>
-          <p className="text-gray-400 font-bold text-xs md:text-sm">Calcula sin guardar. <b>Inicia sesión para guardar tus turnos y calcular tus nóminas</b></p>
+          <p className="text-gray-400 font-bold text-xs md:text-sm">Calcula sin guardar. <b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b></p>
         </div>
         <ShiftCalculator />
       </section>
