@@ -31,7 +31,8 @@ export default function Home() {
           
           {/* TEXTO: Más pequeño y con menos ancho */}
           <p className="text-base md:text-2xl text-gray-600 font-medium max-w-sm md:max-w-2xl mx-auto leading-relaxed">
-            Hecho por Crews para Crews con tablas oficiales 2026. Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.
+            <b>Hecho por Crews para Crews con tablas oficiales 2026.</b> Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.
+ 
 <b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b>.
           </p>
           
