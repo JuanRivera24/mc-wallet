@@ -31,9 +31,7 @@ export default function Home() {
           
           {/* TEXTO: Más pequeño y con menos ancho */}
           <p className="text-base md:text-2xl text-gray-600 font-medium max-w-sm md:max-w-2xl mx-auto leading-relaxed">
-            Herramienta hecha por Crews, para Crews.
-Cálculos basados rigurosamente en las tablas salariales oficiales de 2026, ten en cuenta que esta app es un simulador independiente.
-Los valores mostrados son estimaciones de referencia y pueden variar ligeramente por redondeos del sistema o deducciones específicas. Tu desprendible de pago oficial de Arcos Dorados siempre tendrá la última palabra.
+            Hecho por Crews para Crews con tablas oficiales 2026. Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.
           </p>
           
           {/* BOTONES: Full ancho en móvil (w-full), normales en PC */}
