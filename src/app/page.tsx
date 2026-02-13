@@ -31,8 +31,11 @@ export default function Home() {
           
           {/* TEXTO: Más pequeño y con menos ancho */}
           <p className="text-base md:text-2xl text-gray-600 font-medium max-w-sm md:max-w-2xl mx-auto leading-relaxed">
-            <b>Hecho por Crews para Crews con tablas oficiales 2026.</b> Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.</p>
-<p><b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b>.
+            <b>Hecho por Crews para Crews con tablas oficiales 2026.</b>{" "}
+  Simulador independiente de referencia: los valores son estimados y tu
+  desprendible oficial siempre tendrá la última palabra.
+  <br />
+  <b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b>.
           </p>
           
           {/* BOTONES: Full ancho en móvil (w-full), normales en PC */}
