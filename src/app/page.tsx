@@ -71,7 +71,7 @@ export default function Home() {
       <section id="calculadora" className="py-16 md:py-24 bg-gray-50 flex flex-col items-center px-4">
         <div className="mb-8 md:mb-12 text-center">
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter mb-2">Simulador Rápido</h2>
-          <p className="text-gray-400 font-bold text-xs md:text-sm">Calcula sin guardar. <b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b></p>
+          <p className="text-gray-400 font-bold text-xs md:text-sm">Calcula sin necesidad de guardar. - <b>Inicia sesión para guardar tus turnos y estimar tus nóminas</b></p>
         </div>
         <ShiftCalculator />
       </section>
