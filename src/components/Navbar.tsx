@@ -71,7 +71,7 @@ export default function Navbar() {
             <SignedOut>
               <SignInButton mode="modal">
                 <button className="font-black text-[10px] md:text-xs uppercase tracking-widest bg-black text-white px-4 py-2.5 rounded-xl hover:bg-gray-800 hover:scale-105 transition-all shadow-lg shadow-black/20">
-                  Entrar
+                  Ingresar
                 </button>
               </SignInButton>
             </SignedOut>
