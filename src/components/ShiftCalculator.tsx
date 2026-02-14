@@ -13,8 +13,8 @@ export default function ShiftCalculator() {
   
   // Estados del Formulario
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [start, setStart] = useState("14:00");
-  const [end, setEnd] = useState("22:00");
+  const [start, setStart] = useState("13:00");
+  const [end, setEnd] = useState("20:00");
   const [isManualBreak, setIsManualBreak] = useState(false);
   const [breakStart, setBreakStart] = useState("16:00");
   const [breakEnd, setBreakEnd] = useState("16:30");
