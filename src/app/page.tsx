@@ -76,6 +76,23 @@ export default function Home() {
         <ShiftCalculator />
       </section>
 
+<SignedOut>
+              <SignInButton mode="modal">
+                <button className="bg-white text-gray-900 w-full md:w-auto border-2 border-gray-900 px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:bg-gray-900 hover:text-white transition-all">
+                  INGRESAR Y VER TUS NÓMINAS
+                </button>
+              </SignInButton>
+            </SignedOut>
+
+            <SignedIn>
+              <Link href="/nominas" className="bg-white text-gray-900 w-full md:w-auto border-2 border-gray-900 px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:shadow-xl transition-all">
+                📂 MIS NÓMINAS
+              </Link>
+            </SignedIn>
+          </div>
+        </div>
+      </section>
+
       <Footer />
     </main>
   );
