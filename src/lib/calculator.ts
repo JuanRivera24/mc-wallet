@@ -41,7 +41,7 @@ export function calculateShift(
     const isFestivo = HOLIDAYS_2026.includes(currentDateStr) || isSunday(current);
 
     let ratePerMinute;
-    
+
     if (isNight) {
       ratePerMinute = isFestivo 
         ? rateTable.SUNDAY_NIGHT / 60 
@@ -56,7 +56,7 @@ export function calculateShift(
 
     moneyBase += ratePerMinute;
     totalMinutesWorked++;
-    
+
     // Avanzar 1 minuto
     current.setMinutes(current.getMinutes() + 1);
   }
@@ -64,7 +64,7 @@ export function calculateShift(
   // ==========================================
   // 2. LÓGICA DE BREAK (RESTA)
   // ==========================================
-  
+
   // A. Break Manual (Si el usuario lo define)
   if (manualBreak) {
     const bStart = new Date(`${dateStr}T${manualBreak.start}`);
@@ -99,11 +99,11 @@ export function calculateShift(
   // B. Break Automático (Si > 5.5 horas y no hay manual)
   else if (totalMinutesWorked >= 330) { // 5.5 horas = 330 min
     const deductionMinutes = 30;
-    
+
     // Determinamos las tarifas "promedio" del día para descontar
     // (Usamos la fecha de inicio para saber si es festivo general)
     const isFestivoStart = HOLIDAYS_2026.includes(dateStr) || isSunday(start);
-    
+
     const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
     const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
 
@@ -116,7 +116,7 @@ export function calculateShift(
       const remaining = deductionMinutes - dayMinutes;
       moneyBase -= (rateDayMinute * dayMinutes); // Quita todas las diurnas
       moneyBase -= (rateNightMinute * remaining); // Quita el resto de nocturnas
-      
+
       dayMinutes = 0;
       nightMinutes -= remaining;
     }
@@ -130,8 +130,16 @@ export function calculateShift(
   // Cálculos de seguridad social (aproximados 8% sobre base)
   const salaryBase = Math.round(moneyBase);
   const healthPension = Math.round(salaryBase * 0.08); // 4% Salud + 4% Pensión
-  const transport = TRANSPORT_AUX_DAILY; // Siempre se suma completo por día asistido
   
+  // ---> NUEVA LÓGICA: AUXILIO EXTRA LEGAL <---
+  let transport = TRANSPORT_AUX_DAILY;
+  const endHour = parseInt(endTime.split(":")[0], 10);
+  
+  // Si la hora de salida está entre las 00:00 y las 05:59 (horas 0, 1, 2, 3, 4, 5)
+  if (endHour >= 0 && endHour <= 5) {
+    transport += 5000;
+  }
+
   const netPay = (salaryBase - healthPension) + transport;
 
   return {
@@ -139,11 +147,11 @@ export function calculateShift(
     hoursDay: Number((dayMinutes / 60).toFixed(2)),
     hoursNight: Number((nightMinutes / 60).toFixed(2)),
     totalHours: Number((totalMinutesWorked / 60).toFixed(2)),
-    
-    salaryBase: salaryBase,       // Salario bruto SIN auxilio
-    transportAux: transport,      // Auxilio de transporte
-    deductions: healthPension,    // Total descuentos
-    totalMoney: salaryBase + transport, // Devengado total
-    netPay: netPay                // Lo que llega al banco
+
+    salaryBase: salaryBase,       
+    transportAux: transport,      
+    deductions: healthPension,    
+    totalMoney: salaryBase + transport, 
+    netPay: netPay                
   };
 }
