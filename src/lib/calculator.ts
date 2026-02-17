@@ -136,7 +136,7 @@ export function calculateShift(
   const endHour = parseInt(endTime.split(":")[0], 10);
   
   // Si la hora de salida está entre las 00:00 y las 05:59 (horas 0, 1, 2, 3, 4, 5)
-  if (endHour >= 0 && endHour <= 5) {
+  if (endHour >= 0.0167 && endHour <= 4) {
     transport += 5000;
   }
 
