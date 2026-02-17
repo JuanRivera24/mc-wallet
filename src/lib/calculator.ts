@@ -131,12 +131,11 @@ export function calculateShift(
   const salaryBase = Math.round(moneyBase);
   const healthPension = Math.round(salaryBase * 0.08); // 4% Salud + 4% Pensión
   
-  // ---> NUEVA LÓGICA: AUXILIO EXTRA LEGAL <---
+  // AUXILIO EXTRA LEGAL (CORREGIDO) <---
   let transport = TRANSPORT_AUX_DAILY;
-  const endHour = parseInt(endTime.split(":")[0], 10);
   
-  // Si la hora de salida está entre las 00:00 y las 05:59 (horas 0, 1, 2, 3, 4, 5)
-  if (endHour >= 0 && endHour <= 4) {
+  // Si la hora de salida es estrictamente entre 00:01 y 04:59
+  if (endTime >= "00:01" && endTime <= "04:59") {
     transport += 5000;
   }
 
