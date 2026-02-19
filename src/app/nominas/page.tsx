@@ -157,6 +157,11 @@ export default function NominasPage() {
   const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     setEditingShiftId(shift.id);
+
+    // Extraer año, mes y día para crear la fecha local exacta
+    const [year, month, day] = shift.date.split('-');
+    setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
+
     setStartTime(shift.startTime || "14:00");
     setEndTime(shift.endTime || "22:00");
     setShowModal(true);
@@ -206,7 +211,8 @@ export default function NominasPage() {
       hoursNight: isOff ? 0 : calc.hoursNight,
 
       isOff,
-      month: selectedMonth || mesesFull[new Date(targetDateStr).getMonth()],
+      // SOLUCIÓN ZONA HORARIA: Agregamos 'T00:00:00' para evitar que asuma horario UTC
+      month: selectedMonth || mesesFull[new Date(targetDateStr + 'T00:00:00').getMonth()],
       year: selectedYear,
       timestamp: serverTimestamp()
     };
