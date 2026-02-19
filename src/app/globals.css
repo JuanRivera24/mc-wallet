@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
+/* Activamos el modo oscuro manual por clase */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
+}
+
+/* En modo oscuro, invertimos los colores base del sistema */
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 0 0% 100%;
 }
 
 body {

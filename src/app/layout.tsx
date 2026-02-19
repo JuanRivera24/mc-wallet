@@ -15,10 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // 1. ClerkProvider es EL PADRE de todo
     <ClerkProvider localization={esES}>
       <html lang="es">
-        <body className="antialiased bg-white">
+        {/* Quitamos bg-white de aquí para que funcione el Dark Mode */}
+        <body className="antialiased transition-colors duration-500 bg-white dark:bg-[#0a0a0a]">
           <ThemeProvider>
             {children}
           </ThemeProvider>
