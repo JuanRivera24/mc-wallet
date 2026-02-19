@@ -2,11 +2,6 @@
 import { RATES, HOLIDAYS_2026, TRANSPORT_AUX_DAILY, Role } from "@/constants/rates";
 import { isSunday } from "date-fns";
 
-/**
- * Calcula el valor exacto del turno minuto a minuto.
- * - Descuenta el break automáticamente si es > 5.5h (priorizando horas diurnas baratas).
- * - Separa el Salario Base del Auxilio de Transporte para cálculos de seguridad social.
- */
 export function calculateShift(
   dateStr: string,
   startTime: string,
@@ -14,67 +9,65 @@ export function calculateShift(
   manualBreak?: { start: string; end: string },
   role: Role = "CREW"
 ) {
-  // Configuración de Fechas
   const start = new Date(`${dateStr}T${startTime}`);
   let end = new Date(`${dateStr}T${endTime}`);
-
-  // Si el turno termina al día siguiente (ej. 22:00 a 05:00)
   if (end <= start) end.setDate(end.getDate() + 1);
 
-  let totalMinutesWorked = 0;
+  // Contadores generales originales
   let dayMinutes = 0;
   let nightMinutes = 0;
-  let moneyBase = 0; // Dinero acumulado SIN auxilio de transporte
+
+  // NUEVOS: Contadores detallados (Minutos)
+  let mOrdD = 0, mOrdN = 0, mDomD = 0, mDomN = 0;
+  let mExtD = 0, mExtN = 0, mExtDomD = 0, mExtDomN = 0;
+  
+  // NUEVOS: Contadores de dinero por cada tipo
+  let pOrdD = 0, pOrdN = 0, pDomD = 0, pDomN = 0;
+  let pExtD = 0, pExtN = 0, pExtDomD = 0, pExtDomN = 0;
+
+  let moneyBase = 0;
+  let totalMinutesWorked = 0;
 
   const rateTable = RATES[role];
 
-  // ==========================================
-  // 1. PROCESAMIENTO MINUTO A MINUTO (SUMA)
-  // ==========================================
+  // 1. PROCESAMIENTO MINUTO A MINUTO
   const current = new Date(start);
   while (current < end) {
     const currentDateStr = current.toISOString().split("T")[0];
     const hour = current.getHours();
-
-    // Definición de Recargos
-    const isNight = hour >= 19 || hour < 6; // 7PM a 6AM
+    
+    const isNight = hour >= 19 || hour < 6;
     const isFestivo = HOLIDAYS_2026.includes(currentDateStr) || isSunday(current);
+    const isExtra = totalMinutesWorked >= 480;
 
-    let ratePerMinute;
+    let ratePerMinute = 0;
 
-    if (isNight) {
-      ratePerMinute = isFestivo 
-        ? rateTable.SUNDAY_NIGHT / 60 
-        : rateTable.ORDINARY_NIGHT / 60;
-      nightMinutes++;
-    } else {
-      ratePerMinute = isFestivo 
-        ? rateTable.SUNDAY / 60 
-        : rateTable.ORDINARY / 60;
-      dayMinutes++;
+    if (!isExtra) { 
+      if (!isFestivo && !isNight) { ratePerMinute = rateTable.ORDINARY / 60; mOrdD++; pOrdD += ratePerMinute; }
+      if (!isFestivo && isNight)  { ratePerMinute = rateTable.ORDINARY_NIGHT / 60; mOrdN++; pOrdN += ratePerMinute; }
+      if (isFestivo && !isNight)  { ratePerMinute = rateTable.SUNDAY / 60; mDomD++; pDomD += ratePerMinute; }
+      if (isFestivo && isNight)   { ratePerMinute = rateTable.SUNDAY_NIGHT / 60; mDomN++; pDomN += ratePerMinute; }
+    } else { 
+      if (!isFestivo && !isNight) { ratePerMinute = rateTable.EXTRA_DAY / 60; mExtD++; pExtD += ratePerMinute; }
+      if (!isFestivo && isNight)  { ratePerMinute = rateTable.EXTRA_NIGHT / 60; mExtN++; pExtN += ratePerMinute; }
+      if (isFestivo && !isNight)  { ratePerMinute = rateTable.EXTRA_FESTIVE_DAY / 60; mExtDomD++; pExtDomD += ratePerMinute; }
+      if (isFestivo && isNight)   { ratePerMinute = rateTable.EXTRA_FESTIVE_NIGHT / 60; mExtDomN++; pExtDomN += ratePerMinute; }
     }
 
+    if (isNight) nightMinutes++; else dayMinutes++;
     moneyBase += ratePerMinute;
     totalMinutesWorked++;
-
-    // Avanzar 1 minuto
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  // ==========================================
-  // 2. LÓGICA DE BREAK (RESTA)
-  // ==========================================
-
-  // A. Break Manual (Si el usuario lo define)
+  // 2. LÓGICA DE BREAK EXACTA
   if (manualBreak) {
     const bStart = new Date(`${dateStr}T${manualBreak.start}`);
     let bEnd = new Date(`${dateStr}T${manualBreak.end}`);
     if (bEnd <= bStart) bEnd.setDate(bEnd.getDate() + 1);
 
-    // Iteramos el break para restar el valor exacto de esos minutos
     const bCurrent = new Date(bStart);
     while (bCurrent < bEnd) {
-      // Solo restamos si el break cae DENTRO del turno
       if (bCurrent >= start && bCurrent < end) {
         const bDateStr = bCurrent.toISOString().split("T")[0];
         const bHour = bCurrent.getHours();
@@ -85,37 +78,55 @@ export function calculateShift(
         if (bIsNight) {
           deductionPerMinute = bIsFestivo ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
           nightMinutes--;
+          // Restamos del contador detallado
+          if (bIsFestivo) { mDomN = Math.max(0, mDomN - 1); pDomN = Math.max(0, pDomN - deductionPerMinute); }
+          else { mOrdN = Math.max(0, mOrdN - 1); pOrdN = Math.max(0, pOrdN - deductionPerMinute); }
         } else {
           deductionPerMinute = bIsFestivo ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
           dayMinutes--;
+          // Restamos del contador detallado
+          if (bIsFestivo) { mDomD = Math.max(0, mDomD - 1); pDomD = Math.max(0, pDomD - deductionPerMinute); }
+          else { mOrdD = Math.max(0, mOrdD - 1); pOrdD = Math.max(0, pOrdD - deductionPerMinute); }
         }
-
         moneyBase -= deductionPerMinute;
         totalMinutesWorked--;
       }
       bCurrent.setMinutes(bCurrent.getMinutes() + 1);
     }
   } 
-  // B. Break Automático (Si > 5.5 horas y no hay manual)
-  else if (totalMinutesWorked >= 330) { // 5.5 horas = 330 min
+  else if (totalMinutesWorked >= 330) { 
     const deductionMinutes = 30;
-
-    // Determinamos las tarifas "promedio" del día para descontar
-    // (Usamos la fecha de inicio para saber si es festivo general)
     const isFestivoStart = HOLIDAYS_2026.includes(dateStr) || isSunday(start);
 
     const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
     const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
 
-    // ALGORITMO DE DESCUENTO: Priorizar quitar horas Diurnas (son más baratas para el empleado perderlas)
     if (dayMinutes >= deductionMinutes) {
       moneyBase -= (rateDayMinute * deductionMinutes);
       dayMinutes -= deductionMinutes;
+      if (isFestivoStart) { 
+        mDomD = Math.max(0, mDomD - deductionMinutes); 
+        pDomD = Math.max(0, pDomD - (rateDayMinute * deductionMinutes)); 
+      } else { 
+        mOrdD = Math.max(0, mOrdD - deductionMinutes); 
+        pOrdD = Math.max(0, pOrdD - (rateDayMinute * deductionMinutes)); 
+      }
     } else {
-      // Si no hay suficientes diurnas, quitamos las que haya y el resto nocturnas
       const remaining = deductionMinutes - dayMinutes;
-      moneyBase -= (rateDayMinute * dayMinutes); // Quita todas las diurnas
-      moneyBase -= (rateNightMinute * remaining); // Quita el resto de nocturnas
+      moneyBase -= (rateDayMinute * dayMinutes); 
+      moneyBase -= (rateNightMinute * remaining); 
+
+      if (isFestivoStart) {
+         pDomD = Math.max(0, pDomD - (rateDayMinute * dayMinutes));
+         mDomD = Math.max(0, mDomD - dayMinutes);
+         pDomN = Math.max(0, pDomN - (rateNightMinute * remaining));
+         mDomN = Math.max(0, mDomN - remaining);
+      } else {
+         pOrdD = Math.max(0, pOrdD - (rateDayMinute * dayMinutes));
+         mOrdD = Math.max(0, mOrdD - dayMinutes);
+         pOrdN = Math.max(0, pOrdN - (rateNightMinute * remaining));
+         mOrdN = Math.max(0, mOrdN - remaining);
+      }
 
       dayMinutes = 0;
       nightMinutes -= remaining;
@@ -123,18 +134,11 @@ export function calculateShift(
     totalMinutesWorked -= deductionMinutes;
   }
 
-  // ==========================================
   // 3. CONSOLIDACIÓN FINAL
-  // ==========================================
-
-  // Cálculos de seguridad social (aproximados 8% sobre base)
   const salaryBase = Math.round(moneyBase);
-  const healthPension = Math.round(salaryBase * 0.08); // 4% Salud + 4% Pensión
+  const healthPension = Math.round(salaryBase * 0.08); 
   
-  // AUXILIO EXTRA LEGAL (CORREGIDO) <---
   let transport = TRANSPORT_AUX_DAILY;
-  
-  // Si la hora de salida es estrictamente entre 00:01 y 04:59
   if (endTime >= "00:01" && endTime <= "04:59") {
     transport += 5000;
   }
@@ -143,6 +147,8 @@ export function calculateShift(
 
   return {
     date: dateStr,
+    
+    // Contadores Originales (Protegen la App)
     hoursDay: Number((dayMinutes / 60).toFixed(2)),
     hoursNight: Number((nightMinutes / 60).toFixed(2)),
     totalHours: Number((totalMinutesWorked / 60).toFixed(2)),
@@ -150,7 +156,16 @@ export function calculateShift(
     salaryBase: salaryBase,       
     transportAux: transport,      
     deductions: healthPension,    
-    totalMoney: salaryBase + transport, 
-    netPay: netPay                
+    netPay: netPay,
+    
+    // NUEVOS Contadores Detallados (Horas y Dinero)
+    hOrdD: Number((mOrdD / 60).toFixed(2)), pOrdD: Math.round(pOrdD),
+    hOrdN: Number((mOrdN / 60).toFixed(2)), pOrdN: Math.round(pOrdN),
+    hDomD: Number((mDomD / 60).toFixed(2)), pDomD: Math.round(pDomD),
+    hDomN: Number((mDomN / 60).toFixed(2)), pDomN: Math.round(pDomN),
+    hExtD: Number((mExtD / 60).toFixed(2)), pExtD: Math.round(pExtD),
+    hExtN: Number((mExtN / 60).toFixed(2)), pExtN: Math.round(pExtN),
+    hExtDomD: Number((mExtDomD / 60).toFixed(2)), pExtDomD: Math.round(pExtDomD),
+    hExtDomN: Number((mExtDomN / 60).toFixed(2)), pExtDomN: Math.round(pExtDomN),
   };
 }

@@ -28,6 +28,9 @@ export default function NominasPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null);
+  
+  // ESTADO PARA EL DESPLEGABLE INFERIOR
+  const [isTotalExpanded, setIsTotalExpanded] = useState(false);
 
   // Formulario
   const [startTime, setStartTime] = useState("13:00");
@@ -38,7 +41,6 @@ export default function NominasPage() {
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
-  // Fecha Actual
   const today = new Date();
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
@@ -54,7 +56,6 @@ export default function NominasPage() {
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
 
-  // --- ESTADÍSTICAS ---
   const statsAnuales = useMemo(() => {
     const dataMeses = mesesFull.map(m =>
       shiftsDelAno.filter(s => s.month === m).reduce((acc, curr) => acc + (curr.netPay || 0), 0)
@@ -98,53 +99,50 @@ export default function NominasPage() {
     }).sort((a, b) => a.date.localeCompare(b.date));
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
 
+  // CÁLCULOS GENERALES
   const totalListaDinero = turnosFiltrados.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
   const totalListaHoras = turnosFiltrados.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
   const countTrabajados = turnosFiltrados.filter(s => !s.isOff).length;
   const countOff = turnosFiltrados.filter(s => s.isOff).length;
 
+  // CÁLCULOS DESGLOSE SEGURO (Maneja fallbacks para turnos viejos de otros usuarios)
+  const tOrdD_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdD || 0), 0);
+  const tOrdD_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdD || 0), 0);
+  const tOrdN_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdN || 0), 0);
+  const tOrdN_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdN || 0), 0);
+  
+  const tDomD_h = turnosFiltrados.reduce((a, c) => a + (c.hDomD || 0), 0);
+  const tDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pDomD || 0), 0);
+  const tDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hDomN || 0), 0);
+  const tDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pDomN || 0), 0);
+
+  const tExtD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtD || 0), 0);
+  const tExtD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtD || 0), 0);
+  const tExtN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtN || 0), 0);
+  const tExtN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtN || 0), 0);
+
+  const tExtDomD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomD || 0), 0);
+  const tExtDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomD || 0), 0);
+  const tExtDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomN || 0), 0);
+  const tExtDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomN || 0), 0);
+
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
 
-  // --- NAVEGACIÓN PERSONALIZADA DEL CALENDARIO ---
   const handlePrevMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
-    if (currentIndex === 0) {
-      setSelectedMonth("diciembre");
-      setSelectedYear(prev => prev - 1);
-    } else {
-      setSelectedMonth(mesesFull[currentIndex - 1]);
-    }
+    if (currentIndex === 0) { setSelectedMonth("diciembre"); setSelectedYear(prev => prev - 1); } 
+    else { setSelectedMonth(mesesFull[currentIndex - 1]); }
   };
 
   const handleNextMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
-    if (currentIndex === 11) {
-      setSelectedMonth("enero");
-      setSelectedYear(prev => prev + 1);
-    } else {
-      setSelectedMonth(mesesFull[currentIndex + 1]);
-    }
+    if (currentIndex === 11) { setSelectedMonth("enero"); setSelectedYear(prev => prev + 1); } 
+    else { setSelectedMonth(mesesFull[currentIndex + 1]); }
   };
 
-  const handlePrevQuincena = () => {
-    if (selectedQuincena === 2) {
-      setSelectedQuincena(1);
-    } else {
-      handlePrevMonth();
-      setSelectedQuincena(2);
-    }
-  };
+  const handlePrevQuincena = () => selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
+  const handleNextQuincena = () => selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
 
-  const handleNextQuincena = () => {
-    if (selectedQuincena === 1) {
-      setSelectedQuincena(2);
-    } else {
-      handleNextMonth();
-      setSelectedQuincena(1);
-    }
-  };
-
-  // --- FUNCIONES ---
   const handleQuickAddToday = () => {
     const now = new Date();
     setSelectedYear(now.getFullYear());
@@ -158,7 +156,6 @@ export default function NominasPage() {
     e.stopPropagation();
     setEditingShiftId(shift.id);
 
-    // Extraer año, mes y día para crear la fecha local exacta
     const [year, month, day] = shift.date.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
 
@@ -172,9 +169,36 @@ export default function NominasPage() {
     if (confirm("¿Eliminar turno?")) deleteDoc(doc(db, "shifts", id));
   }
 
-  const handleToggleExpand = (id: string) => {
-    setExpandedShiftId(expandedShiftId === id ? null : id);
+  // --- NUEVA FUNCIÓN: RECALCULAR TURNO RÁPIDO ---
+  const handleRecalculate = async (e: React.MouseEvent, shift: any) => {
+    e.stopPropagation();
+    if (!user || shift.isOff) return; // Si es día OFF, no hacemos nada extra.
+
+    // Calculamos de nuevo usando la misma entrada y salida. 
+    // (Ojo: Si el usuario tenía un break manual muy específico, esto aplicará el break automático estándar si aplica)
+    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, undefined, role);
+
+    const payload: any = {
+      ...shift, // Conservamos todos los datos originales
+      ...calc, // Sobrescribimos con los cálculos frescos
+      
+      hOrdD: calc.hOrdD, pOrdD: calc.pOrdD,
+      hOrdN: calc.hOrdN, pOrdN: calc.pOrdN,
+      hDomD: calc.hDomD, pDomD: calc.pDomD,
+      hDomN: calc.hDomN, pDomN: calc.pDomN,
+      hExtD: calc.hExtD, pExtD: calc.pExtD,
+      hExtN: calc.hExtN, pExtN: calc.pExtN,
+      hExtDomD: calc.hExtDomD, pExtDomD: calc.pExtDomD,
+      hExtDomN: calc.hExtDomN, pExtDomN: calc.pExtDomN,
+      
+      timestamp: serverTimestamp() // Actualizamos la fecha de modificación
+    };
+
+    await setDoc(doc(db, "shifts", shift.id), payload, { merge: true });
+    // OPCIONAL: Podrías agregar un pequeño alert("¡Turno actualizado!") si quieres que el usuario sepa que funcionó.
   };
+
+  const handleToggleExpand = (id: string) => setExpandedShiftId(expandedShiftId === id ? null : id);
 
   const handleSaveShift = async (isOff: boolean = false) => {
     if (!user) return;
@@ -195,7 +219,8 @@ export default function NominasPage() {
 
     const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role);
 
-    const payload = {
+    // Evitamos problemas de TS asignando manualmente al payload
+    const payload: any = {
       userId: user.id,
       date: targetDateStr,
       startTime: isOff ? "" : startTime,
@@ -210,8 +235,17 @@ export default function NominasPage() {
       hoursDay: isOff ? 0 : calc.hoursDay,
       hoursNight: isOff ? 0 : calc.hoursNight,
 
+      // Se guardan los nuevos desgloses
+      hOrdD: isOff ? 0 : calc.hOrdD, pOrdD: isOff ? 0 : calc.pOrdD,
+      hOrdN: isOff ? 0 : calc.hOrdN, pOrdN: isOff ? 0 : calc.pOrdN,
+      hDomD: isOff ? 0 : calc.hDomD, pDomD: isOff ? 0 : calc.pDomD,
+      hDomN: isOff ? 0 : calc.hDomN, pDomN: isOff ? 0 : calc.pDomN,
+      hExtD: isOff ? 0 : calc.hExtD, pExtD: isOff ? 0 : calc.pExtD,
+      hExtN: isOff ? 0 : calc.hExtN, pExtN: isOff ? 0 : calc.pExtN,
+      hExtDomD: isOff ? 0 : calc.hExtDomD, pExtDomD: isOff ? 0 : calc.pExtDomD,
+      hExtDomN: isOff ? 0 : calc.hExtDomN, pExtDomN: isOff ? 0 : calc.pExtDomN,
+
       isOff,
-      // SOLUCIÓN ZONA HORARIA: Agregamos 'T00:00:00' para evitar que asuma horario UTC
       month: selectedMonth || mesesFull[new Date(targetDateStr + 'T00:00:00').getMonth()],
       year: selectedYear,
       timestamp: serverTimestamp()
@@ -231,7 +265,6 @@ export default function NominasPage() {
     <>
       <SignedOut><RedirectToSignIn /></SignedOut>
       <SignedIn>
-        {/* AQUÍ ESTÁ EL CAMBIO DE FONDO DINÁMICO */}
         <main className={`min-h-screen pb-24 font-sans transition-colors duration-500 ${role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60'}`}>
           <Navbar />
           <div className="max-w-5xl mx-auto p-6">
@@ -345,24 +378,19 @@ export default function NominasPage() {
                     value={selectedDate}
                     activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)}
                     tileClassName={({ date, view }) => {
-                      // Construcción de fecha exacta sin zona horaria
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const s = shiftsDelAno.find(shift => shift.date === dStr);
 
-                      // BORDE SUTIL: Usamos !ring-1 !ring-black/50 (borde delgado y un poco transparente) o !border !border-black/30
                       if (s?.isOff) return '!bg-red-500 !text-white rounded-2xl font-bold !ring-1 !ring-black/20 shadow-sm';
                       if (s) return '!bg-green-500 !text-white rounded-2xl font-bold !ring-1 !ring-black/20 shadow-sm';
 
-                      // Día seleccionado (Azul suave)
                       if (selectedDate && date.getTime() === selectedDate.getTime()) {
                         return '!bg-blue-100 !text-blue-600 rounded-2xl font-black !ring-1 !ring-blue-400';
                       }
 
-                      // Día actual (Amarillo suave)
                       const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
                       if (isToday) return '!bg-yellow-100 text-yellow-800 font-black !ring-1 !ring-yellow-400 rounded-2xl';
 
-                      // Domingos (Solo texto rojo)
                       if (date.getDay() === 0) return 'text-red-500 font-bold';
 
                       return 'text-gray-700 font-bold hover:bg-gray-100 rounded-2xl';
@@ -375,10 +403,7 @@ export default function NominasPage() {
                       disabled={!selectedDate}
                       onClick={() => { setEditingShiftId(null); setShowModal(true); }}
                       className={`flex-1 py-4 rounded-2xl font-black shadow-lg uppercase text-xs tracking-widest transition-all
-                            ${selectedDate
-                          ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer`
-                          : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                        }`}
+                            ${selectedDate ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'}`}
                     >
                       + Agregar Turno
                     </button>
@@ -387,10 +412,7 @@ export default function NominasPage() {
                       disabled={!selectedDate}
                       onClick={() => handleSaveShift(true)}
                       className={`flex-1 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all border border-transparent
-                            ${selectedDate
-                          ? 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 cursor-pointer'
-                          : 'bg-gray-100/50 text-gray-300 cursor-not-allowed'
-                        }`}
+                            ${selectedDate ? 'bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 hover:border-red-200 cursor-pointer' : 'bg-gray-100/50 text-gray-300 cursor-not-allowed'}`}
                     >
                       Marcar OFF
                     </button>
@@ -424,10 +446,13 @@ export default function NominasPage() {
                                 {s.isOff ? "Día de Descanso" : `${s.startTime} - ${s.endTime} • ${s.totalHours.toFixed(1)}h`}
                               </p>
                             </div>
-                            <div className="text-right flex items-center gap-4">
+                            <div className="text-right flex items-center gap-2 md:gap-4">
                               {!s.isOff && (<p className="font-black text-xl text-gray-900">${Math.floor(s.netPay).toLocaleString()}</p>)}
-                              <button onClick={(e) => handleOpenEdit(e, s)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-black hover:text-white transition-colors z-10">✏️</button>
-                              <button onClick={(e) => handleDelete(e, s.id)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-500 hover:text-white transition-colors z-10">🗑️</button>
+                              
+                              {/* AQUÍ ESTÁ EL BOTÓN DE RECALCULAR NUEVO Y A LA DERECHA ESTÁ LA BASURA */}
+                              <button onClick={(e) => handleOpenEdit(e, s)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-black hover:text-white transition-colors z-10" title="Editar Turno">✏️</button>
+                              <button onClick={(e) => handleRecalculate(e, s)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-blue-500 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
+                              <button onClick={(e) => handleDelete(e, s.id)} className="p-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-red-500 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
                             </div>
                           </div>
 
@@ -452,9 +477,81 @@ export default function NominasPage() {
                   </div>
 
                   {turnosFiltrados.length > 0 && (
-                    <div className="bg-gray-900 text-white p-6 flex justify-between items-center">
-                      <div><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Horas</p><p className="text-xl font-black text-white">{totalListaHoras.toFixed(1)} h</p></div>
-                      <div className="text-right"><p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Neto</p><p className="text-3xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p></div>
+                    <div className="bg-gray-900 text-white flex flex-col mt-auto transition-all duration-300 rounded-b-[3rem]">
+                      
+                      {/* BOTÓN DESPLEGABLE EN LA BARRA NEGRA */}
+                      <div 
+                        onClick={() => setIsTotalExpanded(!isTotalExpanded)} 
+                        className="p-6 md:p-8 flex justify-between items-center cursor-pointer hover:bg-black transition-colors rounded-b-[3rem]"
+                      >
+                        <div>
+                          <p className="text-[10px] font-black text-gray-500 uppercase flex items-center gap-2 tracking-widest">
+                            Horas {isTotalExpanded ? '▲' : '▼'}
+                          </p>
+                          <p className="text-xl md:text-2xl font-black">{totalListaHoras.toFixed(1)} h</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Neto</p>
+                          <p className="text-3xl md:text-4xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      {/* EL PANEL DESGLOSADO DE 8 HORAS CON VALOR EN PESOS */}
+                      {isTotalExpanded && (
+                        <div className="bg-[#111] px-6 md:px-8 pb-10 pt-6 animate-in slide-in-from-top-2 border-t border-gray-800 rounded-b-[3rem]">
+                           <p className="text-[10px] font-black uppercase text-gray-600 tracking-widest mb-6 text-center">Desglose Exacto Quincenal</p>
+                           
+                           <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 text-center">
+                              {/* Ordinarias */}
+                              <div className={tOrdD_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Ord. Diurna</p>
+                                <p className={`font-black text-lg ${tOrdD_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tOrdD_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tOrdD_p).toLocaleString()}</p>
+                              </div>
+                              <div className={tOrdN_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Ord. Nocturna</p>
+                                <p className={`font-black text-lg ${tOrdN_h > 0 ? 'text-blue-300' : 'text-gray-600'}`}>{tOrdN_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tOrdN_p).toLocaleString()}</p>
+                              </div>
+                              
+                              {/* Dominicales */}
+                              <div className={tDomD_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Dom/Fest Diurno</p>
+                                <p className={`font-black text-lg ${tDomD_h > 0 ? 'text-orange-400' : 'text-gray-600'}`}>{tDomD_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tDomD_p).toLocaleString()}</p>
+                              </div>
+                              <div className={tDomN_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Dom/Fest Noct</p>
+                                <p className={`font-black text-lg ${tDomN_h > 0 ? 'text-orange-600' : 'text-gray-600'}`}>{tDomN_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tDomN_p).toLocaleString()}</p>
+                              </div>
+                              
+                              {/* Extras */}
+                              <div className={tExtD_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Diurna</p>
+                                <p className={`font-black text-lg ${tExtD_h > 0 ? 'text-red-400' : 'text-gray-600'}`}>{tExtD_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtD_p).toLocaleString()}</p>
+                              </div>
+                              <div className={tExtN_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Nocturna</p>
+                                <p className={`font-black text-lg ${tExtN_h > 0 ? 'text-red-600' : 'text-gray-600'}`}>{tExtN_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtN_p).toLocaleString()}</p>
+                              </div>
+                              
+                              {/* Extras Dominicales */}
+                              <div className={tExtDomD_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Dom. D.</p>
+                                <p className={`font-black text-lg ${tExtDomD_h > 0 ? 'text-purple-400' : 'text-gray-600'}`}>{tExtDomD_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtDomD_p).toLocaleString()}</p>
+                              </div>
+                              <div className={tExtDomN_h > 0 ? "" : "opacity-30"}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Dom. N.</p>
+                                <p className={`font-black text-lg ${tExtDomN_h > 0 ? 'text-purple-600' : 'text-gray-600'}`}>{tExtDomN_h.toFixed(1)} h</p>
+                                <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtDomN_p).toLocaleString()}</p>
+                              </div>
+                           </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
