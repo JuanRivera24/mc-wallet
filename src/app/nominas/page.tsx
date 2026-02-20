@@ -15,7 +15,6 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function NominasPage() {
   const { user } = useUser();
-  // 1. AÑADIMOS isDarkMode AQUÍ
   const { colors, role, isDarkMode } = useTheme();
 
   const [step, setStep] = useState(1);
@@ -48,12 +47,20 @@ export default function NominasPage() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, "shifts"), where("userId", "==", user.id));
+    
+    // 🔥 OPTIMIZACIÓN NINJA: Solo lee turnos del año seleccionado para ahorrar base de datos
+    const q = query(
+      collection(db, "shifts"), 
+      where("userId", "==", user.id),
+      where("year", "==", selectedYear) 
+    );
+    
     const unsub = onSnapshot(q, (snap) => {
       setShifts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
+    
     return () => unsub();
-  }, [user]);
+  }, [user, selectedYear]);
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
 
@@ -86,7 +93,6 @@ export default function NominasPage() {
     return {
       q1, q2, chartData: {
         labels: ['Q1', 'Q2'],
-        // 2. HACEMOS QUE LA BARRA Q2 SE VEA MEJOR EN OSCURO
         datasets: [{ label: 'Total', data: [q1.dinero, q2.dinero], backgroundColor: [colors.secondary, isDarkMode ? '#333' : '#111'], borderRadius: 10 }]
       }
     };
@@ -261,7 +267,6 @@ export default function NominasPage() {
     <>
       <SignedOut><RedirectToSignIn /></SignedOut>
       <SignedIn>
-        {/* FONDO PRINCIPAL OSCURO/CLARO */}
         <main className={`min-h-screen pb-24 font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
           <Navbar />
           <div className="max-w-5xl mx-auto p-6">
@@ -393,20 +398,32 @@ export default function NominasPage() {
                     tileClassName={({ date, view }) => {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const s = shiftsDelAno.find(shift => shift.date === dStr);
+                      const isDisabled = isDateDisabled({ date });
 
-                      if (s?.isOff) return '!bg-red-500 !text-white rounded-2xl font-bold !ring-1 !ring-black/20 shadow-sm';
-                      if (s) return '!bg-green-500 !text-white rounded-2xl font-bold !ring-1 !ring-black/20 shadow-sm';
+                      // Magia visual para atenuar los días de la otra quincena sin desaparecerlos
+                      let classes = 'font-bold rounded-2xl transition-all ';
+
+                      if (isDisabled) {
+                        // Día de la otra quincena (opaco y sin color fuerte)
+                        classes += 'opacity-20 saturate-50 cursor-not-allowed ';
+                      } else {
+                        // Día de esta quincena
+                        classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
+                      }
+
+                      if (s?.isOff) return classes + '!bg-red-500 !text-white !ring-1 !ring-black/20 shadow-sm';
+                      if (s) return classes + '!bg-green-500 !text-white !ring-1 !ring-black/20 shadow-sm';
 
                       if (selectedDate && date.getTime() === selectedDate.getTime()) {
-                        return '!bg-blue-100 dark:!bg-blue-900/50 !text-blue-600 dark:!text-blue-300 rounded-2xl font-black !ring-1 !ring-blue-400';
+                        return classes + '!bg-blue-100 dark:!bg-blue-900/50 !text-blue-600 dark:!text-blue-300 !ring-1 !ring-blue-400 font-black';
                       }
 
                       const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-                      if (isToday) return '!bg-yellow-100 dark:!bg-yellow-900/40 text-yellow-800 dark:!text-yellow-500 font-black !ring-1 !ring-yellow-400 rounded-2xl';
+                      if (isToday) return classes + '!bg-yellow-100 dark:!bg-yellow-900/40 text-yellow-800 dark:!text-yellow-500 font-black !ring-1 !ring-yellow-400';
 
-                      if (date.getDay() === 0) return 'text-red-500 dark:text-red-400 font-bold';
+                      if (date.getDay() === 0) return classes + 'text-red-500 dark:text-red-400';
 
-                      return 'text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-100 dark:hover:bg-gray-800 rounded-2xl';
+                      return classes + 'text-gray-700 dark:text-gray-300';
                     }}
                     tileDisabled={isDateDisabled}
                   />
@@ -470,7 +487,7 @@ export default function NominasPage() {
 
                           {!s.isOff && expandedShiftId === s.id && (
                             <div className="px-8 pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
-                              <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700">
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 transition-colors">
                                 <div className="grid grid-cols-3 gap-4 text-center mb-4 pb-4 border-b border-gray-200/50 dark:border-gray-700">
                                   <div><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Base (Horas)</p><p className="font-bold text-gray-700 dark:text-gray-300">${Math.floor(s.salaryBase || 0).toLocaleString()}</p></div>
                                   <div><p className="text-[10px] font-bold text-green-500 uppercase">Aux. Transp</p><p className="font-bold text-green-700 dark:text-green-400">+${Math.floor(s.transportAux || 0).toLocaleString()}</p></div>
@@ -512,7 +529,6 @@ export default function NominasPage() {
                            <p className="text-[10px] font-black uppercase text-gray-600 tracking-widest mb-6 text-center">Desglose Exacto Quincenal</p>
                            
                            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 text-center">
-                              {/* Ordinarias */}
                               <div className={tOrdD_h > 0 ? "" : "opacity-30"}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase">Ord. Diurna</p>
                                 <p className={`font-black text-lg ${tOrdD_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tOrdD_h.toFixed(1)} h</p>
@@ -524,7 +540,6 @@ export default function NominasPage() {
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tOrdN_p).toLocaleString()}</p>
                               </div>
                               
-                              {/* Dominicales */}
                               <div className={tDomD_h > 0 ? "" : "opacity-30"}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase">Dom/Fest Diurno</p>
                                 <p className={`font-black text-lg ${tDomD_h > 0 ? 'text-orange-400' : 'text-gray-600'}`}>{tDomD_h.toFixed(1)} h</p>
@@ -536,7 +551,6 @@ export default function NominasPage() {
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tDomN_p).toLocaleString()}</p>
                               </div>
                               
-                              {/* Extras */}
                               <div className={tExtD_h > 0 ? "" : "opacity-30"}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Diurna</p>
                                 <p className={`font-black text-lg ${tExtD_h > 0 ? 'text-red-400' : 'text-gray-600'}`}>{tExtD_h.toFixed(1)} h</p>
@@ -548,7 +562,6 @@ export default function NominasPage() {
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtN_p).toLocaleString()}</p>
                               </div>
                               
-                              {/* Extras Dominicales */}
                               <div className={tExtDomD_h > 0 ? "" : "opacity-30"}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase">Extra Dom. D.</p>
                                 <p className={`font-black text-lg ${tExtDomD_h > 0 ? 'text-purple-400' : 'text-gray-600'}`}>{tExtDomD_h.toFixed(1)} h</p>
@@ -577,16 +590,16 @@ export default function NominasPage() {
 
                 <div className="space-y-6 mb-8">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Entrada</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600" /></div>
-                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Salida</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600" /></div>
+                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Entrada</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
+                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Salida</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 transition-colors">
                     <div className="flex justify-between items-center mb-2"><span className="text-xs font-black uppercase text-gray-500">Break Manual</span><input type="checkbox" className="w-5 h-5 accent-black dark:accent-white" checked={isManualBreak} onChange={() => setIsManualBreak(!isManualBreak)} /></div>
-                    {isManualBreak && <div className="grid grid-cols-2 gap-2 mt-3"><input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600" /><input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600" /></div>}
+                    {isManualBreak && <div className="grid grid-cols-2 gap-2 mt-3"><input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600 transition-colors" /><input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600 transition-colors" /></div>}
                   </div>
                 </div>
                 <div className="flex gap-4">
-                  <button onClick={() => setShowModal(false)} className="flex-1 font-bold text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white">CANCELAR</button>
+                  <button onClick={() => setShowModal(false)} className="flex-1 font-bold text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
                   <button onClick={() => handleSaveShift(false)} className={`${colors.secondary} flex-[2] py-4 rounded-2xl text-white font-black shadow-xl hover:scale-105 transition-transform border border-black dark:border-transparent`}>GUARDAR</button>
                 </div>
               </div>
@@ -596,14 +609,15 @@ export default function NominasPage() {
           <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
             .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
-            .react-calendar__tile:disabled { opacity: 0.2 !important; cursor: not-allowed; background: #f3f4f6 !important; }
+            
+            /* Eliminamos la sobreescritura de los grises de fondo para que mande Tailwind */
+            .react-calendar__tile:disabled { background: transparent !important; }
             .react-calendar__tile:enabled:hover { background-color: #f3f4f6; }
             .no-scrollbar::-webkit-scrollbar { display: none; }
             
             /* MODO OSCURO */
             .dark .react-calendar__tile { color: #d1d5db; }
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
-            .dark .react-calendar__tile:disabled { background: #111827 !important; opacity: 0.15 !important; }
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
         </main>

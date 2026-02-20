@@ -1,6 +1,5 @@
-// src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,8 +10,19 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Inicializamos la app (Singleton para evitar errores en Next.js)
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// Inicializamos de forma segura para Next.js
+let firestoreDb;
 
-// Exportamos la base de datos para usarla en toda la app
-export const db = getFirestore(app);
+if (!getApps().length) {
+  const app = initializeApp(firebaseConfig);
+  // Activamos la caché persistente offline
+  firestoreDb = initializeFirestore(app, {
+    localCache: persistentLocalCache()
+  });
+} else {
+  const app = getApp();
+  firestoreDb = getFirestore(app);
+}
+
+// Exportamos como constante para que ninguna página falle
+export const db = firestoreDb;
