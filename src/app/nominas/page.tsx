@@ -45,10 +45,35 @@ export default function NominasPage() {
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
 
+  // SINCRONIZAR BOTÓN "ATRÁS" DEL CELULAR/NAVEGADOR
+  useEffect(() => {
+    const syncStepWithUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlStep = parseInt(params.get('step') || '1', 10);
+      setStep(urlStep);
+      
+      // Si el usuario retrocede al paso 1 o 2 con el celular, limpiamos la fecha seleccionada
+      if (urlStep < 3) {
+        setSelectedDate(null);
+      }
+    };
+
+    syncStepWithUrl(); // Cargar estado inicial
+    window.addEventListener('popstate', syncStepWithUrl); // Escuchar botón "Atrás"
+    
+    return () => window.removeEventListener('popstate', syncStepWithUrl);
+  }, []);
+
+  // Función para avanzar de paso y guardar en el historial del celular
+  const goToStep = (newStep: number) => {
+    window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
+    setStep(newStep);
+  };
+
   useEffect(() => {
     if (!user) return;
     
-    // 🔥 OPTIMIZACIÓN NINJA: Solo lee turnos del año seleccionado
+    // Solo lee turnos del año seleccionado para ahorrar base de datos
     const q = query(
       collection(db, "shifts"), 
       where("userId", "==", user.id),
@@ -277,7 +302,8 @@ export default function NominasPage() {
 
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                {step > 1 && <button onClick={() => { setStep(step - 1); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
+                {/* Ahora el botón "Atrás" propio de la página también usa el historial nativo */}
+                {step > 1 && <button onClick={() => { window.history.back(); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
                 <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900 dark:text-white leading-none transition-colors">
                   {step === 1 && "Selecciona Mes"}
                   {step === 2 && `Quincenas ${selectedMonth}`}
@@ -299,7 +325,7 @@ export default function NominasPage() {
                   {mesesFull.map((m) => {
                     const isCurrentMonth = m === currentMonthName && selectedYear === currentYear;
                     return (
-                      <button key={m} onClick={() => { setSelectedMonth(m); setStep(2); }}
+                      <button key={m} onClick={() => { setSelectedMonth(m); goToStep(2); }}
                         className={`p-6 rounded-[2rem] shadow-sm font-black text-lg capitalize transition-all border hover:scale-105 active:scale-95
                         ${isCurrentMonth
                             ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 text-yellow-800 dark:text-yellow-500 ring-2 ring-yellow-100 dark:ring-yellow-900/50'
@@ -329,7 +355,7 @@ export default function NominasPage() {
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
                 <div className="grid md:grid-cols-2 gap-8">
-                  <div onClick={() => { setSelectedQuincena(1); setStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
+                  <div onClick={() => { setSelectedQuincena(1); goToStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
                     <div className="flex justify-between items-start mb-6">
                       <div>
                         <span className="text-5xl font-black text-gray-900 dark:text-white block">01</span>
@@ -347,7 +373,7 @@ export default function NominasPage() {
                     </div>
                   </div>
                   
-                  <div onClick={() => { setSelectedQuincena(2); setStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
+                  <div onClick={() => { setSelectedQuincena(2); goToStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
                     <div className="flex justify-between items-start mb-6">
                       <div>
                         <span className="text-5xl font-black text-gray-900 dark:text-white block">02</span>
@@ -404,7 +430,6 @@ export default function NominasPage() {
                       const s = shiftsDelAno.find(shift => shift.date === dStr);
                       const isDisabled = isDateDisabled({ date });
 
-                      // Magia visual para atenuar los días de la otra quincena sin desaparecerlos
                       let classes = 'font-bold rounded-2xl transition-all ';
 
                       if (isDisabled) {
@@ -575,7 +600,6 @@ export default function NominasPage() {
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtDomN_p).toLocaleString()}</p>
                               </div>
 
-                              {/* --- NUEVA LÍNEA: AUXILIO Y DEDUCCIONES --- */}
                               <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-6 mt-2"></div>
                               
                               <div className={`col-span-1 md:col-span-2 ${tTransportAux > 0 ? "" : "opacity-30"}`}>
