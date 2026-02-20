@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import { useUser, SignedIn, SignedOut, RedirectToSignIn } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc, serverTimestamp } from "firebase/firestore";
