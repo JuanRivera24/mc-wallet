@@ -645,8 +645,7 @@ export default function NominasPage() {
               </div>
             </div>
           )}
-
-          <style jsx global>{`
+                    <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
             .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
             .react-calendar__tile:disabled { background: transparent !important; }
@@ -659,13 +658,14 @@ export default function NominasPage() {
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
 
-{/* ESPACIO EXTRA PARA ENVIAR EL FOOTER AL FINAL */}
+          {/* ESPACIO EXTRA PARA ENVIAR EL FOOTER AL FINAL */}
           <div className="h-24 md:h-32"></div>
 
           {/* LÍNEA DIVISORIA Y FOOTER */}
           <div className="w-full border-t border-gray-100 dark:border-gray-900 pt-8">
             <Footer />
           </div>
+
         </main>
       </SignedIn>
     </>
