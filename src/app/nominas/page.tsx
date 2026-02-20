@@ -297,7 +297,7 @@ export default function NominasPage() {
     <>
       <SignedOut><RedirectToSignIn /></SignedOut>
       <SignedIn>
-        <main className={`min-h-screen pb-24 font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
+        <main className={`min-h-screen font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
           <Navbar />
           <div className="max-w-5xl mx-auto p-6">
 
@@ -646,24 +646,24 @@ export default function NominasPage() {
               </div>
             </div>
           )}
-                    <style jsx global>{`
+                              {/* Estilos del calendario */}
+          <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
             .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
             .react-calendar__tile:disabled { background: transparent !important; }
             .react-calendar__tile:enabled:hover { background-color: #f3f4f6; }
             .no-scrollbar::-webkit-scrollbar { display: none; }
             
-            /* MODO OSCURO */
             .dark .react-calendar__tile { color: #d1d5db; }
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
 
-          {/* ESPACIO EXTRA PARA ENVIAR EL FOOTER AL FINAL */}
-          <div className="h-24 md:h-32"></div>
+          {/* ESPACIO DE SEPARACIÓN (Solo arriba del footer) */}
+          <div className="h-16 md:h-20"></div>
 
           {/* LÍNEA DIVISORIA Y FOOTER */}
-          <div className="w-full border-t border-gray-100 dark:border-gray-900 pt-8">
+          <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8">
             <Footer />
           </div>
 
