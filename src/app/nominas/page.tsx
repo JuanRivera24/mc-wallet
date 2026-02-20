@@ -658,6 +658,14 @@ export default function NominasPage() {
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
+
+{/* ESPACIO EXTRA PARA ENVIAR EL FOOTER AL FINAL */}
+          <div className="h-24 md:h-32"></div>
+
+          {/* LÍNEA DIVISORIA Y FOOTER */}
+          <div className="w-full border-t border-gray-100 dark:border-gray-900 pt-8">
+            <Footer />
+          </div>
         </main>
       </SignedIn>
     </>
