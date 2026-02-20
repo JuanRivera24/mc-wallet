@@ -11,18 +11,14 @@ import { useTheme } from "@/context/ThemeContext";
 import { calculateShift } from "@/lib/calculator";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
-
 export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
-
   const [step, setStep] = useState(1);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedQuincena, setSelectedQuincena] = useState<number | null>(null);
-
   // Datos
   const [shifts, setShifts] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -32,20 +28,16 @@ export default function NominasPage() {
   
   // ESTADO PARA EL DESPLEGABLE INFERIOR
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
-
   // Formulario
   const [startTime, setStartTime] = useState("13:00");
   const [endTime, setEndTime] = useState("20:00");
   const [isManualBreak, setIsManualBreak] = useState(false);
   const [breakStart, setBreakStart] = useState("16:00");
   const [breakEnd, setBreakEnd] = useState("16:30");
-
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
   const today = new Date();
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
-
   // SINCRONIZAR BOTÓN "ATRÁS" DEL CELULAR/NAVEGADOR
   useEffect(() => {
     const syncStepWithUrl = () => {
@@ -58,19 +50,16 @@ export default function NominasPage() {
         setSelectedDate(null);
       }
     };
-
     syncStepWithUrl(); // Cargar estado inicial
     window.addEventListener('popstate', syncStepWithUrl); // Escuchar botón "Atrás"
     
     return () => window.removeEventListener('popstate', syncStepWithUrl);
   }, []);
-
   // Función para avanzar de paso y guardar en el historial del celular
   const goToStep = (newStep: number) => {
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
     setStep(newStep);
   };
-
   useEffect(() => {
     if (!user) return;
     
@@ -87,9 +76,7 @@ export default function NominasPage() {
     
     return () => unsub();
   }, [user, selectedYear]);
-
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
-
   const statsAnuales = useMemo(() => {
     const dataMeses = mesesFull.map(m =>
       shiftsDelAno.filter(s => s.month === m).reduce((acc, curr) => acc + (curr.netPay || 0), 0)
@@ -99,7 +86,6 @@ export default function NominasPage() {
       datasets: [{ label: 'Neto', data: dataMeses, backgroundColor: colors.secondary, borderRadius: 6 }]
     };
   }, [shiftsDelAno, colors.secondary]);
-
   const statsQuincenas = useMemo(() => {
     const shiftsMes = shiftsDelAno.filter(s => s.month === selectedMonth);
     const calcQ = (isQ1: boolean) => {
@@ -123,7 +109,6 @@ export default function NominasPage() {
       }
     };
   }, [shiftsDelAno, selectedMonth, colors.secondary, isDarkMode]);
-
   const turnosFiltrados = useMemo(() => {
     return shiftsDelAno.filter(s => {
       const day = parseInt(s.date.split('-')[2]);
@@ -132,13 +117,11 @@ export default function NominasPage() {
       return matchMonth && matchQuincena;
     }).sort((a, b) => a.date.localeCompare(b.date));
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
-
   // CÁLCULOS GENERALES
   const totalListaDinero = turnosFiltrados.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
   const totalListaHoras = turnosFiltrados.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
   const countTrabajados = turnosFiltrados.filter(s => !s.isOff).length;
   const countOff = turnosFiltrados.filter(s => s.isOff).length;
-
   // CÁLCULOS DESGLOSE SEGURO
   const tOrdD_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdD || 0), 0);
   const tOrdD_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdD || 0), 0);
@@ -149,38 +132,30 @@ export default function NominasPage() {
   const tDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pDomD || 0), 0);
   const tDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hDomN || 0), 0);
   const tDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pDomN || 0), 0);
-
   const tExtD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtD || 0), 0);
   const tExtD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtD || 0), 0);
   const tExtN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtN || 0), 0);
   const tExtN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtN || 0), 0);
-
   const tExtDomD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomD || 0), 0);
   const tExtDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomD || 0), 0);
   const tExtDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomN || 0), 0);
   const tExtDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomN || 0), 0);
-
   // NUEVOS CÁLCULOS: Transporte y Deducciones
   const tTransportAux = turnosFiltrados.reduce((a, c) => a + (c.transportAux || 0), 0);
   const tDeductions = turnosFiltrados.reduce((a, c) => a + (c.deductions || 0), 0);
-
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
-
   const handlePrevMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 0) { setSelectedMonth("diciembre"); setSelectedYear(prev => prev - 1); } 
     else { setSelectedMonth(mesesFull[currentIndex - 1]); }
   };
-
   const handleNextMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 11) { setSelectedMonth("enero"); setSelectedYear(prev => prev + 1); } 
     else { setSelectedMonth(mesesFull[currentIndex + 1]); }
   };
-
   const handlePrevQuincena = () => selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
   const handleNextQuincena = () => selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
-
   const handleQuickAddToday = () => {
     const now = new Date();
     setSelectedYear(now.getFullYear());
@@ -189,30 +164,23 @@ export default function NominasPage() {
     setEditingShiftId(null);
     setShowModal(true);
   };
-
   const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     setEditingShiftId(shift.id);
-
     const [year, month, day] = shift.date.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
-
     setStartTime(shift.startTime || "14:00");
     setEndTime(shift.endTime || "22:00");
     setShowModal(true);
   };
-
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (confirm("¿Eliminar turno?")) deleteDoc(doc(db, "shifts", id));
   }
-
   const handleRecalculate = async (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     if (!user || shift.isOff) return; 
-
     const calc = calculateShift(shift.date, shift.startTime, shift.endTime, undefined, role);
-
     const payload: any = {
       ...shift, 
       ...calc, 
@@ -228,12 +196,9 @@ export default function NominasPage() {
       
       timestamp: serverTimestamp() 
     };
-
     await setDoc(doc(db, "shifts", shift.id), payload, { merge: true });
   };
-
   const handleToggleExpand = (id: string) => setExpandedShiftId(expandedShiftId === id ? null : id);
-
   const handleSaveShift = async (isOff: boolean = false) => {
     if (!user) return;
     let targetDateStr = "";
@@ -247,27 +212,21 @@ export default function NominasPage() {
       const day = String(selectedDate.getDate()).padStart(2, '0');
       targetDateStr = `${year}-${month}-${day}`;
     }
-
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
     const manualBreak = isManualBreak ? { start: breakStart, end: breakEnd } : undefined;
-
     const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role);
-
     const payload: any = {
       userId: user.id,
       date: targetDateStr,
       startTime: isOff ? "" : startTime,
       endTime: isOff ? "" : endTime,
-
       netPay: isOff ? 0 : calc.netPay,
       salaryBase: isOff ? 0 : calc.salaryBase,
       transportAux: isOff ? 0 : calc.transportAux,
       deductions: isOff ? 0 : calc.deductions,
-
       totalHours: isOff ? 0 : calc.totalHours,
       hoursDay: isOff ? 0 : calc.hoursDay,
       hoursNight: isOff ? 0 : calc.hoursNight,
-
       hOrdD: isOff ? 0 : calc.hOrdD, pOrdD: isOff ? 0 : calc.pOrdD,
       hOrdN: isOff ? 0 : calc.hOrdN, pOrdN: isOff ? 0 : calc.pOrdN,
       hDomD: isOff ? 0 : calc.hDomD, pDomD: isOff ? 0 : calc.pDomD,
@@ -276,7 +235,6 @@ export default function NominasPage() {
       hExtN: isOff ? 0 : calc.hExtN, pExtN: isOff ? 0 : calc.pExtN,
       hExtDomD: isOff ? 0 : calc.hExtDomD, pExtDomD: isOff ? 0 : calc.pExtDomD,
       hExtDomN: isOff ? 0 : calc.hExtDomN, pExtDomN: isOff ? 0 : calc.pExtDomN,
-
       isOff,
       month: selectedMonth || mesesFull[new Date(targetDateStr + 'T00:00:00').getMonth()],
       year: selectedYear,
@@ -286,13 +244,17 @@ export default function NominasPage() {
     setShowModal(false);
     setEditingShiftId(null);
   };
-
   const isDateDisabled = ({ date }: { date: Date }) => {
     if (date.getFullYear() !== selectedYear || date.getMonth() !== mesesFull.indexOf(selectedMonth)) return true;
     const day = date.getDate();
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
-
+  const [hasBigVenta, setHasBigVenta] = useState(false);
+  const [bigVentaAmount, setBigVentaAmount] = useState(0);
+  const netBigVenta = hasBigVenta ? bigVentaAmount * 0.92 : 0;
+  const deductionBigVenta = hasBigVenta ? bigVentaAmount * 0.08 : 0;
+  const totalNet = totalListaDinero + netBigVenta;
+  const totalDeductionsDisplayed = tDeductions + deductionBigVenta;
   return (
     <>
       <SignedOut><RedirectToSignIn /></SignedOut>
@@ -300,7 +262,6 @@ export default function NominasPage() {
         <main className={`min-h-screen font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
           <Navbar />
           <div className="max-w-5xl mx-auto p-6">
-
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
                 {/* Ahora el botón "Atrás" propio de la página también usa el historial nativo */}
@@ -319,7 +280,6 @@ export default function NominasPage() {
                 </div>
               )}
             </div>
-
             {step === 1 && (
               <div className="animate-in fade-in duration-500 space-y-10">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -352,7 +312,6 @@ export default function NominasPage() {
                 </div>
               </div>
             )}
-
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
                 <div className="grid md:grid-cols-2 gap-8">
@@ -397,30 +356,25 @@ export default function NominasPage() {
                 </div>
               </div>
             )}
-
             {step === 3 && (
               <div className="animate-in zoom-in-95 duration-500 space-y-8">
                 <div className="bg-white dark:bg-gray-900 p-6 md:p-10 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 transition-colors">
-
                   <div className="flex items-center justify-between mb-8 px-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-3xl border border-gray-100 dark:border-gray-700">
                     <div className="flex gap-1 md:gap-3">
                       <button onClick={handlePrevMonth} className="p-2 px-3 md:px-4 bg-white dark:bg-gray-900 rounded-xl text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white hover:shadow-md font-black text-lg transition-all border border-gray-100 dark:border-gray-700" title="Mes Anterior">«</button>
                       <button onClick={handlePrevQuincena} className="p-2 px-3 md:px-4 bg-white dark:bg-gray-900 rounded-xl text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white hover:shadow-md font-black text-lg transition-all border border-gray-100 dark:border-gray-700" title="Quincena Anterior">‹</button>
                     </div>
-
                     <div className="text-center">
                       <h3 className="text-lg md:text-xl font-black uppercase tracking-widest text-gray-900 dark:text-white leading-tight">
                         {selectedMonth} {selectedYear}
                       </h3>
                       <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Quincena {selectedQuincena}</p>
                     </div>
-
                     <div className="flex gap-1 md:gap-3">
                       <button onClick={handleNextQuincena} className="p-2 px-3 md:px-4 bg-white dark:bg-gray-900 rounded-xl text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white hover:shadow-md font-black text-lg transition-all border border-gray-100 dark:border-gray-700" title="Siguiente Quincena">›</button>
                       <button onClick={handleNextMonth} className="p-2 px-3 md:px-4 bg-white dark:bg-gray-900 rounded-xl text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white hover:shadow-md font-black text-lg transition-all border border-gray-100 dark:border-gray-700" title="Mes Siguiente">»</button>
                     </div>
                   </div>
-
                   <Calendar
                     showNavigation={false}
                     onChange={(val) => setSelectedDate(val as Date)}
@@ -430,32 +384,24 @@ export default function NominasPage() {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const s = shiftsDelAno.find(shift => shift.date === dStr);
                       const isDisabled = isDateDisabled({ date });
-
                       let classes = 'font-bold rounded-2xl transition-all ';
-
                       if (isDisabled) {
                         classes += 'opacity-20 saturate-50 cursor-not-allowed ';
                       } else {
                         classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
                       }
-
                       if (s?.isOff) return classes + '!bg-red-500 !text-white !ring-1 !ring-black/20 shadow-sm';
                       if (s) return classes + '!bg-green-500 !text-white !ring-1 !ring-black/20 shadow-sm';
-
                       if (selectedDate && date.getTime() === selectedDate.getTime()) {
                         return classes + '!bg-blue-100 dark:!bg-blue-900/50 !text-blue-600 dark:!text-blue-300 !ring-1 !ring-blue-400 font-black';
                       }
-
                       const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
                       if (isToday) return classes + '!bg-yellow-100 dark:!bg-yellow-900/40 text-yellow-800 dark:!text-yellow-500 font-black !ring-1 !ring-yellow-400';
-
                       if (date.getDay() === 0) return classes + 'text-red-500 dark:text-red-400';
-
                       return classes + 'text-gray-700 dark:text-gray-300';
                     }}
                     tileDisabled={isDateDisabled}
                   />
-
                   <div className="mt-8 flex gap-4 transition-all duration-300">
                     <button
                       disabled={!selectedDate}
@@ -465,7 +411,6 @@ export default function NominasPage() {
                     >
                       + Agregar Turno
                     </button>
-
                     <button
                       disabled={!selectedDate}
                       onClick={() => handleSaveShift(true)}
@@ -476,7 +421,6 @@ export default function NominasPage() {
                     </button>
                   </div>
                 </div>
-
                 <div className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors">
                   <div className="p-8 pb-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
                     <h2 className="text-2xl font-black italic uppercase dark:text-white">Turnos Registrados</h2>
@@ -485,7 +429,6 @@ export default function NominasPage() {
                       <span className="text-xs font-bold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-4 py-2 rounded-full border border-red-100 dark:border-red-800">OFF: {countOff}</span>
                     </div>
                   </div>
-
                   <div className="divide-y divide-gray-50 dark:divide-gray-800 max-h-[500px] overflow-y-auto">
                     {turnosFiltrados.length === 0 ? (
                       <div className="p-10 text-center text-gray-300 dark:text-gray-600 font-bold italic">No hay turnos registrados en esta quincena.</div>
@@ -512,7 +455,6 @@ export default function NominasPage() {
                               <button onClick={(e) => handleDelete(e, s.id)} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
                             </div>
                           </div>
-
                           {!s.isOff && expandedShiftId === s.id && (
                             <div className="px-8 pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
                               <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 transition-colors">
@@ -532,7 +474,6 @@ export default function NominasPage() {
                       ))
                     )}
                   </div>
-
                   {turnosFiltrados.length > 0 && (
                     <div className="bg-gray-900 dark:bg-[#111] text-white flex flex-col mt-auto transition-all duration-300 rounded-b-[3rem]">
                       
@@ -548,10 +489,9 @@ export default function NominasPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Neto a Recibir</p>
-                          <p className="text-3xl md:text-4xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p>
+                          <p className="text-3xl md:text-4xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalNet).toLocaleString()}</p>
                         </div>
                       </div>
-
                       {isTotalExpanded && (
                         <div className="bg-[#111] dark:bg-black px-6 md:px-8 pb-10 pt-6 animate-in slide-in-from-top-2 border-t border-gray-800 rounded-b-[3rem]">
                            <p className="text-[10px] font-black uppercase text-gray-600 tracking-widest mb-6 text-center">Desglose Exacto Quincenal</p>
@@ -600,7 +540,6 @@ export default function NominasPage() {
                                 <p className={`font-black text-lg ${tExtDomN_h > 0 ? 'text-purple-600' : 'text-gray-600'}`}>{tExtDomN_h.toFixed(1)} h</p>
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtDomN_p).toLocaleString()}</p>
                               </div>
-
                               <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-6 mt-2"></div>
                               
                               <div className={`col-span-1 md:col-span-2 ${tTransportAux > 0 ? "" : "opacity-30"}`}>
@@ -608,11 +547,29 @@ export default function NominasPage() {
                                 <p className={`font-black text-2xl ${tTransportAux > 0 ? 'text-green-400' : 'text-gray-600'}`}>+${Math.floor(tTransportAux).toLocaleString()}</p>
                               </div>
                               
-                              <div className={`col-span-1 md:col-span-2 ${tDeductions > 0 ? "" : "opacity-30"}`}>
+                              <div className={`col-span-1 md:col-span-2 ${totalDeductionsDisplayed > 0 ? "" : "opacity-30"}`}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Total Deducciones</p>
-                                <p className={`font-black text-2xl ${tDeductions > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(tDeductions).toLocaleString()}</p>
+                                <p className={`font-black text-2xl ${totalDeductionsDisplayed > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(totalDeductionsDisplayed).toLocaleString()}</p>
                               </div>
-
+                              <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-6 mt-2"></div>
+                              <div className="bg-[#222] p-4 rounded-2xl col-span-2 md:col-span-4">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-xs font-black uppercase text-gray-400">¿Tipo hubo bigventa?</span>
+                                  <input type="checkbox" className="w-5 h-5 accent-yellow-400" checked={hasBigVenta} onChange={() => setHasBigVenta(!hasBigVenta)} />
+                                </div>
+                                {hasBigVenta && 
+                                  <div className="mt-3">
+                                    <label className="text-[9px] font-bold text-gray-400 uppercase">Valor</label>
+                                    <input type="number" value={bigVentaAmount} onChange={(e) => setBigVentaAmount(parseFloat(e.target.value) || 0)} className="w-full p-3 bg-[#333] text-white rounded-xl font-bold border border-gray-600" />
+                                  </div>
+                                }
+                              </div>
+                              {hasBigVenta && bigVentaAmount > 0 && (
+                                <div className="col-span-1 md:col-span-2">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Big Venta (neto)</p>
+                                  <p className="font-black text-2xl text-purple-400">+${Math.floor(netBigVenta).toLocaleString()}</p>
+                                </div>
+                              )}
                            </div>
                         </div>
                       )}
@@ -622,13 +579,11 @@ export default function NominasPage() {
               </div>
             )}
           </div>
-
           {showModal && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
               <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors">
                 <h3 className="text-2xl font-black mb-8 text-center uppercase italic dark:text-white">{editingShiftId ? 'Editar Turno' : 'Nuevo Turno'}</h3>
                 {selectedDate && <p className="text-center text-gray-400 dark:text-gray-500 font-bold mb-6">{selectedDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>}
-
                 <div className="space-y-6 mb-8">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Entrada</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
@@ -658,15 +613,12 @@ export default function NominasPage() {
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
-
           {/* ESPACIO DE SEPARACIÓN (Solo arriba del footer) */}
           <div className="h-16 md:h-20"></div>
-
           {/* LÍNEA DIVISORIA Y FOOTER */}
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8">
             <Footer />
           </div>
-
         </main>
       </SignedIn>
     </>
