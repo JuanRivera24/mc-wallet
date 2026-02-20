@@ -48,7 +48,7 @@ export default function NominasPage() {
   useEffect(() => {
     if (!user) return;
     
-    // 🔥 OPTIMIZACIÓN NINJA: Solo lee turnos del año seleccionado para ahorrar base de datos
+    // 🔥 OPTIMIZACIÓN NINJA: Solo lee turnos del año seleccionado
     const q = query(
       collection(db, "shifts"), 
       where("userId", "==", user.id),
@@ -133,6 +133,10 @@ export default function NominasPage() {
   const tExtDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomD || 0), 0);
   const tExtDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomN || 0), 0);
   const tExtDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomN || 0), 0);
+
+  // NUEVOS CÁLCULOS: Transporte y Deducciones
+  const tTransportAux = turnosFiltrados.reduce((a, c) => a + (c.transportAux || 0), 0);
+  const tDeductions = turnosFiltrados.reduce((a, c) => a + (c.deductions || 0), 0);
 
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
 
@@ -404,10 +408,8 @@ export default function NominasPage() {
                       let classes = 'font-bold rounded-2xl transition-all ';
 
                       if (isDisabled) {
-                        // Día de la otra quincena (opaco y sin color fuerte)
                         classes += 'opacity-20 saturate-50 cursor-not-allowed ';
                       } else {
-                        // Día de esta quincena
                         classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
                       }
 
@@ -519,7 +521,7 @@ export default function NominasPage() {
                           <p className="text-xl md:text-2xl font-black">{totalListaHoras.toFixed(1)} h</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Neto</p>
+                          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Neto a Recibir</p>
                           <p className="text-3xl md:text-4xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p>
                         </div>
                       </div>
@@ -572,6 +574,20 @@ export default function NominasPage() {
                                 <p className={`font-black text-lg ${tExtDomN_h > 0 ? 'text-purple-600' : 'text-gray-600'}`}>{tExtDomN_h.toFixed(1)} h</p>
                                 <p className="text-[10px] font-bold text-gray-500">${Math.floor(tExtDomN_p).toLocaleString()}</p>
                               </div>
+
+                              {/* --- NUEVA LÍNEA: AUXILIO Y DEDUCCIONES --- */}
+                              <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-6 mt-2"></div>
+                              
+                              <div className={`col-span-1 md:col-span-2 ${tTransportAux > 0 ? "" : "opacity-30"}`}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Total Aux. Transporte</p>
+                                <p className={`font-black text-2xl ${tTransportAux > 0 ? 'text-green-400' : 'text-gray-600'}`}>+${Math.floor(tTransportAux).toLocaleString()}</p>
+                              </div>
+                              
+                              <div className={`col-span-1 md:col-span-2 ${tDeductions > 0 ? "" : "opacity-30"}`}>
+                                <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Total Deducciones</p>
+                                <p className={`font-black text-2xl ${tDeductions > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(tDeductions).toLocaleString()}</p>
+                              </div>
+
                            </div>
                         </div>
                       )}
@@ -609,8 +625,6 @@ export default function NominasPage() {
           <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
             .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
-            
-            /* Eliminamos la sobreescritura de los grises de fondo para que mande Tailwind */
             .react-calendar__tile:disabled { background: transparent !important; }
             .react-calendar__tile:enabled:hover { background-color: #f3f4f6; }
             .no-scrollbar::-webkit-scrollbar { display: none; }
