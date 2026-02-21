@@ -18,14 +18,69 @@ export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
 
+  // --- SOLUCIÓN RECARGA Y QUINCENA NULL ---
+  // Utilizamos isMounted para asegurar que la app espere al navegador antes de pintar
+  const [isMounted, setIsMounted] = useState(false);
   const [step, setStep] = useState(1);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState("");
   const [selectedQuincena, setSelectedQuincena] = useState<number | null>(null);
 
-  // Datos
+  useEffect(() => {
+    // 1. Al cargar, leemos la memoria local
+    const storedYear = localStorage.getItem('mc_year');
+    const storedMonth = localStorage.getItem('mc_month');
+    const storedQuincena = localStorage.getItem('mc_quincena');
+
+    if (storedYear) setSelectedYear(parseInt(storedYear, 10));
+    if (storedMonth) setSelectedMonth(storedMonth);
+    if (storedQuincena) setSelectedQuincena(parseInt(storedQuincena, 10));
+
+    // 2. Revisamos en qué paso dice la URL que estamos
+    const params = new URLSearchParams(window.location.search);
+    let urlStep = parseInt(params.get('step') || '1', 10);
+
+    // 3. Sistema anti-errores: Si la URL dice paso 2 o 3, pero no hay mes guardado, lo devolvemos al paso 1
+    if (urlStep > 1 && !storedMonth) {
+      urlStep = 1;
+      window.history.replaceState({ step: 1 }, '', '?step=1');
+    }
+
+    setStep(urlStep);
+    setIsMounted(true); // ¡Listo, ya podemos mostrar la UI sin errores!
+  }, []);
+
+  // Guardar en memoria cada vez que el usuario cambie de mes/año/quincena
+  useEffect(() => {
+    if (!isMounted) return;
+    localStorage.setItem('mc_year', selectedYear.toString());
+    if (selectedMonth) localStorage.setItem('mc_month', selectedMonth);
+    if (selectedQuincena !== null) localStorage.setItem('mc_quincena', selectedQuincena.toString());
+  }, [selectedYear, selectedMonth, selectedQuincena, isMounted]);
+
+  // Sincronizar con el botón atrás del celular
+  useEffect(() => {
+    if (!isMounted) return;
+    const syncStepWithUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      let urlStep = parseInt(params.get('step') || '1', 10);
+      
+      if (urlStep > 1 && !localStorage.getItem('mc_month')) {
+        urlStep = 1;
+        window.history.replaceState({ step: 1 }, '', '?step=1');
+      }
+
+      setStep(urlStep);
+      if (urlStep < 3) setSelectedDate(null);
+    };
+
+    window.addEventListener('popstate', syncStepWithUrl);
+    return () => window.removeEventListener('popstate', syncStepWithUrl);
+  }, [isMounted]);
+
+  // Datos de Base de Datos
   const [shifts, setShifts] = useState<any[]>([]);
-  const [bigVentas, setBigVentas] = useState<any[]>([]); // NUEVO: Estado para guardar Big Ventas
+  const [bigVentas, setBigVentas] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
@@ -36,6 +91,7 @@ export default function NominasPage() {
   
   // ESTADOS BIG VENTA UI
   const [hasBigVenta, setHasBigVenta] = useState(false);
+  const [isEditingBigVenta, setIsEditingBigVenta] = useState(false); // <--- NUEVO ESTADO PARA ARREGLAR EDICIÓN
   const [bigVentaValue, setBigVentaValue] = useState<number | "">("");
 
   // Formulario
@@ -51,32 +107,12 @@ export default function NominasPage() {
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
 
-  // SINCRONIZAR BOTÓN "ATRÁS" DEL CELULAR/NAVEGADOR
-  useEffect(() => {
-    const syncStepWithUrl = () => {
-      const params = new URLSearchParams(window.location.search);
-      const urlStep = parseInt(params.get('step') || '1', 10);
-      setStep(urlStep);
-      
-      // Si el usuario retrocede al paso 1 o 2 con el celular, limpiamos la fecha seleccionada
-      if (urlStep < 3) {
-        setSelectedDate(null);
-      }
-    };
-
-    syncStepWithUrl(); // Cargar estado inicial
-    window.addEventListener('popstate', syncStepWithUrl); // Escuchar botón "Atrás"
-    
-    return () => window.removeEventListener('popstate', syncStepWithUrl);
-  }, []);
-
-  // Función para avanzar de paso y guardar en el historial del celular
   const goToStep = (newStep: number) => {
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
     setStep(newStep);
   };
 
-  // ESCUCHADOR DE TURNOS
+  // ESCUCHADORES FIREBASE
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -90,7 +126,6 @@ export default function NominasPage() {
     return () => unsub();
   }, [user, selectedYear]);
 
-  // ESCUCHADOR DE BIG VENTAS
   useEffect(() => {
     if (!user) return;
     const qBV = query(
@@ -168,7 +203,6 @@ export default function NominasPage() {
   const countTrabajados = turnosFiltrados.filter(s => !s.isOff).length;
   const countOff = turnosFiltrados.filter(s => s.isOff).length;
 
-  // CÁLCULOS DESGLOSE SEGURO
   const tOrdD_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdD || 0), 0);
   const tOrdD_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdD || 0), 0);
   const tOrdN_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdN || 0), 0);
@@ -195,12 +229,11 @@ export default function NominasPage() {
 
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
 
-  // FUNCIÓN PARA EL COLOR DINÁMICO DEL ACUMULADO
   const getDineroColor = (dinero: number) => {
     if (dinero < 800000) return "text-red-500 dark:text-red-400";
     if (dinero < 1000000) return "text-orange-500 dark:text-orange-400";
-    if (dinero < 1250000) return "text-green-400 dark:text-green-300"; // Verde Claro
-    return "text-green-600 dark:text-green-500"; // Verde Oscuro
+    if (dinero < 1250000) return "text-green-400 dark:text-green-300"; 
+    return "text-green-600 dark:text-green-500"; 
   };
 
   const handlePrevMonth = () => {
@@ -253,7 +286,6 @@ export default function NominasPage() {
     const payload: any = {
       ...shift, 
       ...calc, 
-      
       hOrdD: calc.hOrdD, pOrdD: calc.pOrdD,
       hOrdN: calc.hOrdN, pOrdN: calc.pOrdN,
       hDomD: calc.hDomD, pDomD: calc.pDomD,
@@ -262,7 +294,6 @@ export default function NominasPage() {
       hExtN: calc.hExtN, pExtN: calc.pExtN,
       hExtDomD: calc.hExtDomD, pExtDomD: calc.pExtDomD,
       hExtDomN: calc.hExtDomN, pExtDomN: calc.pExtDomN,
-      
       timestamp: serverTimestamp() 
     };
 
@@ -295,16 +326,13 @@ export default function NominasPage() {
       date: targetDateStr,
       startTime: isOff ? "" : startTime,
       endTime: isOff ? "" : endTime,
-
       netPay: isOff ? 0 : calc.netPay,
       salaryBase: isOff ? 0 : calc.salaryBase,
       transportAux: isOff ? 0 : calc.transportAux,
       deductions: isOff ? 0 : calc.deductions,
-
       totalHours: isOff ? 0 : calc.totalHours,
       hoursDay: isOff ? 0 : calc.hoursDay,
       hoursNight: isOff ? 0 : calc.hoursNight,
-
       hOrdD: isOff ? 0 : calc.hOrdD, pOrdD: isOff ? 0 : calc.pOrdD,
       hOrdN: isOff ? 0 : calc.hOrdN, pOrdN: isOff ? 0 : calc.pOrdN,
       hDomD: isOff ? 0 : calc.hDomD, pDomD: isOff ? 0 : calc.pDomD,
@@ -313,7 +341,6 @@ export default function NominasPage() {
       hExtN: isOff ? 0 : calc.hExtN, pExtN: isOff ? 0 : calc.pExtN,
       hExtDomD: isOff ? 0 : calc.hExtDomD, pExtDomD: isOff ? 0 : calc.pExtDomD,
       hExtDomN: isOff ? 0 : calc.hExtDomN, pExtDomN: isOff ? 0 : calc.pExtDomN,
-
       isOff,
       month: selectedMonth || mesesFull[new Date(targetDateStr + 'T00:00:00').getMonth()],
       year: selectedYear,
@@ -324,7 +351,6 @@ export default function NominasPage() {
     setEditingShiftId(null);
   };
 
-  // FUNCIONES BIG VENTA
   const saveBigVenta = async () => {
     if (!user || !bigVentaValue) return;
     const val = Number(bigVentaValue);
@@ -340,12 +366,15 @@ export default function NominasPage() {
       timestamp: serverTimestamp()
     });
     setHasBigVenta(false);
+    setIsEditingBigVenta(false);
     setBigVentaValue("");
   };
 
   const deleteBigVenta = async (id: string) => {
     if (confirm("¿Eliminar Big Venta? Esto restará el dinero de tus ingresos netos.")) {
       await deleteDoc(doc(db, "bigVentas", id));
+      setIsEditingBigVenta(false);
+      setHasBigVenta(false);
     }
   };
 
@@ -354,6 +383,15 @@ export default function NominasPage() {
     const day = date.getDate();
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
+
+  // PANTALLA DE CARGA INICIAL (Evita errores de Next.js al recargar)
+  if (!isMounted) {
+    return (
+      <main className={`min-h-screen flex items-center justify-center font-sans ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
+        <p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest">Cargando datos...</p>
+      </main>
+    );
+  }
 
   return (
     <>
@@ -365,12 +403,11 @@ export default function NominasPage() {
 
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                {/* Ahora el botón "Atrás" propio de la página también usa el historial nativo */}
                 {step > 1 && <button onClick={() => { window.history.back(); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
                 <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900 dark:text-white leading-none transition-colors">
                   {step === 1 && "Selecciona Mes"}
-                  {step === 2 && `Quincenas ${selectedMonth}`}
-                  {step === 3 && `Quincena ${selectedQuincena}`}
+                  {step === 2 && `Quincenas ${selectedMonth || "..."}`}
+                  {step === 3 && `Quincena ${selectedQuincena || "..."}`}
                 </h1>
               </div>
               {step === 1 && (
@@ -464,7 +501,7 @@ export default function NominasPage() {
               </div>
             )}
 
-            {step === 3 && (
+            {step === 3 && selectedMonth && selectedQuincena && (
               <div className="animate-in zoom-in-95 duration-500 space-y-8">
                 <div className="bg-white dark:bg-gray-900 p-6 md:p-10 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 transition-colors">
 
@@ -492,7 +529,7 @@ export default function NominasPage() {
                     onChange={(val) => setSelectedDate(val as Date)}
                     value={selectedDate}
                     activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)}
-                    tileClassName={({ date, view }) => {
+                    tileClassName={({ date }) => {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const s = shiftsDelAno.find(shift => shift.date === dStr);
                       const isDisabled = isDateDisabled({ date });
@@ -678,12 +715,11 @@ export default function NominasPage() {
                                 <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Total Deducciones</p>
                                 <p className={`font-black text-2xl ${tDeductionsFinal > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(tDeductionsFinal).toLocaleString()}</p>
                               </div>
-
                            </div>
 
-                           {/* INTERFAZ BIG VENTA */}
+                           {/* INTERFAZ BIG VENTA REPARADA */}
                            <div className="mt-8 pt-8 border-t border-gray-800/50 flex flex-col w-full">
-                             {currentBigVenta ? (
+                             {currentBigVenta && !isEditingBigVenta ? (
                                 <div className="flex justify-between items-center bg-gray-800/40 p-5 rounded-2xl border border-gray-700/50">
                                    <div>
                                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Big Venta Registrada 💸</p>
@@ -693,19 +729,26 @@ export default function NominasPage() {
                                      </p>
                                    </div>
                                    <div className="flex gap-2">
-                                      <button onClick={() => { setHasBigVenta(true); setBigVentaValue(currentBigVenta.value); }} className="p-3 bg-gray-700/50 rounded-xl hover:bg-white hover:text-black transition-colors" title="Editar">✏️</button>
+                                      <button onClick={() => { setIsEditingBigVenta(true); setHasBigVenta(true); setBigVentaValue(currentBigVenta.value); }} className="p-3 bg-gray-700/50 rounded-xl hover:bg-white hover:text-black transition-colors" title="Editar">✏️</button>
                                       <button onClick={() => deleteBigVenta(currentBigVenta.id)} className="p-3 bg-gray-700/50 rounded-xl hover:bg-red-500 hover:text-white transition-colors" title="Eliminar">🗑️</button>
                                    </div>
                                 </div>
                              ) : (
                                 <div className="flex flex-col items-center w-full">
-                                   <div className="flex items-center gap-4 mb-4">
-                                     <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest italic">¿Hubo Big Venta? 💸</span>
-                                     <button onClick={() => setHasBigVenta(!hasBigVenta)} className={`w-12 h-6 rounded-full transition-all relative ${hasBigVenta ? 'bg-yellow-500' : 'bg-gray-700'}`}>
-                                       <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${hasBigVenta ? 'left-7' : 'left-1'}`} />
+                                   <div className="flex items-center justify-between mb-4 w-full max-w-md">
+                                     <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest italic">{isEditingBigVenta ? "Editando Big Venta 💸" : "¿Hubo Big Venta? 💸"}</span>
+                                     <button onClick={() => {
+                                       if(isEditingBigVenta) {
+                                         setIsEditingBigVenta(false);
+                                         setHasBigVenta(false);
+                                       } else {
+                                         setHasBigVenta(!hasBigVenta);
+                                       }
+                                     }} className={`w-12 h-6 rounded-full transition-all relative ${(hasBigVenta || isEditingBigVenta) ? 'bg-yellow-500' : 'bg-gray-700'}`}>
+                                       <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(hasBigVenta || isEditingBigVenta) ? 'left-7' : 'left-1'}`} />
                                      </button>
                                    </div>
-                                   {hasBigVenta && (
+                                   {(hasBigVenta || isEditingBigVenta) && (
                                      <div className="animate-in slide-in-from-top-2 duration-300 flex flex-col md:flex-row items-center gap-3 w-full max-w-md">
                                        <input type="number" placeholder="Ingresar Valor (ej. 196000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
                                        <button onClick={saveBigVenta} className="bg-yellow-500 text-black font-black uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-yellow-400 active:scale-95 transition-all w-full md:w-auto">Guardar</button>
@@ -747,7 +790,7 @@ export default function NominasPage() {
               </div>
             </div>
           )}
-                              {/* Estilos del calendario */}
+
           <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
             .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
@@ -760,10 +803,8 @@ export default function NominasPage() {
             .dark .react-calendar__navigation button { color: #fff; }
           `}</style>
 
-          {/* ESPACIO DE SEPARACIÓN (Solo arriba del footer) */}
           <div className="h-16 md:h-20"></div>
 
-          {/* LÍNEA DIVISORIA Y FOOTER */}
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8">
             <Footer />
           </div>
