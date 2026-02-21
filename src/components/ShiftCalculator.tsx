@@ -4,8 +4,7 @@ import { calculateShift } from "@/lib/calculator";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
-// 1. IMPORTAMOS getDoc PARA PODER REVISAR SI EL TURNO YA EXISTE
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export default function ShiftCalculator() {
   const { role, colors, isDarkMode } = useTheme();
@@ -26,7 +25,7 @@ export default function ShiftCalculator() {
 
   const [result, setResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'update'} | null>(null);
+  const [notification, setNotification] = useState<{message: string, type: 'success'} | null>(null);
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
@@ -48,11 +47,6 @@ export default function ShiftCalculator() {
       const monthName = mesesFull[parseInt(monthStr, 10) - 1];
       const year = parseInt(yearStr, 10);
 
-      // 2. REVISAMOS SI EL TURNO YA EXISTE EN FIREBASE
-      const docRef = doc(db, "shifts", docId);
-      const docSnap = await getDoc(docRef);
-      const existeTurno = docSnap.exists();
-
       const payload: any = {
         userId: user.id,
         date: date,
@@ -65,15 +59,10 @@ export default function ShiftCalculator() {
         timestamp: serverTimestamp()
       };
 
-      // Guardamos la información (merge: true actualiza o crea según corresponda)
-      await setDoc(docRef, payload, { merge: true });
+      // UN SOLO VIAJE A LA BASE DE DATOS: Rápido y eficiente
+      await setDoc(doc(db, "shifts", docId), payload, { merge: true });
       
-      // 3. MOSTRAMOS EL MENSAJE DINÁMICO
-      if (existeTurno) {
-        setNotification({ message: "¡Turno actualizado en la nómina! 🔄", type: 'update' });
-      } else {
-        setNotification({ message: "¡Turno guardado en la nómina! ✅", type: 'success' });
-      }
+      setNotification({ message: "¡Turno guardado en la nómina! ⚡", type: 'success' });
 
     } catch (error) {
       console.error("Error al guardar turno:", error);
@@ -144,7 +133,6 @@ export default function ShiftCalculator() {
               <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg"><p className="text-[9px] font-bold uppercase text-red-400">Deduc</p><p className="font-bold text-xs dark:text-gray-300">-${result.deductions.toLocaleString()}</p></div>
             </div>
 
-            {/* BOTÓN DE GUARDADO (SOLO VISIBLE SI HAY SESIÓN) */}
             {user && (
               <div className="animate-in fade-in">
                 <button 
@@ -155,9 +143,8 @@ export default function ShiftCalculator() {
                   {isSaving ? 'Procesando...' : '💾 Guardar en Nómina'}
                 </button>
                 
-                {/* 4. APLICAMOS EL COLOR SEGÚN EL TIPO DE MENSAJE */}
                 {notification && (
-                  <p className={`text-center text-[10px] font-bold mt-4 uppercase tracking-widest ${notification.type === 'update' ? 'text-blue-500 dark:text-blue-400' : 'text-green-500 dark:text-green-400'}`}>
+                  <p className="text-center text-[10px] font-bold mt-4 uppercase tracking-widest text-green-500 dark:text-green-400">
                     {notification.message}
                   </p>
                 )}
