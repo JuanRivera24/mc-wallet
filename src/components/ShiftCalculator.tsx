@@ -4,22 +4,31 @@ import { calculateShift } from "@/lib/calculator";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, getDocs, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+// 1. IMPORTAMOS getDoc PARA PODER REVISAR SI EL TURNO YA EXISTE
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 export default function ShiftCalculator() {
   const { role, colors, isDarkMode } = useTheme();
   const { user } = useUser();
-  
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+
+  const getLocalDate = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split("T")[0];
+  };
+
+  const [date, setDate] = useState(getLocalDate());
   const [start, setStart] = useState("13:00");
   const [end, setEnd] = useState("20:00");
   const [isManualBreak, setIsManualBreak] = useState(false);
   const [breakStart, setBreakStart] = useState("16:00");
   const [breakEnd, setBreakEnd] = useState("16:30");
-  
+
   const [result, setResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'update'} | null>(null);
+
+  const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
   const handleCalculate = () => {
     setNotification(null);
@@ -28,11 +37,54 @@ export default function ShiftCalculator() {
     setResult(calc);
   };
 
-  const handleSaveOrUpdate = async () => { /* tu lógica intacta aquí */ };
+  const handleSaveOrUpdate = async () => {
+    if (!user || !result) return;
+    setIsSaving(true);
+    setNotification(null);
+    
+    try {
+      const docId = `${user.id}_${date}`;
+      const [yearStr, monthStr] = date.split("-");
+      const monthName = mesesFull[parseInt(monthStr, 10) - 1];
+      const year = parseInt(yearStr, 10);
+
+      // 2. REVISAMOS SI EL TURNO YA EXISTE EN FIREBASE
+      const docRef = doc(db, "shifts", docId);
+      const docSnap = await getDoc(docRef);
+      const existeTurno = docSnap.exists();
+
+      const payload: any = {
+        userId: user.id,
+        date: date,
+        startTime: start,
+        endTime: end,
+        isOff: false,
+        month: monthName,
+        year: year,
+        ...result, 
+        timestamp: serverTimestamp()
+      };
+
+      // Guardamos la información (merge: true actualiza o crea según corresponda)
+      await setDoc(docRef, payload, { merge: true });
+      
+      // 3. MOSTRAMOS EL MENSAJE DINÁMICO
+      if (existeTurno) {
+        setNotification({ message: "¡Turno actualizado en la nómina! 🔄", type: 'update' });
+      } else {
+        setNotification({ message: "¡Turno guardado en la nómina! ✅", type: 'success' });
+      }
+
+    } catch (error) {
+      console.error("Error al guardar turno:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className={`relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl overflow-hidden border ${colors.accent} dark:border-gray-800 mx-auto transition-all duration-500`}>
-      
+
       <div className={`${colors.secondary} p-8 text-white text-center`}>
         <h2 className="text-2xl font-black tracking-tighter uppercase italic">Calculadora Rápida</h2>
         <p className="text-sm opacity-80 font-bold">Modo: {role}</p>
@@ -85,11 +137,33 @@ export default function ShiftCalculator() {
                 <span className={`text-4xl font-black tracking-tighter ${colors.primary}`}>${result.netPay.toLocaleString('es-CO')}</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            
+            <div className="grid grid-cols-3 gap-2 text-center mb-6">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg"><p className="text-[9px] font-bold uppercase text-blue-400">Base</p><p className="font-bold text-xs dark:text-gray-300">${result.salaryBase.toLocaleString()}</p></div>
               <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-lg"><p className="text-[9px] font-bold uppercase text-green-400">Auxilio</p><p className="font-bold text-xs dark:text-gray-300">+${result.transportAux.toLocaleString()}</p></div>
               <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg"><p className="text-[9px] font-bold uppercase text-red-400">Deduc</p><p className="font-bold text-xs dark:text-gray-300">-${result.deductions.toLocaleString()}</p></div>
             </div>
+
+            {/* BOTÓN DE GUARDADO (SOLO VISIBLE SI HAY SESIÓN) */}
+            {user && (
+              <div className="animate-in fade-in">
+                <button 
+                  onClick={handleSaveOrUpdate} 
+                  disabled={isSaving}
+                  className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white shadow-xl transition-all ${isSaving ? 'bg-gray-400 dark:bg-gray-700 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 active:scale-95'}`}
+                >
+                  {isSaving ? 'Procesando...' : '💾 Guardar en Nómina'}
+                </button>
+                
+                {/* 4. APLICAMOS EL COLOR SEGÚN EL TIPO DE MENSAJE */}
+                {notification && (
+                  <p className={`text-center text-[10px] font-bold mt-4 uppercase tracking-widest ${notification.type === 'update' ? 'text-blue-500 dark:text-blue-400' : 'text-green-500 dark:text-green-400'}`}>
+                    {notification.message}
+                  </p>
+                )}
+              </div>
+            )}
+
           </div>
         )}
       </div>
