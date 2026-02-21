@@ -25,6 +25,7 @@ export default function NominasPage() {
 
   // Datos
   const [shifts, setShifts] = useState<any[]>([]);
+  const [bigVentas, setBigVentas] = useState<any[]>([]); // NUEVO: Estado para guardar Big Ventas
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
@@ -32,6 +33,10 @@ export default function NominasPage() {
   
   // ESTADO PARA EL DESPLEGABLE INFERIOR
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
+  
+  // ESTADOS BIG VENTA UI
+  const [hasBigVenta, setHasBigVenta] = useState(false);
+  const [bigVentaValue, setBigVentaValue] = useState<number | "">("");
 
   // Formulario
   const [startTime, setStartTime] = useState("13:00");
@@ -71,47 +76,65 @@ export default function NominasPage() {
     setStep(newStep);
   };
 
+  // ESCUCHADOR DE TURNOS
   useEffect(() => {
     if (!user) return;
-    
-    // Solo lee turnos del año seleccionado para ahorrar base de datos
     const q = query(
       collection(db, "shifts"), 
       where("userId", "==", user.id),
       where("year", "==", selectedYear) 
     );
-    
     const unsub = onSnapshot(q, (snap) => {
       setShifts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-    
     return () => unsub();
+  }, [user, selectedYear]);
+
+  // ESCUCHADOR DE BIG VENTAS
+  useEffect(() => {
+    if (!user) return;
+    const qBV = query(
+      collection(db, "bigVentas"),
+      where("userId", "==", user.id),
+      where("year", "==", selectedYear)
+    );
+    const unsubBV = onSnapshot(qBV, (snap) => {
+      setBigVentas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubBV();
   }, [user, selectedYear]);
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
 
   const statsAnuales = useMemo(() => {
-    const dataMeses = mesesFull.map(m =>
-      shiftsDelAno.filter(s => s.month === m).reduce((acc, curr) => acc + (curr.netPay || 0), 0)
-    );
+    const dataMeses = mesesFull.map(m => {
+      const turnosNeto = shiftsDelAno.filter(s => s.month === m).reduce((acc, curr) => acc + (curr.netPay || 0), 0);
+      const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + (curr.value * 0.92), 0);
+      return turnosNeto + bvNeto;
+    });
     return {
       labels: mesesFull.map(m => m.substring(0, 3).toUpperCase()),
       datasets: [{ label: 'Neto', data: dataMeses, backgroundColor: colors.secondary, borderRadius: 6 }]
     };
-  }, [shiftsDelAno, colors.secondary]);
+  }, [shiftsDelAno, bigVentas, colors.secondary]);
 
   const statsQuincenas = useMemo(() => {
     const shiftsMes = shiftsDelAno.filter(s => s.month === selectedMonth);
+    const bvMes = bigVentas.filter(b => b.month === selectedMonth);
+
     const calcQ = (isQ1: boolean) => {
-      const filtered = shiftsMes.filter(s => {
+      const filteredShifts = shiftsMes.filter(s => {
         const day = parseInt(s.date.split('-')[2]);
         return isQ1 ? day <= 15 : day > 15;
       });
+      const filteredBV = bvMes.find(b => b.quincena === (isQ1 ? 1 : 2));
+      const bvNeto = filteredBV ? filteredBV.value * 0.92 : 0;
+
       return {
-        dinero: filtered.reduce((a, b) => a + (b.netPay || 0), 0),
-        horas: filtered.reduce((a, b) => a + (b.totalHours || 0), 0),
-        diasTrabajados: filtered.filter(s => !s.isOff).length,
-        diasOff: filtered.filter(s => s.isOff).length
+        dinero: filteredShifts.reduce((a, b) => a + (b.netPay || 0), 0) + bvNeto,
+        horas: filteredShifts.reduce((a, b) => a + (b.totalHours || 0), 0),
+        diasTrabajados: filteredShifts.filter(s => !s.isOff).length,
+        diasOff: filteredShifts.filter(s => s.isOff).length
       };
     };
     const q1 = calcQ(true);
@@ -122,7 +145,7 @@ export default function NominasPage() {
         datasets: [{ label: 'Total', data: [q1.dinero, q2.dinero], backgroundColor: [colors.secondary, isDarkMode ? '#333' : '#111'], borderRadius: 10 }]
       }
     };
-  }, [shiftsDelAno, selectedMonth, colors.secondary, isDarkMode]);
+  }, [shiftsDelAno, bigVentas, selectedMonth, colors.secondary, isDarkMode]);
 
   const turnosFiltrados = useMemo(() => {
     return shiftsDelAno.filter(s => {
@@ -133,8 +156,14 @@ export default function NominasPage() {
     }).sort((a, b) => a.date.localeCompare(b.date));
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
 
-  // CÁLCULOS GENERALES
-  const totalListaDinero = turnosFiltrados.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
+  // CÁLCULOS GENERALES Y BIG VENTA
+  const currentBigVenta = bigVentas.find(b => b.month === selectedMonth && b.quincena === selectedQuincena);
+  const bigVentaNeto = currentBigVenta ? currentBigVenta.value * 0.92 : 0;
+  const bigVentaDeduccion = currentBigVenta ? currentBigVenta.value * 0.08 : 0;
+
+  const baseDineroTurnos = turnosFiltrados.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
+  const totalListaDinero = baseDineroTurnos + bigVentaNeto;
+
   const totalListaHoras = turnosFiltrados.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
   const countTrabajados = turnosFiltrados.filter(s => !s.isOff).length;
   const countOff = turnosFiltrados.filter(s => s.isOff).length;
@@ -160,11 +189,19 @@ export default function NominasPage() {
   const tExtDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomN || 0), 0);
   const tExtDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomN || 0), 0);
 
-  // NUEVOS CÁLCULOS: Transporte y Deducciones
   const tTransportAux = turnosFiltrados.reduce((a, c) => a + (c.transportAux || 0), 0);
-  const tDeductions = turnosFiltrados.reduce((a, c) => a + (c.deductions || 0), 0);
+  const tDeductionsBase = turnosFiltrados.reduce((a, c) => a + (c.deductions || 0), 0);
+  const tDeductionsFinal = tDeductionsBase + bigVentaDeduccion;
 
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
+
+  // FUNCIÓN PARA EL COLOR DINÁMICO DEL ACUMULADO
+  const getDineroColor = (dinero: number) => {
+    if (dinero < 800000) return "text-red-500 dark:text-red-400";
+    if (dinero < 1000000) return "text-orange-500 dark:text-orange-400";
+    if (dinero < 1250000) return "text-green-400 dark:text-green-300"; // Verde Claro
+    return "text-green-600 dark:text-green-500"; // Verde Oscuro
+  };
 
   const handlePrevMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
@@ -287,6 +324,31 @@ export default function NominasPage() {
     setEditingShiftId(null);
   };
 
+  // FUNCIONES BIG VENTA
+  const saveBigVenta = async () => {
+    if (!user || !bigVentaValue) return;
+    const val = Number(bigVentaValue);
+    if (val <= 0) return;
+
+    const docId = `${user.id}_BV_${selectedYear}_${selectedMonth}_${selectedQuincena}`;
+    await setDoc(doc(db, "bigVentas", docId), {
+      userId: user.id,
+      year: selectedYear,
+      month: selectedMonth,
+      quincena: selectedQuincena,
+      value: val,
+      timestamp: serverTimestamp()
+    });
+    setHasBigVenta(false);
+    setBigVentaValue("");
+  };
+
+  const deleteBigVenta = async (id: string) => {
+    if (confirm("¿Eliminar Big Venta? Esto restará el dinero de tus ingresos netos.")) {
+      await deleteDoc(doc(db, "bigVentas", id));
+    }
+  };
+
   const isDateDisabled = ({ date }: { date: Date }) => {
     if (date.getFullYear() !== selectedYear || date.getMonth() !== mesesFull.indexOf(selectedMonth)) return true;
     const day = date.getDate();
@@ -363,7 +425,9 @@ export default function NominasPage() {
                         <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Días 01 - 15</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-black tracking-tighter text-yellow-500">${Math.floor(statsQuincenas.q1.dinero).toLocaleString()}</p>
+                        <p className={`text-3xl font-black tracking-tighter transition-colors ${getDineroColor(statsQuincenas.q1.dinero)}`}>
+                          ${Math.floor(statsQuincenas.q1.dinero).toLocaleString()}
+                        </p>
                         <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Acumulado</p>
                       </div>
                     </div>
@@ -381,7 +445,9 @@ export default function NominasPage() {
                         <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Días 16 - {getLastDayOfMonth()}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-3xl font-black tracking-tighter text-red-600 dark:text-red-500">${Math.floor(statsQuincenas.q2.dinero).toLocaleString()}</p>
+                        <p className={`text-3xl font-black tracking-tighter transition-colors ${getDineroColor(statsQuincenas.q2.dinero)}`}>
+                          ${Math.floor(statsQuincenas.q2.dinero).toLocaleString()}
+                        </p>
                         <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Acumulado</p>
                       </div>
                     </div>
@@ -548,7 +614,7 @@ export default function NominasPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Total Neto a Recibir</p>
-                          <p className="text-3xl md:text-4xl font-black text-yellow-400 tracking-tighter">${Math.floor(totalListaDinero).toLocaleString()}</p>
+                          <p className={`text-3xl md:text-4xl font-black tracking-tighter ${getDineroColor(totalListaDinero)}`}>${Math.floor(totalListaDinero).toLocaleString()}</p>
                         </div>
                       </div>
 
@@ -608,12 +674,47 @@ export default function NominasPage() {
                                 <p className={`font-black text-2xl ${tTransportAux > 0 ? 'text-green-400' : 'text-gray-600'}`}>+${Math.floor(tTransportAux).toLocaleString()}</p>
                               </div>
                               
-                              <div className={`col-span-1 md:col-span-2 ${tDeductions > 0 ? "" : "opacity-30"}`}>
+                              <div className={`col-span-1 md:col-span-2 ${tDeductionsFinal > 0 ? "" : "opacity-30"}`}>
                                 <p className="text-[9px] font-bold text-gray-400 uppercase mb-1">Total Deducciones</p>
-                                <p className={`font-black text-2xl ${tDeductions > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(tDeductions).toLocaleString()}</p>
+                                <p className={`font-black text-2xl ${tDeductionsFinal > 0 ? 'text-red-400' : 'text-gray-600'}`}>-${Math.floor(tDeductionsFinal).toLocaleString()}</p>
                               </div>
 
                            </div>
+
+                           {/* INTERFAZ BIG VENTA */}
+                           <div className="mt-8 pt-8 border-t border-gray-800/50 flex flex-col w-full">
+                             {currentBigVenta ? (
+                                <div className="flex justify-between items-center bg-gray-800/40 p-5 rounded-2xl border border-gray-700/50">
+                                   <div>
+                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Big Venta Registrada 💸</p>
+                                     <p className="font-black text-2xl text-yellow-400">${Math.floor(currentBigVenta.value).toLocaleString()}</p>
+                                     <p className="text-[11.5px] font-bold text-gray-500 uppercase tracking-tighter mt-1">
+                                       Neto: <span className="text-green-400">+${Math.floor(currentBigVenta.value * 0.92).toLocaleString()}</span> | Deduc: <span className="text-red-400">-${Math.floor(currentBigVenta.value * 0.08).toLocaleString()}</span>
+                                     </p>
+                                   </div>
+                                   <div className="flex gap-2">
+                                      <button onClick={() => { setHasBigVenta(true); setBigVentaValue(currentBigVenta.value); }} className="p-3 bg-gray-700/50 rounded-xl hover:bg-white hover:text-black transition-colors" title="Editar">✏️</button>
+                                      <button onClick={() => deleteBigVenta(currentBigVenta.id)} className="p-3 bg-gray-700/50 rounded-xl hover:bg-red-500 hover:text-white transition-colors" title="Eliminar">🗑️</button>
+                                   </div>
+                                </div>
+                             ) : (
+                                <div className="flex flex-col items-center w-full">
+                                   <div className="flex items-center gap-4 mb-4">
+                                     <span className="text-[10px] font-black uppercase text-gray-500 tracking-widest italic">¿Hubo Big Venta? 💸</span>
+                                     <button onClick={() => setHasBigVenta(!hasBigVenta)} className={`w-12 h-6 rounded-full transition-all relative ${hasBigVenta ? 'bg-yellow-500' : 'bg-gray-700'}`}>
+                                       <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${hasBigVenta ? 'left-7' : 'left-1'}`} />
+                                     </button>
+                                   </div>
+                                   {hasBigVenta && (
+                                     <div className="animate-in slide-in-from-top-2 duration-300 flex flex-col md:flex-row items-center gap-3 w-full max-w-md">
+                                       <input type="number" placeholder="Ingresar Valor (ej. 196000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
+                                       <button onClick={saveBigVenta} className="bg-yellow-500 text-black font-black uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-yellow-400 active:scale-95 transition-all w-full md:w-auto">Guardar</button>
+                                     </div>
+                                   )}
+                                </div>
+                             )}
+                           </div>
+
                         </div>
                       )}
                     </div>
