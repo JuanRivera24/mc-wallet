@@ -8,49 +8,50 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function Home() {
-  // ¡Aquí estaba el detalle! Agregamos "role" a la lista de cosas que traemos del tema
   const { colors, isDarkMode, role } = useTheme();
 
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
 
-      <section id="nosotros" className={`flex flex-col items-center justify-center px-5 py-16 min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[75%] to-white' : 'from-red-50 from-[75%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
-  <div className="max-w-5xl mx-auto space-y-8 md:space-y-10 z-10">
-    
-    <h1 className="text-4xl md:text-7xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] md:leading-none">
-      Tu esfuerzo, <br className="hidden md:block"/>
-      <span className={`${colors.primary} italic underline decoration-gray-200 dark:decoration-gray-800 underline-offset-4 md:underline-offset-8`}>al centavo.</span>
-    </h1>
-    
-    <p className="text-base md:text-xl text-gray-600 dark:text-gray-400 max-w-sm md:max-w-2xl mx-auto leading-relaxed">
-      <span className="font-semibold">Hecho por Crews para Crews con tablas oficiales 2026.</span>{" "}
-      Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.
-      <br />
-      <span className="font-bold text-gray-800 dark:text-gray-300 mt-2 block">Inicia sesión para guardar tus turnos y estimar tus nóminas.</span>
-    </p>
+      {/* AJUSTE MÓVIL: justify-start y pt-12 empujan el texto hacia arriba en celular. md:justify-center y md:py-16 mantienen el PC igual */}
+      <section id="nosotros" className={`flex flex-col items-center justify-start pt-12 pb-20 md:justify-center md:py-16 px-5 min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[75%] to-white' : 'from-red-50 from-[75%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
+        <div className="max-w-5xl mx-auto space-y-8 md:space-y-10 z-10">
+          
+          <h1 className="text-4xl md:text-7xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] md:leading-none">
+            Tu esfuerzo, <br className="hidden md:block"/>
+            <span className={`${colors.primary} italic underline decoration-gray-200 dark:decoration-gray-800 underline-offset-4 md:underline-offset-8`}>al centavo.</span>
+          </h1>
+          
+          <p className="text-base md:text-xl text-gray-600 dark:text-gray-400 max-w-sm md:max-w-2xl mx-auto leading-relaxed">
+            <span className="font-semibold">Hecho por Crews para Crews con tablas oficiales 2026.</span>{" "}
+            Simulador independiente de referencia: los valores son estimados y tu desprendible oficial siempre tendrá la última palabra.
+            <br />
+            <span className="font-bold text-gray-800 dark:text-gray-300 mt-2 block">Inicia sesión para guardar tus turnos y estimar tus nóminas.</span>
+          </p>
 
-    <div className="flex flex-col w-full md:w-auto md:flex-row gap-3 md:gap-5 justify-center pt-4 md:pt-8 px-2 md:px-0">
-      <a href="#calculadora" className={`${colors.secondary} text-white w-full md:w-auto px-7 py-3.5 rounded-2xl font-black text-sm md:text-base shadow-xl active:scale-95 transition-all flex items-center justify-center`}>
-        CALCULAR TURNO
-      </a>
-      
-      <SignedOut>
-        <SignInButton mode="modal">
-          <button className="bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full md:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm md:text-base hover:bg-gray-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all">
-            INGRESAR Y VER TUS NÓMINAS
-          </button>
-        </SignInButton>
-      </SignedOut>
-      
-      <SignedIn>
-        <Link href="/nominas" className="bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full md:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm md:text-base hover:shadow-xl transition-all flex items-center justify-center">
-          📂 MIS NÓMINAS
-        </Link>
-      </SignedIn>
-    </div>
-  </div>
-</section>
+          <div className="flex flex-col w-full md:w-auto md:flex-row gap-3 md:gap-5 justify-center pt-4 md:pt-8 px-2 md:px-0">
+            <a href="#calculadora" className={`${colors.secondary} text-white w-full md:w-auto px-7 py-3.5 rounded-2xl font-black text-sm md:text-base shadow-xl active:scale-95 transition-all flex items-center justify-center`}>
+              CALCULAR TURNO
+            </a>
+            
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full md:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm md:text-base hover:bg-gray-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all">
+                  INGRESAR Y VER TUS NÓMINAS
+                </button>
+              </SignInButton>
+            </SignedOut>
+            
+            <SignedIn>
+              {/* Oculto en móvil (hidden), visible como flex en PC (md:flex) */}
+              <Link href="/nominas" className="hidden md:flex bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full md:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm md:text-base hover:shadow-xl transition-all items-center justify-center">
+                📂 MIS NÓMINAS
+              </Link>
+            </SignedIn>
+          </div>
+        </div>
+      </section>
 
       <RatesSection />
 
@@ -73,7 +74,8 @@ export default function Home() {
             </SignInButton>
           </SignedOut>
           <SignedIn>
-            <Link href="/nominas" className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center block">
+            {/* Oculto en móvil (hidden), visible como bloque en PC (md:block) */}
+            <Link href="/nominas" className="hidden md:block bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center">
               📂 IR A MIS NÓMINAS
             </Link>
           </SignedIn>
