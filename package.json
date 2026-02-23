@@ -9,18 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "next": "14.x.x",
-    "react": "^18",
-    "react-dom": "^18",
-    "framer-motion": "^11.0.0"
-  },
-  "dependencies": {
     "@clerk/localizations": "^3.35.3",
     "@clerk/nextjs": "^6.37.3",
     "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.9.0",
+    "framer-motion": "^11.0.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
