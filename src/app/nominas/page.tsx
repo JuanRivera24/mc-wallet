@@ -404,7 +404,7 @@ export default function NominasPage() {
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
                 {step > 1 && <button onClick={() => { window.history.back(); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
-                <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900 dark:text-white leading-none transition-colors">
+                <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900 dark:text-white leading-none transition-colors">
                   {step === 1 && "Selecciona Mes"}
                   {step === 2 && `Quincenas ${selectedMonth || "..."}`}
                   {step === 3 && `Quincena ${selectedQuincena || "..."}`}
