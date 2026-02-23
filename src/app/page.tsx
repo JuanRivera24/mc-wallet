@@ -14,11 +14,12 @@ export default function Home() {
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
 
-      {/* EL SECRETO ADAPTABLE ACTUALIZADO:
-        - min-h-[calc(100svh-72px)]: Sincronizado con los 72px exactos de tu nueva navbar móvil.
-        - lg:min-h-[calc(100vh-80px)]: El PC sigue restando los 80px de su navbar grande.
+      {/* AJUSTE DEFINITIVO:
+        - pt-12: Pega el texto a la navbar en celular.
+        - lg:justify-center: En PC lo centra todo normal.
+        - min-h-[calc(100svh-72px)]: Garantiza que Tarifas NUNCA se vea al abrir en celular.
       */}
-      <section id="nosotros" className={`flex flex-col items-center justify-center pb-20 lg:pb-0 px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[75%] to-white' : 'from-red-50 from-[75%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
+      <section id="nosotros" className={`flex flex-col items-center pt-12 lg:pt-0 lg:justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
         <div className="max-w-5xl mx-auto space-y-8 lg:space-y-10 z-10">
 
           <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] lg:leading-none">
@@ -47,12 +48,19 @@ export default function Home() {
             </SignedOut>
 
             <SignedIn>
-              {/* lg:flex (Oculto en celular y tablet, visible en laptop) */}
               <Link href="/nominas" className="hidden lg:flex bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full lg:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base hover:shadow-xl transition-all items-center justify-center">
                 📂 MIS NÓMINAS
               </Link>
             </SignedIn>
           </div>
+        </div>
+
+        {/* TRUCO VISUAL: Indicador de Scroll para rellenar el hueco inferior de forma profesional (Solo en móviles) */}
+        <div className="mt-auto pb-8 lg:hidden flex flex-col items-center justify-center opacity-50 animate-bounce z-10">
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1">Desliza</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4 text-gray-400 dark:text-gray-500">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
         </div>
       </section>
 
@@ -77,7 +85,6 @@ export default function Home() {
             </SignInButton>
           </SignedOut>
           <SignedIn>
-            {/* lg:block (Oculto en celular y tablet, visible en laptop) */}
             <Link href="/nominas" className="hidden lg:block bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center">
               📂 IR A MIS NÓMINAS
             </Link>
