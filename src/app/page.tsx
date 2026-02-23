@@ -14,8 +14,12 @@ export default function Home() {
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
 
-      {/* AJUSTE MÓVIL: justify-start y pt-12 empujan el texto hacia arriba en celular. md:justify-center y md:py-16 mantienen el PC igual */}
-      <section id="nosotros" className={`flex flex-col items-center justify-start pt-12 pb-20 md:justify-center md:py-16 px-5 min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[75%] to-white' : 'from-red-50 from-[75%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
+      {/* AJUSTES: 
+          1. pt-16 (baja el texto un poco más) 
+          2. pb-12 (reduce el espacio abajo)
+          3. md:min-h-[calc(100vh-80px)] (solo fuerza pantalla completa en PC)
+      */}
+      <section id="nosotros" className={`flex flex-col items-center justify-start pt-16 pb-12 md:justify-center md:py-16 px-5 md:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[75%] to-white' : 'from-red-50 from-[75%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
         <div className="max-w-5xl mx-auto space-y-8 md:space-y-10 z-10">
           
           <h1 className="text-4xl md:text-7xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] md:leading-none">
@@ -44,7 +48,6 @@ export default function Home() {
             </SignedOut>
             
             <SignedIn>
-              {/* Oculto en móvil (hidden), visible como flex en PC (md:flex) */}
               <Link href="/nominas" className="hidden md:flex bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full md:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm md:text-base hover:shadow-xl transition-all items-center justify-center">
                 📂 MIS NÓMINAS
               </Link>
@@ -74,7 +77,6 @@ export default function Home() {
             </SignInButton>
           </SignedOut>
           <SignedIn>
-            {/* Oculto en móvil (hidden), visible como bloque en PC (md:block) */}
             <Link href="/nominas" className="hidden md:block bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm md:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center">
               📂 IR A MIS NÓMINAS
             </Link>
