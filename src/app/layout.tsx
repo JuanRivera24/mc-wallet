@@ -22,6 +22,8 @@ export default function RootLayout({
           <ThemeProvider>
             {children}
           </ThemeProvider>
+          {children}
+        <MobileDock />
         </body>
       </html>
     </ClerkProvider>
