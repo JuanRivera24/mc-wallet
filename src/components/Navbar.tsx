@@ -14,14 +14,13 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-20 transition-all">
       <div className="max-w-7xl mx-auto px-4 h-full flex justify-between items-center relative">
         
-        {/* LOGO */}
         <Link href="/" className="flex items-center gap-1 sm:gap-2 z-50 hover:opacity-80 transition-opacity">
           <span className="text-2xl sm:text-3xl">🍔</span>
-          <span className={`font-black text-lg sm:text-xl md:text-2xl tracking-tighter ${activeText}`}>McWallet</span>
+          <span className={`font-black text-lg sm:text-xl lg:text-2xl tracking-tighter ${activeText}`}>McWallet</span>
         </Link>
 
-        {/* MENÚ CENTRAL (SOLO PC) */}
-        <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-8 text-[11px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+        {/* hidden lg:flex -> Solo se muestra en laptops y computadores */}
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-8 text-[11px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
           <Link href="/#nosotros" className="hover:text-black dark:hover:text-white transition-colors py-2">Nosotros</Link>
           <Link href="/#tarifas" className="hover:text-black dark:hover:text-white transition-colors py-2">Tarifas</Link>
           <Link href="/#calculadora" className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
@@ -30,17 +29,15 @@ export default function Navbar() {
           </SignedIn>
         </div>
 
-        {/* CONTENEDOR DERECHO */}
         <div className="flex items-center gap-2 sm:gap-4 z-50">
           
-          {/* SWITCH DE ROL */}
           <button onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 sm:p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
-            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
-            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
+            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] lg:text-[11px] font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
+            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] lg:text-[11px] font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
           </button>
 
-          {/* EL CONTENEDOR DEL LOGIN AHORA ES "hidden md:flex" PARA QUE NO SALGA EN CELULARES */}
-          <div className="hidden md:flex items-center gap-4 border-l border-gray-200 dark:border-gray-800 pl-4">
+          {/* hidden lg:flex -> Solo se muestra en laptops y computadores */}
+          <div className="hidden lg:flex items-center gap-4 border-l border-gray-200 dark:border-gray-800 pl-4">
             <SignedOut>
               <SignInButton mode="modal">
                 <button className="font-black text-xs uppercase tracking-widest bg-black dark:bg-white text-white dark:text-black px-4 py-2.5 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-200 hover:scale-105 transition-all shadow-lg shadow-black/20">
