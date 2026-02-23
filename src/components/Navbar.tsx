@@ -11,7 +11,7 @@ export default function Navbar() {
   const toggleRole = () => setRole(role === 'CREW' ? 'ENTRENADOR' : 'CREW');
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-16 lg:h-20 transition-all">
+    <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-[72px] lg:h-20 transition-all">
       <div className="max-w-7xl mx-auto px-4 h-full flex justify-between items-center relative">
 
         <Link href="/" className="flex items-center gap-1 sm:gap-2 z-50 hover:opacity-80 transition-opacity">
