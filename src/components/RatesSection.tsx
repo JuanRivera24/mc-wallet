@@ -10,7 +10,7 @@ export default function RatesSection() {
     <section id="tarifas" className="py-24 bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className={`text-5xl font-black tracking-tighter mb-4 ${themeColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+          <h2 className={`text-4xl font-black tracking-tighter mb-4 ${themeColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
             Tarifas 2026: {role}
           </h2>
           <p className="text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest text-[10px]">
