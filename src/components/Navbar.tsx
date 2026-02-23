@@ -11,9 +11,10 @@ export default function Navbar() {
   const toggleRole = () => setRole(role === 'CREW' ? 'ENTRENADOR' : 'CREW');
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-20 transition-all">
+    {/* Ajuste de altura: h-16 en móvil (64px) y lg:h-20 en PC (80px) */}
+    <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-16 lg:h-20 transition-all">
       <div className="max-w-7xl mx-auto px-4 h-full flex justify-between items-center relative">
-        
+
         <Link href="/" className="flex items-center gap-1 sm:gap-2 z-50 hover:opacity-80 transition-opacity">
           <span className="text-2xl sm:text-3xl">🍔</span>
           <span className={`font-black text-lg sm:text-xl lg:text-2xl tracking-tighter ${activeText}`}>McWallet</span>
@@ -30,10 +31,11 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 z-50">
-          
-          <button onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 sm:p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
-            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] lg:text-[11px] font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
-            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] lg:text-[11px] font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
+
+          {/* Ajuste del switch: más padding general (p-1) y textos/rellenos más grandes en móvil (px-3.5 py-1.5 text-[10px]) */}
+          <button onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
+            <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
+            <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
           </button>
 
           {/* hidden lg:flex -> Solo se muestra en laptops y computadores */}
