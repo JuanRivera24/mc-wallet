@@ -1,4 +1,3 @@
-// src/lib/calculator.ts
 import { RATES, HOLIDAYS_2026, TRANSPORT_AUX_DAILY, Role } from "@/constants/rates";
 import { isSunday } from "date-fns";
 
@@ -7,7 +6,8 @@ export function calculateShift(
   startTime: string,
   endTime: string,
   manualBreak?: { start: string; end: string },
-  role: Role = "CREW"
+  role: Role = "CREW",
+  hasBreak: boolean = true // NUEVO PARÁMETRO: Define si el turno descuenta break o no
 ) {
   const start = new Date(`${dateStr}T${startTime}`);
   let end = new Date(`${dateStr}T${endTime}`);
@@ -60,78 +60,80 @@ export function calculateShift(
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  // 2. LÓGICA DE BREAK EXACTA
-  if (manualBreak) {
-    const bStart = new Date(`${dateStr}T${manualBreak.start}`);
-    let bEnd = new Date(`${dateStr}T${manualBreak.end}`);
-    if (bEnd <= bStart) bEnd.setDate(bEnd.getDate() + 1);
+  // 2. LÓGICA DE BREAK EXACTA (SOLO SE EJECUTA SI hasBreak ES TRUE)
+  if (hasBreak) {
+    if (manualBreak) {
+      const bStart = new Date(`${dateStr}T${manualBreak.start}`);
+      let bEnd = new Date(`${dateStr}T${manualBreak.end}`);
+      if (bEnd <= bStart) bEnd.setDate(bEnd.getDate() + 1);
 
-    const bCurrent = new Date(bStart);
-    while (bCurrent < bEnd) {
-      if (bCurrent >= start && bCurrent < end) {
-        const bDateStr = bCurrent.toISOString().split("T")[0];
-        const bHour = bCurrent.getHours();
-        const bIsNight = bHour >= 19 || bHour < 6;
-        const bIsFestivo = HOLIDAYS_2026.includes(bDateStr) || isSunday(bCurrent);
+      const bCurrent = new Date(bStart);
+      while (bCurrent < bEnd) {
+        if (bCurrent >= start && bCurrent < end) {
+          const bDateStr = bCurrent.toISOString().split("T")[0];
+          const bHour = bCurrent.getHours();
+          const bIsNight = bHour >= 19 || bHour < 6;
+          const bIsFestivo = HOLIDAYS_2026.includes(bDateStr) || isSunday(bCurrent);
 
-        let deductionPerMinute;
-        if (bIsNight) {
-          deductionPerMinute = bIsFestivo ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
-          nightMinutes--;
-          // Restamos del contador detallado
-          if (bIsFestivo) { mDomN = Math.max(0, mDomN - 1); pDomN = Math.max(0, pDomN - deductionPerMinute); }
-          else { mOrdN = Math.max(0, mOrdN - 1); pOrdN = Math.max(0, pOrdN - deductionPerMinute); }
-        } else {
-          deductionPerMinute = bIsFestivo ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
-          dayMinutes--;
-          // Restamos del contador detallado
-          if (bIsFestivo) { mDomD = Math.max(0, mDomD - 1); pDomD = Math.max(0, pDomD - deductionPerMinute); }
-          else { mOrdD = Math.max(0, mOrdD - 1); pOrdD = Math.max(0, pOrdD - deductionPerMinute); }
+          let deductionPerMinute;
+          if (bIsNight) {
+            deductionPerMinute = bIsFestivo ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
+            nightMinutes--;
+            // Restamos del contador detallado
+            if (bIsFestivo) { mDomN = Math.max(0, mDomN - 1); pDomN = Math.max(0, pDomN - deductionPerMinute); }
+            else { mOrdN = Math.max(0, mOrdN - 1); pOrdN = Math.max(0, pOrdN - deductionPerMinute); }
+          } else {
+            deductionPerMinute = bIsFestivo ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
+            dayMinutes--;
+            // Restamos del contador detallado
+            if (bIsFestivo) { mDomD = Math.max(0, mDomD - 1); pDomD = Math.max(0, pDomD - deductionPerMinute); }
+            else { mOrdD = Math.max(0, mOrdD - 1); pOrdD = Math.max(0, pOrdD - deductionPerMinute); }
+          }
+          moneyBase -= deductionPerMinute;
+          totalMinutesWorked--;
         }
-        moneyBase -= deductionPerMinute;
-        totalMinutesWorked--;
+        bCurrent.setMinutes(bCurrent.getMinutes() + 1);
       }
-      bCurrent.setMinutes(bCurrent.getMinutes() + 1);
-    }
-  } 
-  else if (totalMinutesWorked >= 330) { 
-    const deductionMinutes = 30;
-    const isFestivoStart = HOLIDAYS_2026.includes(dateStr) || isSunday(start);
+    } 
+    else if (totalMinutesWorked >= 330) { 
+      const deductionMinutes = 30;
+      const isFestivoStart = HOLIDAYS_2026.includes(dateStr) || isSunday(start);
 
-    const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
-    const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
+      const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
+      const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
 
-    if (dayMinutes >= deductionMinutes) {
-      moneyBase -= (rateDayMinute * deductionMinutes);
-      dayMinutes -= deductionMinutes;
-      if (isFestivoStart) { 
-        mDomD = Math.max(0, mDomD - deductionMinutes); 
-        pDomD = Math.max(0, pDomD - (rateDayMinute * deductionMinutes)); 
-      } else { 
-        mOrdD = Math.max(0, mOrdD - deductionMinutes); 
-        pOrdD = Math.max(0, pOrdD - (rateDayMinute * deductionMinutes)); 
-      }
-    } else {
-      const remaining = deductionMinutes - dayMinutes;
-      moneyBase -= (rateDayMinute * dayMinutes); 
-      moneyBase -= (rateNightMinute * remaining); 
-
-      if (isFestivoStart) {
-         pDomD = Math.max(0, pDomD - (rateDayMinute * dayMinutes));
-         mDomD = Math.max(0, mDomD - dayMinutes);
-         pDomN = Math.max(0, pDomN - (rateNightMinute * remaining));
-         mDomN = Math.max(0, mDomN - remaining);
+      if (dayMinutes >= deductionMinutes) {
+        moneyBase -= (rateDayMinute * deductionMinutes);
+        dayMinutes -= deductionMinutes;
+        if (isFestivoStart) { 
+          mDomD = Math.max(0, mDomD - deductionMinutes); 
+          pDomD = Math.max(0, pDomD - (rateDayMinute * deductionMinutes)); 
+        } else { 
+          mOrdD = Math.max(0, mOrdD - deductionMinutes); 
+          pOrdD = Math.max(0, pOrdD - (rateDayMinute * deductionMinutes)); 
+        }
       } else {
-         pOrdD = Math.max(0, pOrdD - (rateDayMinute * dayMinutes));
-         mOrdD = Math.max(0, mOrdD - dayMinutes);
-         pOrdN = Math.max(0, pOrdN - (rateNightMinute * remaining));
-         mOrdN = Math.max(0, mOrdN - remaining);
-      }
+        const remaining = deductionMinutes - dayMinutes;
+        moneyBase -= (rateDayMinute * dayMinutes); 
+        moneyBase -= (rateNightMinute * remaining); 
 
-      dayMinutes = 0;
-      nightMinutes -= remaining;
+        if (isFestivoStart) {
+           pDomD = Math.max(0, pDomD - (rateDayMinute * dayMinutes));
+           mDomD = Math.max(0, mDomD - dayMinutes);
+           pDomN = Math.max(0, pDomN - (rateNightMinute * remaining));
+           mDomN = Math.max(0, mDomN - remaining);
+        } else {
+           pOrdD = Math.max(0, pOrdD - (rateDayMinute * dayMinutes));
+           mOrdD = Math.max(0, mOrdD - dayMinutes);
+           pOrdN = Math.max(0, pOrdN - (rateNightMinute * remaining));
+           mOrdN = Math.max(0, mOrdN - remaining);
+        }
+
+        dayMinutes = 0;
+        nightMinutes -= remaining;
+      }
+      totalMinutesWorked -= deductionMinutes;
     }
-    totalMinutesWorked -= deductionMinutes;
   }
 
   // 3. CONSOLIDACIÓN FINAL
