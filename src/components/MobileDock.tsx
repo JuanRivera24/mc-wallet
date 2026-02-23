@@ -23,7 +23,7 @@ export default function MobileDock() {
 
   return (
     // Redujimos el bottom a 3 y ajustamos el padding/ancho para que se vea más anclada
-    <div className="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[100] w-[96%] max-w-sm pb-safe">
+    <div className="lg:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[100] w-[96%] max-w-sm pb-safe">
       <div className="flex items-center justify-between bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-2xl border border-gray-200 dark:border-gray-800 rounded-[2rem] p-1.5 shadow-xl dark:shadow-black/80">
         
         {/* 1. BOTÓN INICIO (Calculadora) - Flex-1 amplía el área táctil */}
