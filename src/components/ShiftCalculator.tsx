@@ -19,6 +19,10 @@ export default function ShiftCalculator() {
   const [date, setDate] = useState(getLocalDate());
   const [start, setStart] = useState("13:00");
   const [end, setEnd] = useState("20:00");
+  
+  // NUEVO ESTADO: ¿El turno tuvo break? (Por defecto sí)
+  const [hasBreak, setHasBreak] = useState(true);
+  
   const [isManualBreak, setIsManualBreak] = useState(false);
   const [breakStart, setBreakStart] = useState("16:00");
   const [breakEnd, setBreakEnd] = useState("16:30");
@@ -31,8 +35,11 @@ export default function ShiftCalculator() {
 
   const handleCalculate = () => {
     setNotification(null);
-    const manualBreak = isManualBreak ? { start: breakStart, end: breakEnd } : undefined;
-    const calc = calculateShift(date, start, end, manualBreak, role);
+    // Si hasBreak es falso, forzamos a que no haya break manual tampoco
+    const manualBreak = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
+    
+    // Le pasamos hasBreak a la función
+    const calc = calculateShift(date, start, end, manualBreak, role, hasBreak);
     setResult(calc);
   };
 
@@ -59,7 +66,6 @@ export default function ShiftCalculator() {
         timestamp: serverTimestamp()
       };
 
-      // UN SOLO VIAJE A LA BASE DE DATOS: Rápido y eficiente
       await setDoc(doc(db, "shifts", docId), payload, { merge: true });
       
       setNotification({ message: "¡Turno guardado en la nómina! ⚡", type: 'success' });
@@ -100,20 +106,40 @@ export default function ShiftCalculator() {
             </div>
           </div>
 
-          <div className={`p-4 rounded-2xl border-2 border-dashed ${isManualBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-black text-gray-500 uppercase">¿Break Manual?</span>
-              <button onClick={() => setIsManualBreak(!isManualBreak)} className={`w-12 h-6 rounded-full transition-all relative ${isManualBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isManualBreak ? 'left-7' : 'left-1'}`} />
-              </button>
-            </div>
-            {isManualBreak && (
-              <div className="grid grid-cols-2 gap-4 animate-in fade-in">
-                <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-sm font-bold border border-gray-100 dark:border-gray-700" />
-                <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-sm font-bold border border-gray-100 dark:border-gray-700" />
+          {/* CONTENEDOR DE BREAKS */}
+          <div className="space-y-3">
+            
+            {/* 1. NUEVO INTERRUPTOR: TURNO CON BREAK */}
+            <div className={`p-4 rounded-2xl border-2 transition-colors ${hasBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
+                <button onClick={() => {
+                  setHasBreak(!hasBreak);
+                  if (hasBreak) setIsManualBreak(false); // Si apago el break principal, apago el manual también
+                }} className={`w-12 h-6 rounded-full transition-all relative ${hasBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${hasBreak ? 'left-7' : 'left-1'}`} />
+                </button>
               </div>
-            )}
+            </div>
+
+            {/* 2. INTERRUPTOR MANUAL (Se vuelve opaco si no hay break) */}
+            <div className={`p-4 rounded-2xl border-2 border-dashed transition-all duration-300 ${!hasBreak ? 'opacity-40 pointer-events-none border-gray-100 dark:border-gray-800' : (isManualBreak ? colors.accent : 'border-gray-100 dark:border-gray-800')}`}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-black text-gray-500 uppercase">¿Break Manual?</span>
+                <button onClick={() => setIsManualBreak(!isManualBreak)} disabled={!hasBreak} className={`w-12 h-6 rounded-full transition-all relative ${isManualBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${isManualBreak ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+              {isManualBreak && hasBreak && (
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in">
+                  <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-sm font-bold border border-gray-100 dark:border-gray-700" />
+                  <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-sm font-bold border border-gray-100 dark:border-gray-700" />
+                </div>
+              )}
+            </div>
+
           </div>
+
         </div>
 
         <button onClick={handleCalculate} className={`w-full py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all text-white ${colors.secondary} hover:brightness-110`}>CALCULAR 💰</button>
