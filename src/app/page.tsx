@@ -1,5 +1,6 @@
 "use client";
 import Navbar from "@/components/Navbar";
+import Onboarding from "@/components/Onboarding"; // <-- Solo agregamos esta importación
 import ShiftCalculator from "@/components/ShiftCalculator";
 import RatesSection from "@/components/RatesSection";
 import Footer from "@/components/Footer";
@@ -13,6 +14,8 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
+      
+      <Onboarding /> {/* <-- Y llamamos al componente aquí, listo para funcionar */}
 
       {/* 1. justify-center aplica para todos (centra el texto perfectamente en la pantalla).
         2. relative nos permite anclar la flecha al fondo sin dañar el centro.
