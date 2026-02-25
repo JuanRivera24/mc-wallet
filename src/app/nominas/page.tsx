@@ -11,6 +11,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { calculateShift } from "@/lib/calculator";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import PayrollFeedback from "@/components/PayrollFeedback";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -808,6 +809,7 @@ export default function NominasPage() {
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8">
             <Footer />
           </div>
+          <PayrollFeedback />
 
         </main>
       </SignedIn>
