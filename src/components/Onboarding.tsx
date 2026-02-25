@@ -10,10 +10,17 @@ import { useUser } from "@clerk/nextjs";
 export default function Onboarding() {
   const { user, isLoaded } = useUser();
   const [isVisible, setIsVisible] = useState(false);
-  const { role, setRole } = useTheme();
+  
+  const { role, setRole } = useTheme(); 
   const [tempRole, setTempRole] = useState<'CREW' | 'ENTRENADOR'>(role);
 
+  // Estado local para manejar el tema claro/oscuro (sin depender del Contexto)
+  const [isDarkLocal, setIsDarkLocal] = useState(false);
+
   useEffect(() => {
+    // Revisar si ya tiene modo oscuro activo al cargar
+    setIsDarkLocal(document.documentElement.classList.contains('dark'));
+
     if (!isLoaded) return; 
 
     const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
@@ -23,6 +30,18 @@ export default function Onboarding() {
       setIsVisible(true);
     }
   }, [isLoaded, user]);
+
+  // Función independiente para cambiar el tema
+  const handleThemeSelect = (dark: boolean) => {
+    setIsDarkLocal(dark);
+    if (dark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   const handleComplete = () => {
     setRole(tempRole); 
@@ -36,57 +55,83 @@ export default function Onboarding() {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-colors duration-500">
+      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800 transition-colors duration-500">
         <Stepper 
           onFinalStepCompleted={handleComplete}
           nextButtonText="Siguiente"
           backButtonText="Atrás"
-          stepContainerClassName="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-800"
+          stepContainerClassName="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-800 transition-colors duration-500"
         >
-          {/* PASO 1 */}
+          {/* PASO 1: BIENVENIDA */}
           <Step>
             <div className="text-center space-y-4 py-6">
               <div className="text-6xl animate-bounce">🍔</div>
-              <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">¡Bienvenido a <br/>McWallet!</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter transition-colors">¡Bienvenido a <br/>McWallet!</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed transition-colors">
                 Tu esfuerzo, calculado al centavo. <br/> Una herramienta independiente hecha por y para el equipo.
               </p>
             </div>
           </Step>
 
-          {/* PASO 2 */}
+          {/* PASO 2: ROL */}
           <Step>
-            <div className="text-center space-y-6 py-6">
-              <h2 className="text-xl font-black text-gray-900 dark:text-white">¿Cuál es tu rol?</h2>
-              <div className="grid grid-cols-2 gap-3">
+            {/* Redujimos el espacio vertical a space-y-4 */}
+            <div className="text-center space-y-4 py-6">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white transition-colors">¿Cuál es tu rol?</h2>
+              {/* Le pusimos un ancho máximo para que los botones no se estiren de lado a lado */}
+              <div className="grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
                 <button 
                   onClick={() => setTempRole('CREW')}
-                  className={`p-4 rounded-2xl border-2 font-black transition-all ${tempRole === 'CREW' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${tempRole === 'CREW' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
                 >
+                  <span className="text-lg">🍟</span>
                   CREW
                 </button>
                 <button 
                   onClick={() => setTempRole('ENTRENADOR')}
-                  className={`p-4 rounded-2xl border-2 font-black transition-all ${tempRole === 'ENTRENADOR' ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${tempRole === 'ENTRENADOR' ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
                 >
+                  <span className="text-lg">🎓</span>
                   ENTRENADOR
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                (Tranquilo, puedes cambiarlo arriba en cualquier momento)
-              </p>
             </div>
           </Step>
 
-          {/* PASO 3 */}
+          {/* PASO 3: TEMA (CLARO/OSCURO) */}
+          <Step>
+            {/* Redujimos el espacio vertical a space-y-4 */}
+            <div className="text-center space-y-4 py-6">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white transition-colors">Elige tu estilo</h2>
+              {/* Mismo ajuste de ancho máximo y padding reducido */}
+              <div className="grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
+                <button 
+                  onClick={() => handleThemeSelect(false)}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${!isDarkLocal ? 'border-gray-900 bg-gray-100 text-gray-900 dark:border-white dark:bg-gray-800 dark:text-white' : 'border-gray-200 dark:border-gray-800 text-gray-400'}`}
+                >
+                  <span className="text-lg">☀️</span>
+                  CLARO
+                </button>
+                <button 
+                  onClick={() => handleThemeSelect(true)}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${isDarkLocal ? 'border-white bg-gray-900 text-white' : 'border-gray-200 text-gray-400'}`}
+                >
+                  <span className="text-lg">🌙</span>
+                  OSCURO
+                </button>
+              </div>
+            </div>
+          </Step>
+
+          {/* PASO 4: REGLAS Y MOTIVACIÓN */}
           <Step>
             <div className="text-center space-y-4 py-4">
-              <h2 className="text-xl font-black text-gray-900 dark:text-white">Reglas Claras</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white transition-colors">Reglas Claras</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 transition-colors">
                 Esta app es un simulador de referencia. Los valores pueden variar por retenciones de ley, y tu desprendible oficial siempre tendrá la razón.
               </p>
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-900/50 text-left flex gap-3">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-900/50 text-left flex gap-3 transition-colors">
                 <span className="text-2xl">💡</span>
                 <p className="text-xs text-yellow-800 dark:text-yellow-400 font-bold leading-relaxed">
                   ¡Tip del mes! Cuida los pedidos incompletos y la satisfacción (CSS) para no perder el bono de Big Venta.
@@ -233,7 +278,7 @@ function StepIndicator({ step, currentStep }: any) {
   const status = currentStep === step ? 'active' : currentStep < step ? 'inactive' : 'complete';
   return (
     <motion.div animate={status} initial={false} className="relative">
-      <motion.div variants={{ inactive: { backgroundColor: '#e5e7eb', color: '#9ca3af' }, active: { backgroundColor: '#111827', color: '#111827' }, complete: { backgroundColor: '#111827', color: '#3b82f6' } }} transition={{ duration: 0.3 }} className="flex h-7 w-7 items-center justify-center rounded-full font-bold dark:border dark:border-gray-700">
+      <motion.div variants={{ inactive: { backgroundColor: '#e5e7eb', color: '#9ca3af' }, active: { backgroundColor: '#111827', color: '#111827' }, complete: { backgroundColor: '#111827', color: '#3b82f6' } }} transition={{ duration: 0.3 }} className="flex h-7 w-7 items-center justify-center rounded-full font-bold dark:border dark:border-gray-700 transition-colors">
         {status === 'complete' ? (
           <svg fill="none" stroke="white" strokeWidth={3} viewBox="0 0 24 24" className="w-3.5 h-3.5"><motion.path initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.3 }} strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
         ) : status === 'active' ? (
@@ -248,8 +293,8 @@ function StepIndicator({ step, currentStep }: any) {
 
 function StepConnector({ isComplete }: any) {
   return (
-    <div className="relative mx-2 h-0.5 w-8 overflow-hidden rounded bg-gray-200 dark:bg-gray-800">
-      <motion.div className="absolute left-0 top-0 h-full bg-gray-900 dark:bg-white" variants={{ incomplete: { width: 0 }, complete: { width: '100%' } }} initial={false} animate={isComplete ? 'complete' : 'incomplete'} transition={{ duration: 0.4 }} />
+    <div className="relative mx-2 h-0.5 w-8 overflow-hidden rounded bg-gray-200 dark:bg-gray-800 transition-colors">
+      <motion.div className="absolute left-0 top-0 h-full bg-gray-900 dark:bg-white transition-colors" variants={{ incomplete: { width: 0 }, complete: { width: '100%' } }} initial={false} animate={isComplete ? 'complete' : 'incomplete'} transition={{ duration: 0.4 }} />
     </div>
   );
 }
