@@ -11,16 +11,11 @@ export default function Onboarding() {
   const { user, isLoaded } = useUser();
   const [isVisible, setIsVisible] = useState(false);
   
-  const { role, setRole } = useTheme(); 
+  // TRAEMOS TODA LA MAGIA DE TU CONTEXTO DIRECTAMENTE
+  const { role, setRole, isDarkMode, toggleDarkMode } = useTheme(); 
   const [tempRole, setTempRole] = useState<'CREW' | 'ENTRENADOR'>(role);
 
-  // Estado local para manejar el tema claro/oscuro (sin depender del Contexto)
-  const [isDarkLocal, setIsDarkLocal] = useState(false);
-
   useEffect(() => {
-    // Revisar si ya tiene modo oscuro activo al cargar
-    setIsDarkLocal(document.documentElement.classList.contains('dark'));
-
     if (!isLoaded) return; 
 
     const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
@@ -31,24 +26,10 @@ export default function Onboarding() {
     }
   }, [isLoaded, user]);
 
-  // Función independiente para cambiar el tema
-  const handleThemeSelect = (dark: boolean) => {
-    setIsDarkLocal(dark);
-    if (dark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
-
   const handleComplete = () => {
-    setRole(tempRole); 
-    
+    // Solo marcamos que ya vio el tutorial, porque el rol y tema se guardan "en vivo"
     const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
     localStorage.setItem(storageKey, 'true');
-    
     setIsVisible(false);
   };
 
@@ -76,21 +57,19 @@ export default function Onboarding() {
 
           {/* PASO 2: ROL */}
           <Step>
-            {/* Redujimos el espacio vertical a space-y-4 */}
             <div className="text-center space-y-4 py-6">
               <h2 className="text-xl font-black text-gray-900 dark:text-white transition-colors">¿Cuál es tu rol?</h2>
-              {/* Le pusimos un ancho máximo para que los botones no se estiren de lado a lado */}
               <div className="grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
                 <button 
-                  onClick={() => setTempRole('CREW')}
-                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${tempRole === 'CREW' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
+                  onClick={() => setRole('CREW')}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${role === 'CREW' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
                 >
                   <span className="text-lg">🍟</span>
                   CREW
                 </button>
                 <button 
-                  onClick={() => setTempRole('ENTRENADOR')}
-                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${tempRole === 'ENTRENADOR' ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
+                  onClick={() => setRole('ENTRENADOR')}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${role === 'ENTRENADOR' ? 'border-red-500 bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'border-gray-200 dark:border-gray-800 text-gray-500'}`}
                 >
                   <span className="text-lg">🎓</span>
                   ENTRENADOR
@@ -99,23 +78,23 @@ export default function Onboarding() {
             </div>
           </Step>
 
-          {/* PASO 3: TEMA (CLARO/OSCURO) */}
+          {/* PASO 3: TEMA (CLARO/OSCURO) AHORA CONECTADO A TU CONTEXTO */}
           <Step>
-            {/* Redujimos el espacio vertical a space-y-4 */}
             <div className="text-center space-y-4 py-6">
               <h2 className="text-xl font-black text-gray-900 dark:text-white transition-colors">Elige tu estilo</h2>
-              {/* Mismo ajuste de ancho máximo y padding reducido */}
               <div className="grid grid-cols-2 gap-3 max-w-[280px] mx-auto">
                 <button 
-                  onClick={() => handleThemeSelect(false)}
-                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${!isDarkLocal ? 'border-gray-900 bg-gray-100 text-gray-900 dark:border-white dark:bg-gray-800 dark:text-white' : 'border-gray-200 dark:border-gray-800 text-gray-400'}`}
+                  // Si está oscuro, lo apagamos para que quede claro
+                  onClick={() => { if (isDarkMode) toggleDarkMode(); }}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${!isDarkMode ? 'border-gray-900 bg-gray-100 text-gray-900 dark:border-white dark:bg-gray-800 dark:text-white' : 'border-gray-200 dark:border-gray-800 text-gray-400'}`}
                 >
                   <span className="text-lg">☀️</span>
                   CLARO
                 </button>
                 <button 
-                  onClick={() => handleThemeSelect(true)}
-                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${isDarkLocal ? 'border-white bg-gray-900 text-white' : 'border-gray-200 text-gray-400'}`}
+                  // Si NO está oscuro (está claro), lo prendemos para que quede oscuro
+                  onClick={() => { if (!isDarkMode) toggleDarkMode(); }}
+                  className={`py-3 px-2 rounded-xl border-2 font-black text-sm transition-all flex flex-col items-center gap-1 ${isDarkMode ? 'border-white bg-gray-900 text-white' : 'border-gray-200 text-gray-400'}`}
                 >
                   <span className="text-lg">🌙</span>
                   OSCURO
