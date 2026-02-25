@@ -14,12 +14,13 @@ export default function Home() {
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
 
-      {/* AJUSTE DEFINITIVO:
-        - pt-12: Pega el texto a la navbar en celular.
-        - lg:justify-center: En PC lo centra todo normal.
-        - min-h-[calc(100svh-72px)]: Garantiza que Tarifas NUNCA se vea al abrir en celular.
+      {/* 1. justify-center aplica para todos (centra el texto perfectamente en la pantalla).
+        2. relative nos permite anclar la flecha al fondo sin dañar el centro.
+        3. min-h-[calc(100svh-72px)] mantiene la matemática para ocultar Tarifas.
       */}
-      <section id="nosotros" className={`flex flex-col items-center pt-12 lg:pt-0 lg:justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
+      <section id="nosotros" className={`relative flex flex-col items-center justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
+        
+        {/* BLOQUE DE TEXTO: Libre de márgenes forzados, el flexbox del padre lo centra solo */}
         <div className="max-w-5xl mx-auto space-y-8 lg:space-y-10 z-10">
 
           <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] lg:leading-none">
@@ -55,8 +56,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TRUCO VISUAL: Indicador de Scroll para rellenar el hueco inferior de forma profesional (Solo en móviles) */}
-        <div className="mt-auto pb-8 lg:hidden flex flex-col items-center justify-center opacity-50 animate-bounce z-10">
+        {/* FLECHA: Con position 'absolute' bottom-8, se ancla abajo sin empujar el texto central */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 lg:hidden flex flex-col items-center justify-center opacity-50 animate-bounce z-10 w-full">
           <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1">Desliza</span>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4 text-gray-400 dark:text-gray-500">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
