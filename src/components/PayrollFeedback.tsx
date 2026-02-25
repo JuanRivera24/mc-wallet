@@ -193,7 +193,7 @@ export default function PayrollFeedback() {
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-2xl flex items-center justify-center mx-auto text-3xl shadow-inner">💰</div>
 
               <div>
-                <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">¡Día de Pago!</h2>
+                <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">¡Analiza y Compara tu Pago!</h2>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mt-1">{cycleName}</p>
               </div>
 
