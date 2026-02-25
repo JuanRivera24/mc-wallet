@@ -1,42 +1,50 @@
 "use client";
 import React, { useState, Children, useRef, useLayoutEffect, HTMLAttributes, ReactNode, useEffect } from 'react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from "@/context/ThemeContext";
+import { useUser } from "@clerk/nextjs";
 
 // ==========================================
 // 1. EL COMPONENTE PRINCIPAL (EL MODAL)
 // ==========================================
 export default function Onboarding() {
+  const { user, isLoaded } = useUser();
   const [isVisible, setIsVisible] = useState(false);
   const { role, setRole } = useTheme();
   const [tempRole, setTempRole] = useState<'CREW' | 'ENTRENADOR'>(role);
 
-  // Verificamos si es la primera vez que entra
   useEffect(() => {
-    const hasSeenOnboarding = localStorage.getItem('mcwallet_onboarding_done');
+    if (!isLoaded) return; 
+
+    const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
+    const hasSeenOnboarding = localStorage.getItem(storageKey);
+
     if (!hasSeenOnboarding) {
       setIsVisible(true);
     }
-  }, []);
+  }, [isLoaded, user]);
 
   const handleComplete = () => {
-    setRole(tempRole); // Guardamos el rol que eligió
-    localStorage.setItem('mcwallet_onboarding_done', 'true');
+    setRole(tempRole); 
+    
+    const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
+    localStorage.setItem(storageKey, 'true');
+    
     setIsVisible(false);
   };
 
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-999 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] rounded-4xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800">
         <Stepper 
           onFinalStepCompleted={handleComplete}
           nextButtonText="Siguiente"
           backButtonText="Atrás"
           stepContainerClassName="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-800"
         >
-          {/* PASO 1: BIENVENIDA */}
+          {/* PASO 1 */}
           <Step>
             <div className="text-center space-y-4 py-6">
               <div className="text-6xl animate-bounce">🍔</div>
@@ -47,7 +55,7 @@ export default function Onboarding() {
             </div>
           </Step>
 
-          {/* PASO 2: ROL */}
+          {/* PASO 2 */}
           <Step>
             <div className="text-center space-y-6 py-6">
               <h2 className="text-xl font-black text-gray-900 dark:text-white">¿Cuál es tu rol?</h2>
@@ -71,7 +79,7 @@ export default function Onboarding() {
             </div>
           </Step>
 
-          {/* PASO 3: REGLAS Y MOTIVACIÓN */}
+          {/* PASO 3 */}
           <Step>
             <div className="text-center space-y-4 py-4">
               <h2 className="text-xl font-black text-gray-900 dark:text-white">Reglas Claras</h2>
@@ -164,7 +172,7 @@ function Stepper({
         })}
       </div>
 
-      <StepContentWrapper isCompleted={isCompleted} currentStep={currentStep} direction={direction} className="px-6 min-h-50">
+      <StepContentWrapper isCompleted={isCompleted} currentStep={currentStep} direction={direction} className="px-6 min-h-[200px]">
         {stepsArray[currentStep - 1]}
       </StepContentWrapper>
 
