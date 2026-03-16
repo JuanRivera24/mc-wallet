@@ -12,7 +12,7 @@ import { calculateShift } from "@/lib/calculator";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import PayrollFeedback from "@/components/PayrollFeedback";
-import { motion } from "framer-motion"; // <-- NUEVO IMPORT PARA EL BOTÓN ARRASTRABLE
+import { motion } from "framer-motion"; 
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -90,16 +90,14 @@ export default function NominasPage() {
   const [endTime, setEndTime] = useState("20:00");
   const [hasBreak, setHasBreak] = useState(true);
   const [isManualBreak, setIsManualBreak] = useState(false);
-  const [breakStart, setBreakStart] = useState("16:15");
-  const [breakEnd, setBreakEnd] = useState("16:45");
+  const [breakStart, setBreakStart] = useState("16:30");
+  const [breakEnd, setBreakEnd] = useState("17:00");
   const [breakError, setBreakError] = useState<string | null>(null);
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
   const today = new Date();
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
-
-  // OBTENER LA FECHA DE HOY (Formato YYYY-MM-DD para Firebase)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const goToStep = (newStep: number) => {
@@ -121,29 +119,32 @@ export default function NominasPage() {
     return () => unsubBV();
   }, [user, selectedYear]);
 
-  // VIGILANTE 1: Centrar Break Automático en el Modal
-  useEffect(() => {
-    if (!showModal) return;
-    const [hStart, mStart] = startTime.split(":").map(Number);
-    const [hEnd, mEnd] = endTime.split(":").map(Number);
+  // 🔥 CÁLCULO ASIMÉTRICO REDONDEADO (Usado en múltiples partes para evitar errores)
+  const autoCalculateBreak = (start: string, end: string) => {
+    const [hStart, mStart] = start.split(":").map(Number);
+    const [hEnd, mEnd] = end.split(":").map(Number);
     let startMins = hStart * 60 + mStart;
     let endMins = hEnd * 60 + mEnd;
     if (endMins <= startMins) endMins += 24 * 60; 
 
     const midMins = Math.floor((startMins + endMins) / 2);
-    const bStartMins = midMins - 15;
-    const bEndMins = midMins + 15;
+    
+    // Calcula la mitad, resta 15 min, y lo fuerza al bloque de 30 min más cercano (:00 o :30)
+    let bStartMins = midMins - 15;
+    bStartMins = Math.round(bStartMins / 30) * 30;
+    const bEndMins = bStartMins + 30; 
 
     const formatTime = (totalMins: number) => {
       const h = Math.floor((totalMins % (24 * 60)) / 60).toString().padStart(2, "0");
       const m = (totalMins % 60).toString().padStart(2, "0");
       return `${h}:${m}`;
     };
+    
     setBreakStart(formatTime(bStartMins));
     setBreakEnd(formatTime(bEndMins));
-  }, [startTime, endTime, showModal]);
+  };
 
-  // VIGILANTE 2: Validar Break en el Modal
+  // VIGILANTE DE ERRORES (Avisa si la hora del break queda fuera del turno)
   useEffect(() => {
     if (!hasBreak || !isManualBreak || !showModal) {
       setBreakError(null);
@@ -170,8 +171,6 @@ export default function NominasPage() {
   }, [startTime, endTime, breakStart, breakEnd, hasBreak, isManualBreak, showModal]);
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
-  
-  // TURNO DE HOY (Para la Burbuja Flotante)
   const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr), [shiftsDelAno, todayStr]);
 
   const statsAnuales = useMemo(() => {
@@ -276,16 +275,26 @@ export default function NominasPage() {
   const handlePrevQuincena = () => selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
   const handleNextQuincena = () => selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
 
+  // LIMPITO AL ABRIR NUEVO
+  const handleOpenNew = () => {
+    setEditingShiftId(null);
+    setStartTime("13:00");
+    setEndTime("20:00");
+    setHasBreak(true);
+    setIsManualBreak(false);
+    setBreakStart("16:30"); 
+    setBreakEnd("17:00");
+    setShowModal(true);
+  };
+
   const handleQuickAddToday = () => {
     setSelectedYear(today.getFullYear());
     setSelectedMonth(mesesFull[today.getMonth()]);
     setSelectedDate(today);
-    setEditingShiftId(null);
-    setHasBreak(true);
-    setIsManualBreak(false);
-    setShowModal(true);
+    handleOpenNew(); 
   };
 
+  // RESPETA TUS HORAS AL EDITAR O LAS CALCULA PERFECTAS SI ES VIEJO
   const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     setEditingShiftId(shift.id);
@@ -293,10 +302,44 @@ export default function NominasPage() {
     const [year, month, day] = shift.date.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
 
-    setStartTime(shift.startTime || "14:00");
-    setEndTime(shift.endTime || "22:00");
-    setHasBreak(true);
-    setIsManualBreak(false);
+    const sTime = shift.startTime || "14:00";
+    const eTime = shift.endTime || "22:00";
+    setStartTime(sTime);
+    setEndTime(eTime);
+    
+    const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
+    setHasBreak(shiftHasBreak);
+    
+    if (shiftHasBreak) {
+      if (shift.breakStart && shift.breakEnd) {
+        setBreakStart(shift.breakStart);
+        setBreakEnd(shift.breakEnd);
+      } else {
+        // 🔥 CORRECCIÓN: Si es un turno viejo, le aplica la misma magia redonda (:00 o :30)
+        const [hS, mS] = sTime.split(":").map(Number);
+        const [hE, mE] = eTime.split(":").map(Number);
+        let sMins = hS * 60 + mS;
+        let eMins = hE * 60 + mE;
+        if (eMins <= sMins) eMins += 24 * 60;
+        const midMins = Math.floor((sMins + eMins) / 2);
+        
+        let bStartMins = midMins - 15;
+        bStartMins = Math.round(bStartMins / 30) * 30; // REDONDEO PERFECTO
+        
+        const formatTime = (totalMins: number) => {
+          const h = Math.floor((totalMins % (24 * 60)) / 60).toString().padStart(2, "0");
+          const m = (totalMins % 60).toString().padStart(2, "0");
+          return `${h}:${m}`;
+        };
+        setBreakStart(formatTime(bStartMins));
+        setBreakEnd(formatTime(bStartMins + 30));
+      }
+      setIsManualBreak(true); 
+    } else {
+      setBreakStart("16:00");
+      setBreakEnd("16:30");
+      setIsManualBreak(false);
+    }
     setShowModal(true);
   };
 
@@ -305,11 +348,20 @@ export default function NominasPage() {
     if (confirm("¿Eliminar turno?")) deleteDoc(doc(db, "shifts", id));
   }
 
+  // RECALCULAR AHORA RESPETA EL BREAK GUARDADO
   const handleRecalculate = async (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     if (!user || shift.isOff) return; 
 
-    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, undefined, role, true);
+    const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
+    
+    let exactSavedBreak = undefined;
+    if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
+      exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
+    }
+
+    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, exactSavedBreak, role, shiftHasBreak);
+    
     const payload: any = {
       ...shift, ...calc, 
       hOrdD: calc.hOrdD, pOrdD: calc.pOrdD,
@@ -342,15 +394,21 @@ export default function NominasPage() {
     }
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
-    const manualBreak = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
+    const finalBreak = (!isOff && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
 
-    const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role, hasBreak);
+    const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
 
     const payload: any = {
       userId: user.id,
       date: targetDateStr,
       startTime: isOff ? "" : startTime,
       endTime: isOff ? "" : endTime,
+      
+      hasBreak: isOff ? false : hasBreak,
+      isManualBreak: isOff ? false : isManualBreak,
+      breakStart: isOff ? "" : breakStart,
+      breakEnd: isOff ? "" : breakEnd,
+
       netPay: isOff ? 0 : calc.netPay,
       salaryBase: isOff ? 0 : calc.salaryBase,
       transportAux: isOff ? 0 : calc.transportAux,
@@ -424,7 +482,6 @@ export default function NominasPage() {
         <main className={`min-h-screen font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
           <Navbar />
           
-          {/* BURBUJA FLOTANTE ARRASTRABLE */}
           <motion.button
             drag
             dragMomentum={false}
@@ -589,7 +646,7 @@ export default function NominasPage() {
                   <div className="mt-8 flex gap-4 transition-all duration-300">
                     <button
                       disabled={!selectedDate}
-                      onClick={() => { setEditingShiftId(null); setShowModal(true); }}
+                      onClick={() => { setSelectedDate(selectedDate); handleOpenNew(); }}
                       className={`flex-1 py-4 rounded-2xl font-black shadow-lg uppercase text-xs tracking-widest transition-all
                             ${selectedDate ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` : 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed shadow-none'}`}
                     >
@@ -776,7 +833,7 @@ export default function NominasPage() {
                                    </div>
                                    {(hasBigVenta || isEditingBigVenta) && (
                                      <div className="animate-in slide-in-from-top-2 duration-300 flex flex-col md:flex-row items-center gap-3 w-full max-w-md">
-                                       <input type="number" placeholder="Ingresar Valor (ej. 196000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
+                                       <input type="number" placeholder="Ingresar Valor (ej. 60000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
                                        <button onClick={saveBigVenta} className="bg-yellow-500 text-black font-black uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-yellow-400 active:scale-95 transition-all w-full md:w-auto">Guardar</button>
                                      </div>
                                    )}
@@ -793,7 +850,7 @@ export default function NominasPage() {
             )}
           </div>
 
-          {/* MODAL EDITAR / CREAR TURNO (AHORA CON MAGIA DEL BREAK) */}
+          {/* MODAL EDITAR / CREAR TURNO */}
           {showModal && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
               <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-8 md:p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors">
@@ -802,16 +859,45 @@ export default function NominasPage() {
 
                 <div className="space-y-6 mb-8">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Entrada</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
-                    <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Salida</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400">Entrada</label>
+                      <input 
+                        type="time" 
+                        value={startTime} 
+                        onChange={(e) => {
+                          setStartTime(e.target.value);
+                          if (!isManualBreak) autoCalculateBreak(e.target.value, endTime);
+                        }} 
+                        className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-gray-400">Salida</label>
+                      <input 
+                        type="time" 
+                        value={endTime} 
+                        onChange={(e) => {
+                          setEndTime(e.target.value);
+                          if (!isManualBreak) autoCalculateBreak(startTime, e.target.value);
+                        }} 
+                        className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" 
+                      />
+                    </div>
                   </div>
                   
-                  {/* SECCIÓN BREAK ACTUALIZADA */}
                   <div className="space-y-3">
                     <div className={`p-4 rounded-2xl border-2 transition-colors ${hasBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
                       <div className="flex items-center justify-between">
                         <span className={`text-[10px] md:text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
-                        <button onClick={() => { setHasBreak(!hasBreak); if (hasBreak) setIsManualBreak(false); }} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${hasBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                        <button onClick={() => { 
+                          // 🔥 CORRECCIÓN: Al prender el break, se recalcula redondito de una vez
+                          const nextBreak = !hasBreak;
+                          setHasBreak(nextBreak); 
+                          if (nextBreak) {
+                            setIsManualBreak(false);
+                            autoCalculateBreak(startTime, endTime);
+                          } 
+                        }} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${hasBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
                           <div className={`absolute top-1 w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${hasBreak ? 'left-[1.35rem] md:left-7' : 'left-1'}`} />
                         </button>
                       </div>
@@ -820,7 +906,14 @@ export default function NominasPage() {
                     <div className={`p-4 rounded-2xl border-2 border-dashed transition-all duration-300 ${!hasBreak ? 'opacity-40 pointer-events-none border-gray-100 dark:border-gray-800' : (isManualBreak ? colors.accent : 'border-gray-100 dark:border-gray-800')}`}>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase">¿Break Manual?</span>
-                        <button onClick={() => setIsManualBreak(!isManualBreak)} disabled={!hasBreak} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${isManualBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                        <button onClick={() => {
+                          const nextState = !isManualBreak;
+                          setIsManualBreak(nextState);
+                          // Si lo apagas, que se auto-acomode de nuevo redondito
+                          if (!nextState && hasBreak) {
+                            autoCalculateBreak(startTime, endTime);
+                          }
+                        }} disabled={!hasBreak} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${isManualBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
                           <div className={`absolute top-1 w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${isManualBreak ? 'left-[1.35rem] md:left-7' : 'left-1'}`} />
                         </button>
                       </div>
