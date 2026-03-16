@@ -119,7 +119,7 @@ export default function NominasPage() {
     return () => unsubBV();
   }, [user, selectedYear]);
 
-  // 🔥 CÁLCULO ASIMÉTRICO REDONDEADO (Usado en múltiples partes para evitar errores)
+  // CÁLCULO ASIMÉTRICO REDONDEADO (Usado en múltiples partes para evitar errores)
   const autoCalculateBreak = (start: string, end: string) => {
     const [hStart, mStart] = start.split(":").map(Number);
     const [hEnd, mEnd] = end.split(":").map(Number);
@@ -179,8 +179,10 @@ export default function NominasPage() {
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + (curr.value * 0.92), 0);
       return turnosNeto + bvNeto;
     });
+
     return {
       labels: mesesFull.map(m => m.substring(0, 3).toUpperCase()),
+      // Regresamos al color primario estético para el año completo
       datasets: [{ label: 'Neto', data: dataMeses, backgroundColor: colors.secondary, borderRadius: 6 }]
     };
   }, [shiftsDelAno, bigVentas, colors.secondary]);
@@ -206,10 +208,19 @@ export default function NominasPage() {
     };
     const q1 = calcQ(true);
     const q2 = calcQ(false);
+
+    // Color primario para Q1, y un gris balanceado para Q2 que se ve bien en ambos modos
+    const chartColors = [colors.secondary, isDarkMode ? '#374151' : '#d1d5db'];
+
     return {
-      q1, q2, chartData: {
+      q1, q2, 
+      chartData: {
         labels: ['Q1', 'Q2'],
-        datasets: [{ label: 'Total', data: [q1.dinero, q2.dinero], backgroundColor: [colors.secondary, isDarkMode ? '#333' : '#111'], borderRadius: 10 }]
+        datasets: [{ label: 'Dinero', data: [q1.dinero, q2.dinero], backgroundColor: chartColors, borderRadius: 10 }]
+      },
+      chartDataHours: {
+        labels: ['Q1', 'Q2'],
+        datasets: [{ label: 'Horas', data: [q1.horas, q2.horas], backgroundColor: chartColors, borderRadius: 10 }]
       }
     };
   }, [shiftsDelAno, bigVentas, selectedMonth, colors.secondary, isDarkMode]);
@@ -315,7 +326,7 @@ export default function NominasPage() {
         setBreakStart(shift.breakStart);
         setBreakEnd(shift.breakEnd);
       } else {
-        // 🔥 CORRECCIÓN: Si es un turno viejo, le aplica la misma magia redonda (:00 o :30)
+        // CORRECCIÓN: Si es un turno viejo, le aplica la misma magia redonda (:00 o :30)
         const [hS, mS] = sTime.split(":").map(Number);
         const [hE, mE] = eTime.split(":").map(Number);
         let sMins = hS * 60 + mS;
@@ -579,9 +590,23 @@ export default function NominasPage() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm h-72 border border-gray-50 dark:border-gray-800 transition-colors">
-                  <Bar data={statsQuincenas.chartData} options={{ maintainAspectRatio: false }} />
+
+                {/* NUEVAS GRÁFICAS DOBLES PARA STEP 2 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm h-72 border border-gray-50 dark:border-gray-800 transition-colors flex flex-col">
+                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-4 tracking-[0.2em] text-center">Ingresos Q1 vs Q2</p>
+                    <div className="flex-1">
+                      <Bar data={statsQuincenas.chartData} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} />
+                    </div> 
+                  </div>
+                  <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm h-72 border border-gray-50 dark:border-gray-800 transition-colors flex flex-col">
+                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-4 tracking-[0.2em] text-center">Horas Q1 vs Q2</p>
+                    <div className="flex-1">
+                      <Bar data={statsQuincenas.chartDataHours} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} />
+                    </div>
+                  </div>
                 </div>
+
               </div>
             )}
 
@@ -833,7 +858,7 @@ export default function NominasPage() {
                                    </div>
                                    {(hasBigVenta || isEditingBigVenta) && (
                                      <div className="animate-in slide-in-from-top-2 duration-300 flex flex-col md:flex-row items-center gap-3 w-full max-w-md">
-                                       <input type="number" placeholder="Ingresar Valor (ej. 60000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
+                                       <input type="number" placeholder="Ingresar Valor (ej. 196000)" className="flex-1 bg-gray-800 border-none rounded-xl p-4 text-center text-white font-black text-lg w-full focus:ring-2 ring-yellow-500 outline-none transition-all" value={bigVentaValue} onChange={(e) => setBigVentaValue(e.target.value ? Number(e.target.value) : "")} />
                                        <button onClick={saveBigVenta} className="bg-yellow-500 text-black font-black uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-yellow-400 active:scale-95 transition-all w-full md:w-auto">Guardar</button>
                                      </div>
                                    )}
@@ -890,7 +915,6 @@ export default function NominasPage() {
                       <div className="flex items-center justify-between">
                         <span className={`text-[10px] md:text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
                         <button onClick={() => { 
-                          // 🔥 CORRECCIÓN: Al prender el break, se recalcula redondito de una vez
                           const nextBreak = !hasBreak;
                           setHasBreak(nextBreak); 
                           if (nextBreak) {
