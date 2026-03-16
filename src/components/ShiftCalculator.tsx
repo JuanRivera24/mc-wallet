@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { calculateShift } from "@/lib/calculator";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
@@ -20,12 +20,13 @@ export default function ShiftCalculator() {
   const [start, setStart] = useState("13:00");
   const [end, setEnd] = useState("20:00");
   
-  // NUEVO ESTADO: ¿El turno tuvo break? (Por defecto sí)
   const [hasBreak, setHasBreak] = useState(true);
-  
   const [isManualBreak, setIsManualBreak] = useState(false);
-  const [breakStart, setBreakStart] = useState("16:00");
-  const [breakEnd, setBreakEnd] = useState("16:30");
+  const [breakStart, setBreakStart] = useState("16:15");
+  const [breakEnd, setBreakEnd] = useState("16:45");
+  
+  // NUEVO ESTADO: Para guardar el mensaje de error del break
+  const [breakError, setBreakError] = useState<string | null>(null);
 
   const [result, setResult] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,12 +34,76 @@ export default function ShiftCalculator() {
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
-  const handleCalculate = () => {
-    setNotification(null);
-    // Si hasBreak es falso, forzamos a que no haya break manual tampoco
-    const manualBreak = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
+  // =========================================================================
+  // VIGILANTE 1: Magia Automática (Centrar el Break al cambiar el turno)
+  // =========================================================================
+  useEffect(() => {
+    const [hStart, mStart] = start.split(":").map(Number);
+    const [hEnd, mEnd] = end.split(":").map(Number);
+
+    let startMins = hStart * 60 + mStart;
+    let endMins = hEnd * 60 + mEnd;
+
+    // Si la salida es menor a la entrada, es porque pasó de la medianoche (turno amanecida)
+    if (endMins <= startMins) endMins += 24 * 60; 
+
+    // Calculamos la mitad del turno
+    const midMins = Math.floor((startMins + endMins) / 2);
     
-    // Le pasamos hasBreak a la función
+    // Asignamos 15 min antes y 15 min después del centro
+    const bStartMins = midMins - 15;
+    const bEndMins = midMins + 15;
+
+    const formatTime = (totalMins: number) => {
+      const h = Math.floor((totalMins % (24 * 60)) / 60).toString().padStart(2, "0");
+      const m = (totalMins % 60).toString().padStart(2, "0");
+      return `${h}:${m}`;
+    };
+
+    setBreakStart(formatTime(bStartMins));
+    setBreakEnd(formatTime(bEndMins));
+  }, [start, end]); // Se ejecuta cada vez que cambian "start" o "end"
+
+  // =========================================================================
+  // VIGILANTE 2: El Escudo (Validar que el break no se salga del turno)
+  // =========================================================================
+  useEffect(() => {
+    if (!hasBreak || !isManualBreak) {
+      setBreakError(null);
+      return;
+    }
+
+    const [hS, mS] = start.split(":").map(Number);
+    const [hE, mE] = end.split(":").map(Number);
+    const [hBS, mBS] = breakStart.split(":").map(Number);
+    const [hBE, mBE] = breakEnd.split(":").map(Number);
+
+    let sMins = hS * 60 + mS;
+    let eMins = hE * 60 + mE;
+    if (eMins <= sMins) eMins += 24 * 60;
+
+    let bsMins = hBS * 60 + mBS;
+    let beMins = hBE * 60 + mBE;
+
+    // Ajuste por si el break pasa la medianoche
+    if (bsMins < sMins && eMins > 24 * 60) bsMins += 24 * 60;
+    if (beMins < sMins && eMins > 24 * 60) beMins += 24 * 60;
+
+    if (bsMins < sMins || beMins > eMins) {
+      setBreakError("🚨 El break está por fuera de tu hora de turno.");
+    } else if (beMins <= bsMins) {
+      setBreakError("🚨 La hora de fin de break debe ser mayor a la de inicio.");
+    } else {
+      setBreakError(null); // Todo está bien
+    }
+  }, [start, end, breakStart, breakEnd, hasBreak, isManualBreak]);
+
+
+  const handleCalculate = () => {
+    if (breakError) return; // Si hay error, bloqueamos el cálculo por seguridad
+    
+    setNotification(null);
+    const manualBreak = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
     const calc = calculateShift(date, start, end, manualBreak, role, hasBreak);
     setResult(calc);
   };
@@ -67,7 +132,6 @@ export default function ShiftCalculator() {
       };
 
       await setDoc(doc(db, "shifts", docId), payload, { merge: true });
-      
       setNotification({ message: "¡Turno guardado en la nómina! ⚡", type: 'success' });
 
     } catch (error) {
@@ -80,13 +144,13 @@ export default function ShiftCalculator() {
   return (
     <div className={`relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[2rem] shadow-2xl overflow-hidden border ${colors.accent} dark:border-gray-800 mx-auto transition-all duration-500`}>
 
-      {/* HEADER: Reducido padding en móvil (p-5 vs p-8) */}
+      {/* HEADER */}
       <div className={`${colors.secondary} p-5 sm:p-8 text-white text-center`}>
         <h2 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic">Calculadora Rápida</h2>
         <p className="text-xs sm:text-sm opacity-80 font-bold">Modo: {role}</p>
       </div>
 
-      {/* BODY: Reducido padding en móvil (p-5 vs p-8) */}
+      {/* BODY */}
       <div className="p-5 sm:p-8 space-y-5 sm:space-y-6">
         <div className="space-y-4">
           
@@ -112,7 +176,7 @@ export default function ShiftCalculator() {
           {/* CONTENEDOR DE BREAKS */}
           <div className="space-y-3">
             
-            {/* 1. NUEVO INTERRUPTOR: TURNO CON BREAK */}
+            {/* 1. INTERRUPTOR: TURNO CON BREAK */}
             <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-colors ${hasBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] sm:text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
@@ -133,27 +197,42 @@ export default function ShiftCalculator() {
                   <div className={`absolute top-1 w-3 sm:w-4 h-3 sm:h-4 bg-white rounded-full transition-all ${isManualBreak ? 'left-[1.35rem] sm:left-7' : 'left-1'}`} />
                 </button>
               </div>
+              
               {isManualBreak && hasBreak && (
-                <div className="grid grid-cols-2 gap-3 sm:gap-4 animate-in fade-in">
-                  <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-xs sm:text-sm font-bold border border-gray-100 dark:border-gray-700" />
-                  <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-xs sm:text-sm font-bold border border-gray-100 dark:border-gray-700" />
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-2">
+                    <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-xs sm:text-sm font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
+                    <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg text-xs sm:text-sm font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
+                  </div>
+                  
+                  {/* MENSAJE DE ERROR DEL BREAK */}
+                  {breakError && (
+                    <p className="text-[10px] font-bold text-red-500 animate-pulse mt-1">
+                      {breakError}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
 
           </div>
-
         </div>
 
-        {/* BOTÓN CALCULAR: Ligeramente más bajo en móvil */}
-        <button onClick={handleCalculate} className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg shadow-lg active:scale-95 transition-all text-white ${colors.secondary} hover:brightness-110`}>CALCULAR 💰</button>
+        {/* BOTÓN CALCULAR (Se desactiva si hay error en el break) */}
+        <button 
+          onClick={handleCalculate} 
+          disabled={!!breakError}
+          className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black text-base sm:text-lg shadow-lg transition-all text-white 
+            ${breakError ? 'bg-gray-400 dark:bg-gray-700 cursor-not-allowed scale-100' : `${colors.secondary} hover:brightness-110 active:scale-95`}`}
+        >
+          {breakError ? 'CORRIGE EL BREAK ⚠️' : 'CALCULAR 💰'}
+        </button>
 
-        {result && (
+        {result && !breakError && (
           <div className="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t-2 border-gray-50 dark:border-gray-800 animate-in slide-in-from-bottom-4">
             <div className="flex justify-between items-end mb-5 sm:mb-6">
               <div className="flex flex-col">
                 <span className="text-gray-400 dark:text-gray-500 font-bold uppercase text-[9px] sm:text-[10px]">Neto Estimado</span>
-                {/* TEXTO DE DINERO: 3xl en móvil, 4xl en PC */}
                 <span className={`text-3xl sm:text-4xl font-black tracking-tighter ${colors.primary}`}>${result.netPay.toLocaleString('es-CO')}</span>
               </div>
             </div>
@@ -181,7 +260,6 @@ export default function ShiftCalculator() {
                 )}
               </div>
             )}
-
           </div>
         )}
       </div>

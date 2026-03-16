@@ -11,7 +11,6 @@ export default function Onboarding() {
   const { user, isLoaded } = useUser();
   const [isVisible, setIsVisible] = useState(false);
   
-  // TRAEMOS TODA LA MAGIA DE TU CONTEXTO DIRECTAMENTE
   const { role, setRole, isDarkMode, toggleDarkMode } = useTheme(); 
   const [tempRole, setTempRole] = useState<'CREW' | 'ENTRENADOR'>(role);
 

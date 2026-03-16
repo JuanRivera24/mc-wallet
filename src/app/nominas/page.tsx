@@ -12,6 +12,7 @@ import { calculateShift } from "@/lib/calculator";
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import PayrollFeedback from "@/components/PayrollFeedback";
+import { motion } from "framer-motion"; // <-- NUEVO IMPORT PARA EL BOTÓN ARRASTRABLE
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -19,8 +20,6 @@ export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
 
-  // --- SOLUCIÓN RECARGA Y QUINCENA NULL ---
-  // Utilizamos isMounted para asegurar que la app espere al navegador antes de pintar
   const [isMounted, setIsMounted] = useState(false);
   const [step, setStep] = useState(1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -28,7 +27,6 @@ export default function NominasPage() {
   const [selectedQuincena, setSelectedQuincena] = useState<number | null>(null);
 
   useEffect(() => {
-    // 1. Al cargar, leemos la memoria local
     const storedYear = localStorage.getItem('mc_year');
     const storedMonth = localStorage.getItem('mc_month');
     const storedQuincena = localStorage.getItem('mc_quincena');
@@ -37,21 +35,18 @@ export default function NominasPage() {
     if (storedMonth) setSelectedMonth(storedMonth);
     if (storedQuincena) setSelectedQuincena(parseInt(storedQuincena, 10));
 
-    // 2. Revisamos en qué paso dice la URL que estamos
     const params = new URLSearchParams(window.location.search);
     let urlStep = parseInt(params.get('step') || '1', 10);
 
-    // 3. Sistema anti-errores: Si la URL dice paso 2 o 3, pero no hay mes guardado, lo devolvemos al paso 1
     if (urlStep > 1 && !storedMonth) {
       urlStep = 1;
       window.history.replaceState({ step: 1 }, '', '?step=1');
     }
 
     setStep(urlStep);
-    setIsMounted(true); // ¡Listo, ya podemos mostrar la UI sin errores!
+    setIsMounted(true);
   }, []);
 
-  // Guardar en memoria cada vez que el usuario cambie de mes/año/quincena
   useEffect(() => {
     if (!isMounted) return;
     localStorage.setItem('mc_year', selectedYear.toString());
@@ -59,7 +54,6 @@ export default function NominasPage() {
     if (selectedQuincena !== null) localStorage.setItem('mc_quincena', selectedQuincena.toString());
   }, [selectedYear, selectedMonth, selectedQuincena, isMounted]);
 
-  // Sincronizar con el botón atrás del celular
   useEffect(() => {
     if (!isMounted) return;
     const syncStepWithUrl = () => {
@@ -79,7 +73,6 @@ export default function NominasPage() {
     return () => window.removeEventListener('popstate', syncStepWithUrl);
   }, [isMounted]);
 
-  // Datos de Base de Datos
   const [shifts, setShifts] = useState<any[]>([]);
   const [bigVentas, setBigVentas] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -87,60 +80,99 @@ export default function NominasPage() {
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null);
   
-  // ESTADO PARA EL DESPLEGABLE INFERIOR
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
-  
-  // ESTADOS BIG VENTA UI
   const [hasBigVenta, setHasBigVenta] = useState(false);
-  const [isEditingBigVenta, setIsEditingBigVenta] = useState(false); // <--- NUEVO ESTADO PARA ARREGLAR EDICIÓN
+  const [isEditingBigVenta, setIsEditingBigVenta] = useState(false);
   const [bigVentaValue, setBigVentaValue] = useState<number | "">("");
 
-  // Formulario
+  // ESTADOS DEL FORMULARIO Y BREAK
   const [startTime, setStartTime] = useState("13:00");
   const [endTime, setEndTime] = useState("20:00");
+  const [hasBreak, setHasBreak] = useState(true);
   const [isManualBreak, setIsManualBreak] = useState(false);
-  const [breakStart, setBreakStart] = useState("16:00");
-  const [breakEnd, setBreakEnd] = useState("16:30");
+  const [breakStart, setBreakStart] = useState("16:15");
+  const [breakEnd, setBreakEnd] = useState("16:45");
+  const [breakError, setBreakError] = useState<string | null>(null);
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-
   const today = new Date();
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
+
+  // OBTENER LA FECHA DE HOY (Formato YYYY-MM-DD para Firebase)
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const goToStep = (newStep: number) => {
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
     setStep(newStep);
   };
 
-  // ESCUCHADORES FIREBASE
   useEffect(() => {
     if (!user) return;
-    const q = query(
-      collection(db, "shifts"), 
-      where("userId", "==", user.id),
-      where("year", "==", selectedYear) 
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setShifts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const q = query(collection(db, "shifts"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const unsub = onSnapshot(q, (snap) => setShifts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsub();
   }, [user, selectedYear]);
 
   useEffect(() => {
     if (!user) return;
-    const qBV = query(
-      collection(db, "bigVentas"),
-      where("userId", "==", user.id),
-      where("year", "==", selectedYear)
-    );
-    const unsubBV = onSnapshot(qBV, (snap) => {
-      setBigVentas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    const qBV = query(collection(db, "bigVentas"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const unsubBV = onSnapshot(qBV, (snap) => setBigVentas(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubBV();
   }, [user, selectedYear]);
 
+  // VIGILANTE 1: Centrar Break Automático en el Modal
+  useEffect(() => {
+    if (!showModal) return;
+    const [hStart, mStart] = startTime.split(":").map(Number);
+    const [hEnd, mEnd] = endTime.split(":").map(Number);
+    let startMins = hStart * 60 + mStart;
+    let endMins = hEnd * 60 + mEnd;
+    if (endMins <= startMins) endMins += 24 * 60; 
+
+    const midMins = Math.floor((startMins + endMins) / 2);
+    const bStartMins = midMins - 15;
+    const bEndMins = midMins + 15;
+
+    const formatTime = (totalMins: number) => {
+      const h = Math.floor((totalMins % (24 * 60)) / 60).toString().padStart(2, "0");
+      const m = (totalMins % 60).toString().padStart(2, "0");
+      return `${h}:${m}`;
+    };
+    setBreakStart(formatTime(bStartMins));
+    setBreakEnd(formatTime(bEndMins));
+  }, [startTime, endTime, showModal]);
+
+  // VIGILANTE 2: Validar Break en el Modal
+  useEffect(() => {
+    if (!hasBreak || !isManualBreak || !showModal) {
+      setBreakError(null);
+      return;
+    }
+    const [hS, mS] = startTime.split(":").map(Number);
+    const [hE, mE] = endTime.split(":").map(Number);
+    const [hBS, mBS] = breakStart.split(":").map(Number);
+    const [hBE, mBE] = breakEnd.split(":").map(Number);
+
+    let sMins = hS * 60 + mS;
+    let eMins = hE * 60 + mE;
+    if (eMins <= sMins) eMins += 24 * 60;
+
+    let bsMins = hBS * 60 + mBS;
+    let beMins = hBE * 60 + mBE;
+
+    if (bsMins < sMins && eMins > 24 * 60) bsMins += 24 * 60;
+    if (beMins < sMins && eMins > 24 * 60) beMins += 24 * 60;
+
+    if (bsMins < sMins || beMins > eMins) setBreakError("🚨 Break por fuera del turno.");
+    else if (beMins <= bsMins) setBreakError("🚨 Hora fin inválida.");
+    else setBreakError(null);
+  }, [startTime, endTime, breakStart, breakEnd, hasBreak, isManualBreak, showModal]);
+
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
+  
+  // TURNO DE HOY (Para la Burbuja Flotante)
+  const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr), [shiftsDelAno, todayStr]);
 
   const statsAnuales = useMemo(() => {
     const dataMeses = mesesFull.map(m => {
@@ -192,14 +224,12 @@ export default function NominasPage() {
     }).sort((a, b) => a.date.localeCompare(b.date));
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
 
-  // CÁLCULOS GENERALES Y BIG VENTA
   const currentBigVenta = bigVentas.find(b => b.month === selectedMonth && b.quincena === selectedQuincena);
   const bigVentaNeto = currentBigVenta ? currentBigVenta.value * 0.92 : 0;
   const bigVentaDeduccion = currentBigVenta ? currentBigVenta.value * 0.08 : 0;
 
   const baseDineroTurnos = turnosFiltrados.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
   const totalListaDinero = baseDineroTurnos + bigVentaNeto;
-
   const totalListaHoras = turnosFiltrados.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
   const countTrabajados = turnosFiltrados.filter(s => !s.isOff).length;
   const countOff = turnosFiltrados.filter(s => s.isOff).length;
@@ -208,28 +238,23 @@ export default function NominasPage() {
   const tOrdD_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdD || 0), 0);
   const tOrdN_h = turnosFiltrados.reduce((a, c) => a + (c.hOrdN || 0), 0);
   const tOrdN_p = turnosFiltrados.reduce((a, c) => a + (c.pOrdN || 0), 0);
-  
   const tDomD_h = turnosFiltrados.reduce((a, c) => a + (c.hDomD || 0), 0);
   const tDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pDomD || 0), 0);
   const tDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hDomN || 0), 0);
   const tDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pDomN || 0), 0);
-
   const tExtD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtD || 0), 0);
   const tExtD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtD || 0), 0);
   const tExtN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtN || 0), 0);
   const tExtN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtN || 0), 0);
-
   const tExtDomD_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomD || 0), 0);
   const tExtDomD_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomD || 0), 0);
   const tExtDomN_h = turnosFiltrados.reduce((a, c) => a + (c.hExtDomN || 0), 0);
   const tExtDomN_p = turnosFiltrados.reduce((a, c) => a + (c.pExtDomN || 0), 0);
-
   const tTransportAux = turnosFiltrados.reduce((a, c) => a + (c.transportAux || 0), 0);
   const tDeductionsBase = turnosFiltrados.reduce((a, c) => a + (c.deductions || 0), 0);
   const tDeductionsFinal = tDeductionsBase + bigVentaDeduccion;
 
   const getLastDayOfMonth = () => new Date(selectedYear, mesesFull.indexOf(selectedMonth) + 1, 0).getDate();
-
   const getDineroColor = (dinero: number) => {
     if (dinero < 800000) return "text-red-500 dark:text-red-400";
     if (dinero < 1000000) return "text-orange-500 dark:text-orange-400";
@@ -242,7 +267,6 @@ export default function NominasPage() {
     if (currentIndex === 0) { setSelectedMonth("diciembre"); setSelectedYear(prev => prev - 1); } 
     else { setSelectedMonth(mesesFull[currentIndex - 1]); }
   };
-
   const handleNextMonth = () => {
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 11) { setSelectedMonth("enero"); setSelectedYear(prev => prev + 1); } 
@@ -253,11 +277,12 @@ export default function NominasPage() {
   const handleNextQuincena = () => selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
 
   const handleQuickAddToday = () => {
-    const now = new Date();
-    setSelectedYear(now.getFullYear());
-    setSelectedMonth(mesesFull[now.getMonth()]);
-    setSelectedDate(now);
+    setSelectedYear(today.getFullYear());
+    setSelectedMonth(mesesFull[today.getMonth()]);
+    setSelectedDate(today);
     setEditingShiftId(null);
+    setHasBreak(true);
+    setIsManualBreak(false);
     setShowModal(true);
   };
 
@@ -270,6 +295,8 @@ export default function NominasPage() {
 
     setStartTime(shift.startTime || "14:00");
     setEndTime(shift.endTime || "22:00");
+    setHasBreak(true);
+    setIsManualBreak(false);
     setShowModal(true);
   };
 
@@ -282,11 +309,9 @@ export default function NominasPage() {
     e.stopPropagation();
     if (!user || shift.isOff) return; 
 
-    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, undefined, role);
-
+    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, undefined, role, true);
     const payload: any = {
-      ...shift, 
-      ...calc, 
+      ...shift, ...calc, 
       hOrdD: calc.hOrdD, pOrdD: calc.pOrdD,
       hOrdN: calc.hOrdN, pOrdN: calc.pOrdN,
       hDomD: calc.hDomD, pDomD: calc.pDomD,
@@ -297,14 +322,13 @@ export default function NominasPage() {
       hExtDomN: calc.hExtDomN, pExtDomN: calc.pExtDomN,
       timestamp: serverTimestamp() 
     };
-
     await setDoc(doc(db, "shifts", shift.id), payload, { merge: true });
   };
 
   const handleToggleExpand = (id: string) => setExpandedShiftId(expandedShiftId === id ? null : id);
 
   const handleSaveShift = async (isOff: boolean = false) => {
-    if (!user) return;
+    if (!user || breakError) return;
     let targetDateStr = "";
     if (editingShiftId) {
       const originalShift = shifts.find(s => s.id === editingShiftId);
@@ -318,9 +342,9 @@ export default function NominasPage() {
     }
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
-    const manualBreak = isManualBreak ? { start: breakStart, end: breakEnd } : undefined;
+    const manualBreak = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
 
-    const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role);
+    const calc = calculateShift(targetDateStr, startTime, endTime, manualBreak, role, hasBreak);
 
     const payload: any = {
       userId: user.id,
@@ -385,7 +409,6 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
 
-  // PANTALLA DE CARGA INICIAL (Evita errores de Next.js al recargar)
   if (!isMounted) {
     return (
       <main className={`min-h-screen flex items-center justify-center font-sans ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
@@ -400,6 +423,18 @@ export default function NominasPage() {
       <SignedIn>
         <main className={`min-h-screen font-sans transition-colors duration-500 ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}>
           <Navbar />
+          
+          {/* BURBUJA FLOTANTE ARRASTRABLE */}
+          <motion.button
+            drag
+            dragMomentum={false}
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => todayShift ? handleOpenEdit(e, todayShift) : handleQuickAddToday()}
+            className="fixed bottom-24 right-6 w-14 h-14 bg-gray-500/50 backdrop-blur-md rounded-full shadow-2xl border border-gray-300/30 flex items-center justify-center text-2xl z-[90] text-white hover:bg-gray-500/70 transition-colors"
+          >
+            {todayShift ? "✏️" : "➕"}
+          </motion.button>
+
           <div className="max-w-5xl mx-auto p-6">
 
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -429,9 +464,9 @@ export default function NominasPage() {
                       <button key={m} onClick={() => { setSelectedMonth(m); goToStep(2); }}
                         className={`p-6 rounded-[2rem] shadow-sm font-black text-lg capitalize transition-all border hover:scale-105 active:scale-95
                         ${isCurrentMonth
-                            ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 text-yellow-800 dark:text-yellow-500 ring-2 ring-yellow-100 dark:ring-yellow-900/50'
-                            : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
-                          }`}>
+                          ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 text-yellow-800 dark:text-yellow-500 ring-2 ring-yellow-100 dark:ring-yellow-900/50'
+                          : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
+                        }`}>
                         {m}
                       </button>
                     );
@@ -440,15 +475,6 @@ export default function NominasPage() {
                 <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm border border-gray-50 dark:border-gray-800 transition-colors">
                   <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-6 tracking-[0.2em] text-center">Resumen Anual {selectedYear}</p>
                   <div className="h-64"><Bar data={statsAnuales} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} /></div>
-                </div>
-                <div className="flex justify-center">
-                  <button onClick={handleQuickAddToday} className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-8 py-4 rounded-2xl font-black shadow-xl hover:bg-black dark:hover:bg-gray-200 hover:scale-105 transition-all flex items-center gap-3 group border border-gray-800 dark:border-gray-200">
-                    <span className="text-2xl">⚡</span>
-                    <div className="text-left">
-                      <p className="text-[10px] uppercase font-bold text-gray-400 dark:text-gray-500 tracking-widest">Acceso Rápido</p>
-                      <p className="text-lg">Agregar turno de HOY ({today.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })})</p>
-                    </div>
-                  </button>
                 </div>
               </div>
             )}
@@ -718,7 +744,6 @@ export default function NominasPage() {
                               </div>
                            </div>
 
-                           {/* INTERFAZ BIG VENTA REPARADA */}
                            <div className="mt-8 pt-8 border-t border-gray-800/50 flex flex-col w-full">
                              {currentBigVenta && !isEditingBigVenta ? (
                                 <div className="flex justify-between items-center bg-gray-800/40 p-5 rounded-2xl border border-gray-700/50">
@@ -768,9 +793,10 @@ export default function NominasPage() {
             )}
           </div>
 
+          {/* MODAL EDITAR / CREAR TURNO (AHORA CON MAGIA DEL BREAK) */}
           {showModal && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-              <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors">
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+              <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-8 md:p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors">
                 <h3 className="text-2xl font-black mb-8 text-center uppercase italic dark:text-white">{editingShiftId ? 'Editar Turno' : 'Nuevo Turno'}</h3>
                 {selectedDate && <p className="text-center text-gray-400 dark:text-gray-500 font-bold mb-6">{selectedDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>}
 
@@ -779,14 +805,49 @@ export default function NominasPage() {
                     <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Entrada</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
                     <div className="space-y-1"><label className="text-[10px] font-black uppercase text-gray-400">Salida</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full p-4 bg-gray-100 dark:bg-gray-800 dark:text-white rounded-2xl font-black border-none outline-none focus:ring-2 ring-black dark:focus:ring-gray-600 transition-colors" /></div>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 transition-colors">
-                    <div className="flex justify-between items-center mb-2"><span className="text-xs font-black uppercase text-gray-500">Break Manual</span><input type="checkbox" className="w-5 h-5 accent-black dark:accent-white" checked={isManualBreak} onChange={() => setIsManualBreak(!isManualBreak)} /></div>
-                    {isManualBreak && <div className="grid grid-cols-2 gap-2 mt-3"><input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600 transition-colors" /><input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className="p-3 bg-white dark:bg-gray-700 dark:text-white rounded-xl text-xs font-bold shadow-sm border border-gray-100 dark:border-gray-600 transition-colors" /></div>}
+                  
+                  {/* SECCIÓN BREAK ACTUALIZADA */}
+                  <div className="space-y-3">
+                    <div className={`p-4 rounded-2xl border-2 transition-colors ${hasBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] md:text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
+                        <button onClick={() => { setHasBreak(!hasBreak); if (hasBreak) setIsManualBreak(false); }} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${hasBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                          <div className={`absolute top-1 w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${hasBreak ? 'left-[1.35rem] md:left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`p-4 rounded-2xl border-2 border-dashed transition-all duration-300 ${!hasBreak ? 'opacity-40 pointer-events-none border-gray-100 dark:border-gray-800' : (isManualBreak ? colors.accent : 'border-gray-100 dark:border-gray-800')}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase">¿Break Manual?</span>
+                        <button onClick={() => setIsManualBreak(!isManualBreak)} disabled={!hasBreak} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${isManualBreak ? colors.secondary : 'bg-gray-200 dark:bg-gray-700'}`}>
+                          <div className={`absolute top-1 w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${isManualBreak ? 'left-[1.35rem] md:left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                      
+                      {isManualBreak && hasBreak && (
+                        <div className="animate-in fade-in slide-in-from-top-2 mt-3">
+                          <div className="grid grid-cols-2 gap-3 mb-2">
+                            <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
+                            <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
+                          </div>
+                          {breakError && <p className="text-[10px] font-bold text-red-500 animate-pulse mt-1">{breakError}</p>}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+
                 <div className="flex gap-4">
                   <button onClick={() => setShowModal(false)} className="flex-1 font-bold text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
-                  <button onClick={() => handleSaveShift(false)} className={`${colors.secondary} flex-[2] py-4 rounded-2xl text-white font-black shadow-xl hover:scale-105 transition-transform border border-black dark:border-transparent`}>GUARDAR</button>
+                  <button 
+                    onClick={() => handleSaveShift(false)} 
+                    disabled={!!breakError}
+                    className={`flex-[2] py-4 rounded-2xl text-white font-black uppercase tracking-widest transition-all
+                      ${breakError ? 'bg-gray-400 dark:bg-gray-700 cursor-not-allowed shadow-none scale-100' : `${colors.secondary} hover:scale-105 shadow-xl border border-black dark:border-transparent`}`}
+                  >
+                    GUARDAR
+                  </button>
                 </div>
               </div>
             </div>

@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+// IMPORTANTE: Agregamos doc, getDoc, setDoc y serverTimestamp
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 /* ================================
    CONSTANTES Y HELPERS
@@ -113,7 +114,6 @@ export default function PayrollFeedback() {
   const storageKeyRef = useRef<string>("");
 
   useEffect(() => {
-    // CORRECCIÓN: Verificamos que 'user' exista antes de usar su ID
     if (!isLoaded || !user) return;
 
     async function init() {
@@ -123,10 +123,22 @@ export default function PayrollFeedback() {
       const storageKey = `mcwallet_feedback_${user?.id}_${cycle.cycleId}`;
       storageKeyRef.current = storageKey;
 
-      const status = localStorage.getItem(storageKey);
-      if (status === "completed" || status === "dismissed") return;
+      // 1. Revisión rápida local
+      const localStatus = localStorage.getItem(storageKey);
+      if (localStatus === "completed" || localStatus === "dismissed") return;
 
       try {
+        // 2. Revisión global en Firebase (Crucial para múltiples dispositivos)
+        const docRef = doc(db, "feedback_status", storageKey);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          // Si ya lo respondió en otro lado, actualizamos la memoria local y cancelamos
+          localStorage.setItem(storageKey, docSnap.data().status);
+          return;
+        }
+
+        // 3. Si no hay registros, calculamos y mostramos
         const total = await calculateEstimatedAmount(
           user?.id as string,
           cycle.targetYear,
@@ -147,7 +159,7 @@ export default function PayrollFeedback() {
     init();
   }, [isLoaded, user]);
 
-  const handleCalculate = () => {
+  const handleCalculate = async () => {
     const actual = parseFloat(actualPay.replace(/[^0-9]/g, ""));
     if (isNaN(actual) || actual <= 0) return;
 
@@ -157,13 +169,32 @@ export default function PayrollFeedback() {
     setDiff(difference);
     setPercent(percentage);
 
+    // Guardar estado localmente (para velocidad) y en Firebase (para sincronización)
     localStorage.setItem(storageKeyRef.current, "completed");
     setView("result");
+    
+    try {
+      await setDoc(doc(db, "feedback_status", storageKeyRef.current), { 
+        status: "completed", 
+        timestamp: serverTimestamp() 
+      });
+    } catch (e) {
+      console.error("Error guardando en Firebase:", e);
+    }
   };
 
-  const handleDismissAction = (action: "later" | "never") => {
+  const handleDismissAction = async (action: "later" | "never") => {
     if (action === "never") {
+      // Guardar que no quiere verlo más, tanto local como en la nube
       localStorage.setItem(storageKeyRef.current, "dismissed");
+      try {
+        await setDoc(doc(db, "feedback_status", storageKeyRef.current), { 
+          status: "dismissed", 
+          timestamp: serverTimestamp() 
+        });
+      } catch (e) {
+        console.error("Error guardando dismiss en Firebase:", e);
+      }
     }
     setIsVisible(false);
   };
