@@ -1,4 +1,4 @@
-import { RATES, HOLIDAYS_2026, TRANSPORT_AUX_DAILY, Role } from "@/constants/rates";
+import { RATES, HOLIDAYS_COLOMBIA, TRANSPORT_AUX_DAILY, Role } from "@/constants/rates";
 import { isSunday } from "date-fns";
 
 export function calculateShift(
@@ -39,7 +39,7 @@ export function calculateShift(
     const hour = current.getHours();
     
     const isNight = hour >= 19 || hour < 6;
-    const isFestivo = HOLIDAYS_2026.includes(currentDateStr) || isSunday(current);
+    const isFestivo = HOLIDAYS_COLOMBIA.includes(currentDateStr) || isSunday(current);
     const isExtra = totalMinutesWorked >= 480;
 
     let ratePerMinute = 0;
@@ -80,7 +80,7 @@ export function calculateShift(
           
           const bHour = bCurrent.getHours();
           const bIsNight = bHour >= 19 || bHour < 6;
-          const bIsFestivo = HOLIDAYS_2026.includes(bDateStr) || isSunday(bCurrent);
+          const bIsFestivo = HOLIDAYS_COLOMBIA.includes(bDateStr) || isSunday(bCurrent);
 
           let deductionPerMinute;
           if (bIsNight) {
@@ -104,7 +104,7 @@ export function calculateShift(
     } 
     else if (totalMinutesWorked >= 330) { 
       const deductionMinutes = 30;
-      const isFestivoStart = HOLIDAYS_2026.includes(dateStr) || isSunday(start);
+      const isFestivoStart = HOLIDAYS_COLOMBIA.includes(dateStr) || isSunday(start);
 
       const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
       const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
