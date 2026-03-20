@@ -29,11 +29,13 @@ export function calculateShift(
   let totalMinutesWorked = 0;
 
   const rateTable = RATES[role];
-
-  // 1. PROCESAMIENTO MINUTO A MINUTO
   const current = new Date(start);
   while (current < end) {
-    const currentDateStr = current.toISOString().split("T")[0];
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, '0');
+    const day = String(current.getDate()).padStart(2, '0');
+    const currentDateStr = `${year}-${month}-${day}`;
+    
     const hour = current.getHours();
     
     const isNight = hour >= 19 || hour < 6;
@@ -70,7 +72,12 @@ export function calculateShift(
       const bCurrent = new Date(bStart);
       while (bCurrent < bEnd) {
         if (bCurrent >= start && bCurrent < end) {
-          const bDateStr = bCurrent.toISOString().split("T")[0];
+          // 🔥 CORRECCIÓN AQUÍ: Se extrae la fecha LOCAL exacta para el break
+          const bYear = bCurrent.getFullYear();
+          const bMonth = String(bCurrent.getMonth() + 1).padStart(2, '0');
+          const bDay = String(bCurrent.getDate()).padStart(2, '0');
+          const bDateStr = `${bYear}-${bMonth}-${bDay}`;
+          
           const bHour = bCurrent.getHours();
           const bIsNight = bHour >= 19 || bHour < 6;
           const bIsFestivo = HOLIDAYS_2026.includes(bDateStr) || isSunday(bCurrent);
