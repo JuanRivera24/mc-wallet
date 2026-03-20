@@ -1,17 +1,23 @@
 "use client";
 import { useTheme } from "@/context/ThemeContext";
-import { RATES, TRANSPORT_AUX_DAILY } from "@/constants/rates";
+import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR } from "@/constants/rates";
 
 export default function RatesSection() {
   const { role, colors, themeColor } = useTheme();
-  const r = RATES[role];
+  
+  // Obtenemos el año actual del sistema
+  const currentYear = new Date().getFullYear();
+  
+  // Buscamos las tarifas del año actual (si no existen en nuestra lista, usamos 2026 por defecto)
+  const r = RATES_BY_YEAR[currentYear]?.[role] || RATES_BY_YEAR[2026][role];
+  const transportAux = TRANSPORT_AUX_BY_YEAR[currentYear] || TRANSPORT_AUX_BY_YEAR[2026];
 
   return (
     <section id="tarifas" className="py-24 bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className={`text-4xl font-black tracking-tighter mb-4 ${themeColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-            Tarifas 2026: {role}
+            Tarifas {currentYear}: {role}
           </h2>
           <p className="text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest text-[10px]">
             Tabla de valores legales para empleados de operaciones
@@ -58,7 +64,7 @@ export default function RatesSection() {
           {/* Bloque 5: Auxilio */}
           <div className="p-8 rounded-[2rem] bg-gray-900 dark:bg-[#111] border border-transparent dark:border-gray-800 text-white flex flex-col justify-center items-center transition-colors duration-300">
             <span className="text-blue-400 dark:text-blue-500 font-black uppercase text-[9px] mb-2">Transporte</span>
-            <h3 className="text-4xl font-black">${TRANSPORT_AUX_DAILY.toLocaleString()}</h3>
+            <h3 className="text-4xl font-black">${transportAux.toLocaleString()}</h3>
             <p className="text-gray-500 text-[10px] uppercase font-bold mt-1">Valor Diario</p>
           </div>
         </div>

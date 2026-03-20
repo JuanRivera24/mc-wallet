@@ -1,4 +1,4 @@
-import { RATES, HOLIDAYS_COLOMBIA, TRANSPORT_AUX_DAILY, Role } from "@/constants/rates";
+import { RATES_BY_YEAR, HOLIDAYS_COLOMBIA, TRANSPORT_AUX_BY_YEAR, Role } from "@/constants/rates";
 import { isSunday } from "date-fns";
 
 export function calculateShift(
@@ -7,11 +7,18 @@ export function calculateShift(
   endTime: string,
   manualBreak?: { start: string; end: string },
   role: Role = "CREW",
-  hasBreak: boolean = true // NUEVO PARÁMETRO: Define si el turno descuenta break o no
+  hasBreak: boolean = true 
 ) {
   const start = new Date(`${dateStr}T${startTime}`);
   let end = new Date(`${dateStr}T${endTime}`);
   if (end <= start) end.setDate(end.getDate() + 1);
+
+  // Extraer el año del string 
+  const shiftYear = parseInt(dateStr.split('-')[0], 10);
+  
+  // Buscar las tarifas de ese año 
+  const rateTable = RATES_BY_YEAR[shiftYear]?.[role] || RATES_BY_YEAR[2026][role];
+  const baseTransport = TRANSPORT_AUX_BY_YEAR[shiftYear] || TRANSPORT_AUX_BY_YEAR[2026];
 
   // Contadores generales originales
   let dayMinutes = 0;
@@ -28,7 +35,7 @@ export function calculateShift(
   let moneyBase = 0;
   let totalMinutesWorked = 0;
 
-  const rateTable = RATES[role];
+  // 1. PROCESAMIENTO MINUTO A MINUTO
   const current = new Date(start);
   while (current < end) {
     const year = current.getFullYear();
@@ -72,7 +79,6 @@ export function calculateShift(
       const bCurrent = new Date(bStart);
       while (bCurrent < bEnd) {
         if (bCurrent >= start && bCurrent < end) {
-          // 🔥 CORRECCIÓN AQUÍ: Se extrae la fecha LOCAL exacta para el break
           const bYear = bCurrent.getFullYear();
           const bMonth = String(bCurrent.getMonth() + 1).padStart(2, '0');
           const bDay = String(bCurrent.getDate()).padStart(2, '0');
@@ -86,13 +92,11 @@ export function calculateShift(
           if (bIsNight) {
             deductionPerMinute = bIsFestivo ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
             nightMinutes--;
-            // Restamos del contador detallado
             if (bIsFestivo) { mDomN = Math.max(0, mDomN - 1); pDomN = Math.max(0, pDomN - deductionPerMinute); }
             else { mOrdN = Math.max(0, mOrdN - 1); pOrdN = Math.max(0, pOrdN - deductionPerMinute); }
           } else {
             deductionPerMinute = bIsFestivo ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
             dayMinutes--;
-            // Restamos del contador detallado
             if (bIsFestivo) { mDomD = Math.max(0, mDomD - 1); pDomD = Math.max(0, pDomD - deductionPerMinute); }
             else { mOrdD = Math.max(0, mOrdD - 1); pOrdD = Math.max(0, pOrdD - deductionPerMinute); }
           }
@@ -147,7 +151,7 @@ export function calculateShift(
   const salaryBase = Math.round(moneyBase);
   const healthPension = Math.round(salaryBase * 0.08); 
   
-  let transport = TRANSPORT_AUX_DAILY;
+  let transport = baseTransport;
   if (endTime >= "00:01" && endTime <= "04:59") {
     transport += 5000;
   }
@@ -157,7 +161,6 @@ export function calculateShift(
   return {
     date: dateStr,
     
-    // Contadores Originales (Protegen la App)
     hoursDay: Number((dayMinutes / 60).toFixed(2)),
     hoursNight: Number((nightMinutes / 60).toFixed(2)),
     totalHours: Number((totalMinutesWorked / 60).toFixed(2)),
@@ -167,7 +170,6 @@ export function calculateShift(
     deductions: healthPension,    
     netPay: netPay,
     
-    // NUEVOS Contadores Detallados (Horas y Dinero)
     hOrdD: Number((mOrdD / 60).toFixed(2)), pOrdD: Math.round(pOrdD),
     hOrdN: Number((mOrdN / 60).toFixed(2)), pOrdN: Math.round(pOrdN),
     hDomD: Number((mDomD / 60).toFixed(2)), pDomD: Math.round(pDomD),
