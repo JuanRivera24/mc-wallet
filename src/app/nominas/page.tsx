@@ -958,9 +958,9 @@ export default function NominasPage() {
                               </div>
                               
                               <div className="flex items-center gap-1 md:gap-2">
-                                <button onClick={(e) => handleOpenEdit(e, s)} className="p-1.5 md:p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10" title="Editar Turno">✏️</button>
-                                <button onClick={(e) => handleRecalculate(e, s)} className="p-1.5 md:p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
-                                <button onClick={(e) => handleDelete(e, s.id)} className="p-1.5 md:p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
+                                <button onClick={(e) => handleOpenEdit(e, s)} className="p-1 md:p-1.5 text-xs md:text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10" title="Editar Turno">✏️</button>
+                                <button onClick={(e) => handleRecalculate(e, s)} className="p-1 md:p-1.5 text-xs md:text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
+                                <button onClick={(e) => handleDelete(e, s.id)} className="p-1 md:p-1.5 text-xs md:text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
                               </div>
                             </div>
                           </div>
