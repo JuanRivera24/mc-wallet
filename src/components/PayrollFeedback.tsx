@@ -33,19 +33,53 @@ function getTargetCycle() {
   let targetQ = 1;
   let shouldShow = false;
 
-  // Lógica de fechas para Arcos Dorados (Pagos 5 y 20)
-  if ((day === 5 && hour >= 17) || (day > 5 && day <= 19)) {
+  // Por defecto (2027 en adelante)
+  let d1 = 5;
+  let d2 = 20;
+
+  // Cronograma exacto de pagos Crew para 2026
+  if (year === 2026) {
+    const schedule2026 = [
+      [5, 20], // Enero
+      [5, 20], // Febrero
+      [5, 20], // Marzo
+      [6, 20], // Abril
+      [5, 20], // Mayo
+      [5, 19], // Junio
+      [3, 21], // Julio
+      [5, 20], // Agosto
+      [4, 18], // Septiembre
+      [5, 20], // Octubre
+      [5, 20], // Noviembre
+      [4, 18], // Diciembre
+    ];
+    d1 = schedule2026[month][0];
+    d2 = schedule2026[month][1];
+  }
+
+  // 1. Periodo del 1er pago (Paga Q2 del mes anterior): 
+  // Desde el día d1 a las 17:00, hasta el día d2 antes de las 17:00.
+  if ((day === d1 && hour >= 17) || (day > d1 && day < d2) || (day === d2 && hour < 17)) {
     const prev = getPreviousMonth(month, year);
     targetMonth = prev.month;
     targetYear = prev.year;
     targetQ = 2;
     shouldShow = true;
-  } else if ((day === 20 && hour >= 17) || day > 20 || day <= 4) {
-    if (day <= 4) {
-      const prev = getPreviousMonth(month, year);
-      targetMonth = prev.month;
-      targetYear = prev.year;
-    }
+  } 
+  // 2. Periodo del 2do pago (Paga Q1 del mes actual): 
+  // Desde el día d2 a las 17:00 hasta fin de mes.
+  else if ((day === d2 && hour >= 17) || day > d2) {
+    targetMonth = month;
+    targetYear = year;
+    targetQ = 1;
+    shouldShow = true;
+  } 
+  // 3. Inicio de mes, antes del 1er pago: 
+  // Sigue mostrando el pago anterior (Q1 del mes anterior).
+  else if (day < d1 || (day === d1 && hour < 17)) {
+    const prev = getPreviousMonth(month, year);
+    targetMonth = prev.month;
+    targetYear = prev.year;
     targetQ = 1;
     shouldShow = true;
   }
