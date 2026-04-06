@@ -367,14 +367,13 @@ export default function NominasPage() {
     setSpecialTransport(false);
     setIncapacidadType('HORAS');
 
-    // Auto-select REUNION si hay un turno normal este día
     if (selectedDate) {
       const dStrForModal = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
       const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
       if (hasNormalShiftForModal) {
         setSpecialTab('REUNION');
       } else {
-        setSpecialTab('REUNION'); // Default normal
+        setSpecialTab('REUNION');
       }
     }
 
@@ -388,7 +387,6 @@ export default function NominasPage() {
     handleOpenNew();
   };
 
-  // MAGIA APLICADA AQUÍ: Edición de eventos especiales al vuelo
   const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
     e.stopPropagation();
     setEditingShiftId(shift.id);
@@ -423,7 +421,6 @@ export default function NominasPage() {
       return;
     }
 
-    // SI NO ES ESPECIAL, ABRE EL MODAL NORMAL
     const sTime = shift.startTime || "14:00";
     const eTime = shift.endTime || "22:00";
     setStartTime(sTime);
@@ -620,7 +617,6 @@ export default function NominasPage() {
       const healthPension = Math.round(moneyBase * 0.08);
       const transport = specialTransport ? baseTransport : 0;
 
-      // Reseteamos valores en caso de que esté editando un turno que antes tenía horas nocturnas/diurnas
       payload = {
         ...payload, startTime: "", endTime: "", hasBreak: false,
         totalHours: hrs, salaryBase: Math.round(moneyBase),
@@ -672,7 +668,6 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
 
-  // Variable de apoyo para bloquear botones en el modal de Eventos Especiales
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
   const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
 
@@ -854,7 +849,7 @@ export default function NominasPage() {
                       if (hasIncapacidad) classes += '!bg-white !text-red-600 !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
                       else if (hasShift && hasReunion) classes += '!bg-green-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasOff && hasReunion) classes += '!bg-red-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasReunion) classes += '!bg-orange-500 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm '; else if (hasCompensatorio) classes += '!bg-purple-500 !text-white shadow-sm ';
+                      else if (hasReunion) classes += '!bg-orange-400 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm '; else if (hasCompensatorio) classes += '!bg-purple-500 !text-white shadow-sm ';
                       else if (hasOff) classes += '!bg-red-500 !text-white shadow-sm ';
                       else if (hasShift) classes += '!bg-green-500 !text-white shadow-sm ';
 
@@ -947,17 +942,30 @@ export default function NominasPage() {
                             </div>
                           </div>
 
+                          {/* MAGIA AQUÍ: NUEVO DESGLOSE ESPECÍFICO POR TURNO */}
                           {!s.isOff && expandedShiftId === s.id && (!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) && (
-                            <div className="px-8 pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
-                              <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 transition-colors">
-                                <div className="grid grid-cols-3 gap-4 text-center mb-4 pb-4 border-b border-gray-200/50 dark:border-gray-700">
-                                  <div><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Base (Horas)</p><p className="font-bold text-gray-700 dark:text-gray-300">${Math.floor(s.salaryBase || 0).toLocaleString()}</p></div>
-                                  <div><p className="text-[10px] font-bold text-green-500 uppercase">Aux. Transp</p><p className="font-bold text-green-700 dark:text-green-400">+${Math.floor(s.transportAux || 0).toLocaleString()}</p></div>
-                                  <div><p className="text-[10px] font-bold text-red-400 uppercase">Deducciones</p><p className="font-bold text-red-600 dark:text-red-400">-${Math.floor(s.deductions || 0).toLocaleString()}</p></div>
+                            <div className="px-6 pb-6 md:px-8 md:pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
+                              <div className="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 transition-colors shadow-inner">
+
+                                {/* Resumen General del Turno */}
+                                <div className="grid grid-cols-3 gap-2 md:gap-4 text-center mb-4 pb-4 border-b border-gray-200/50 dark:border-gray-700">
+                                  <div><p className="text-[9px] md:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Base (Horas)</p><p className="font-black text-gray-700 dark:text-gray-300">${Math.floor(s.salaryBase || 0).toLocaleString()}</p></div>
+                                  <div><p className="text-[9px] md:text-[10px] font-bold text-green-600 dark:text-green-500 uppercase">Aux. Transp</p><p className="font-black text-green-700 dark:text-green-400">+${Math.floor(s.transportAux || 0).toLocaleString()}</p></div>
+                                  <div><p className="text-[9px] md:text-[10px] font-bold text-red-400 uppercase">Deducciones</p><p className="font-black text-red-600 dark:text-red-400">-${Math.floor(s.deductions || 0).toLocaleString()}</p></div>
                                 </div>
-                                <div className="flex justify-center gap-6 text-xs font-bold text-gray-500 dark:text-gray-400">
-                                  <span className="flex items-center gap-1"><span className="w-2 h-2 bg-yellow-400 rounded-full border border-black dark:border-transparent"></span> Diurnas: {s.hoursDay?.toFixed(1) || 0}</span>
-                                  <span className="flex items-center gap-1"><span className="w-2 h-2 bg-blue-900 dark:bg-blue-500 rounded-full border border-black dark:border-transparent"></span> Nocturnas: {s.hoursNight?.toFixed(1) || 0}</span>
+
+                                {/* Desglose Detallado de Horas para este Turno Específico */}
+                                <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Turno</p>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 text-center">
+                                  {s.hOrdD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Diurna</p><p className="font-black text-sm text-gray-800 dark:text-gray-200">{s.hOrdD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdD).toLocaleString()}</p></div>}
+                                  {s.hOrdN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Nocturna</p><p className="font-black text-sm text-blue-500 dark:text-blue-300">{s.hOrdN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdN).toLocaleString()}</p></div>}
+                                  {s.hDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Diurno</p><p className="font-black text-sm text-orange-500 dark:text-orange-400">{s.hDomD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomD).toLocaleString()}</p></div>}
+                                  {s.hDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Noct</p><p className="font-black text-sm text-orange-600 dark:text-orange-500">{s.hDomN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomN).toLocaleString()}</p></div>}
+
+                                  {s.hExtD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Diurna</p><p className="font-black text-sm text-red-500 dark:text-red-400">{s.hExtD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtD).toLocaleString()}</p></div>}
+                                  {s.hExtN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Nocturna</p><p className="font-black text-sm text-red-600 dark:text-red-500">{s.hExtN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtN).toLocaleString()}</p></div>}
+                                  {s.hExtDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom D.</p><p className="font-black text-sm text-purple-500 dark:text-purple-400">{s.hExtDomD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomD).toLocaleString()}</p></div>}
+                                  {s.hExtDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom N.</p><p className="font-black text-sm text-purple-600 dark:text-purple-500">{s.hExtDomN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomN).toLocaleString()}</p></div>}
                                 </div>
                               </div>
                             </div>

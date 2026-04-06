@@ -275,7 +275,7 @@ export default function PayrollFeedback() {
               </div>
               <div className="bg-gray-50 dark:bg-gray-900/50 p-5 rounded-3xl border border-gray-100 dark:border-gray-800 text-sm text-gray-600 dark:text-gray-400 leading-relaxed text-left transition-colors">
                 {percent > 1 ? "¡Excelente! Seguramente son recargos nocturnos extra o el bono de Big Venta." : 
-                 percent < -3 ? "Ojo, revisa tus desprendibles. Podría ser que faltó la Big Venta o hubo algún descuento por CSS." : 
+                 percent < -3 ? "Ojo, revisa tus desprendibles/marcaciones. Podría ser que te equivocaste o faltó la Big Venta." : 
                  "¡Cálculo impecable! La diferencia es mínima, probablemente por los redondeos de ley."}
               </div>
               <button
