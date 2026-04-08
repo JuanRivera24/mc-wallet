@@ -849,7 +849,7 @@ export default function NominasPage() {
                       if (hasIncapacidad) classes += '!bg-white !text-red-600 !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
                       else if (hasShift && hasReunion) classes += '!bg-green-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasOff && hasReunion) classes += '!bg-red-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasReunion) classes += '!bg-orange-400 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
+                      else if (hasReunion) classes += '!bg-orange-500 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasCompensatorio) classes += '!bg-yellow-300 !text-white shadow-sm ';
                       else if (hasOff) classes += '!bg-red-500 !text-white shadow-sm ';
                       else if (hasShift) classes += '!bg-green-500 !text-white shadow-sm ';
