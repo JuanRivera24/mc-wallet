@@ -925,7 +925,7 @@ export default function NominasPage() {
                             {/* Información a la Izquierda */}
                             <div className="flex-1 min-w-0 pr-1">
                               <div className="flex items-center gap-2 md:gap-3 mb-1">
-                                <span className={`flex-shrink-0 w-3 h-3 rounded-full border border-black dark:border-transparent ${s.isOff ? 'bg-red-500' : s.type === 'REUNION' ? 'bg-orange-400' : s.type === 'COMPENSATORIO' ? 'bg-purple-500' : s.type === 'INCAPACIDAD' ? 'bg-white border-2 border-red-500' : 'bg-green-500'}`}></span>
+                                <span className={`flex-shrink-0 w-3 h-3 rounded-full border border-black dark:border-transparent ${s.isOff ? 'bg-red-500' : s.type === 'REUNION' ? 'bg-orange-400' : s.type === 'COMPENSATORIO' ? 'bg-yellow-400' : s.type === 'INCAPACIDAD' ? 'bg-white border-2 border-red-500' : 'bg-green-500'}`}></span>
                                 <p className="font-black text-lg md:text-xl text-gray-800 dark:text-gray-200 capitalize truncate">
                                   {new Date(s.date + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
                                 </p>
