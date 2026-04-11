@@ -1008,7 +1008,7 @@ export default function NominasPage() {
                                   </div>
                                 </div>
 
-                                <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Evento</p>
+                                <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Turno</p>
 
                                 {/* Desglose Detallado de Horas (Difiere si es turno normal vs especial) */}
                                 {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) ? (
