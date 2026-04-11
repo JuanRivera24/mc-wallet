@@ -954,10 +954,30 @@ export default function NominasPage() {
                                 {!s.isOff && s.type === 'INCAPACIDAD' && (<p className="font-bold text-[9px] md:text-xs text-red-500 uppercase">En Prox. Q.</p>)}
                               </div>
 
-                              <div className="flex items-center gap-1 md:gap-2">
-                                <button onClick={(e) => handleOpenEdit(e, s)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10" title="Editar Turno">✏️</button>
-                                <button onClick={(e) => handleRecalculate(e, s)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
-                                <button onClick={(e) => handleDelete(e, s.id)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
+                             <div className="flex items-center gap-2.5 md:gap-2.5">
+                                <button
+                                  onClick={(e) => handleOpenEdit(e, s)}
+                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10"
+                                  title="Editar Turno"
+                                >
+                                  ✏️
+                                </button>
+
+                                <button
+                                  onClick={(e) => handleRecalculate(e, s)}
+                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10"
+                                  title="Recalcular rápido"
+                                >
+                                  🔄
+                                </button>
+
+                                <button
+                                  onClick={(e) => handleDelete(e, s.id)}
+                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10"
+                                  title="Eliminar"
+                                >
+                                  🗑️
+                                </button>
                               </div>
                             </div>
                           </div>
