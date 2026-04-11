@@ -366,7 +366,7 @@ export default function NominasPage() {
     setSpecialRateType("ORDINARY");
     setSpecialTransport(false);
     setIncapacidadType('HORAS');
-    setSpecialTab('REUNION'); // Siempre abrimos por defecto en Reunión
+    setSpecialTab('REUNION'); 
     setShowSpecialModal(true);
   };
 
@@ -660,7 +660,6 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
 
-  // 🔥 AQUÍ SE ARREGLÓ EL PROBLEMA: Las variables ahora son globales para toda la vista
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
   const existingMainShift = shiftsDelAno.find(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT'));
   const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
@@ -992,6 +991,21 @@ export default function NominasPage() {
                                   <div><p className="text-[9px] md:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Base (Horas)</p><p className="font-black text-gray-700 dark:text-gray-300">${Math.floor(s.salaryBase || 0).toLocaleString()}</p></div>
                                   <div><p className="text-[9px] md:text-[10px] font-bold text-green-600 dark:text-green-500 uppercase">Aux. Transp</p><p className="font-black text-green-700 dark:text-green-400">+${Math.floor(s.transportAux || 0).toLocaleString()}</p></div>
                                   <div><p className="text-[9px] md:text-[10px] font-bold text-red-400 uppercase">Deducciones</p><p className="font-black text-red-600 dark:text-red-400">-${Math.floor(s.deductions || 0).toLocaleString()}</p></div>
+                                </div>
+
+                                {/* NUEVO: TIEMPO EXACTO */}
+                                <div className="flex justify-center mb-4">
+                                  <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-sm flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">⏳ Tiempo Exacto:</span>
+                                    <span className="text-sm font-black text-gray-800 dark:text-gray-200">
+                                      {(() => {
+                                        const exactMins = Math.round((s.totalHours || 0) * 60);
+                                        const h = Math.floor(exactMins / 60);
+                                        const m = exactMins % 60;
+                                        return `${h}h ${m.toString().padStart(2, '0')}m`;
+                                      })()}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Evento</p>
