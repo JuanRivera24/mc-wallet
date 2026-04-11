@@ -366,17 +366,7 @@ export default function NominasPage() {
     setSpecialRateType("ORDINARY");
     setSpecialTransport(false);
     setIncapacidadType('HORAS');
-
-    if (selectedDate) {
-      const dStrForModal = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-      const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
-      if (hasNormalShiftForModal) {
-        setSpecialTab('REUNION');
-      } else {
-        setSpecialTab('REUNION');
-      }
-    }
-
+    setSpecialTab('REUNION'); // Siempre abrimos por defecto en Reunión
     setShowSpecialModal(true);
   };
 
@@ -406,7 +396,7 @@ export default function NominasPage() {
         if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
           setBreakStart(shift.breakStart);
           setBreakEnd(shift.breakEnd);
-          setIsManualBreak(true);
+          setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : true);
         } else {
           setIsManualBreak(false);
         }
@@ -452,7 +442,7 @@ export default function NominasPage() {
         setBreakStart(formatTime(bStartMins));
         setBreakEnd(formatTime(bStartMins + 30));
       }
-      setIsManualBreak(true);
+      setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : false);
     } else {
       setBreakStart("16:00");
       setBreakEnd("16:30");
@@ -473,7 +463,7 @@ export default function NominasPage() {
     const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
 
     let exactSavedBreak = undefined;
-    if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
+    if (shiftHasBreak && shift.isManualBreak && shift.breakStart && shift.breakEnd) {
       exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
     }
 
@@ -522,7 +512,8 @@ export default function NominasPage() {
     }
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
-    const finalBreak = (!isOff && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
+
+    const finalBreak = (!isOff && hasBreak && isManualBreak) ? { start: breakStart, end: breakEnd } : undefined;
 
     const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
 
@@ -601,7 +592,8 @@ export default function NominasPage() {
 
     if (specialTab === 'INCAPACIDAD' && incapacidadType === 'TURNO') {
       if (breakError) return alert("Corrige el break primero");
-      const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
+
+      const finalBreak = (hasBreak && isManualBreak) ? { start: breakStart, end: breakEnd } : undefined;
       const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
 
       const transportToApply = specialTransport ? calc.transportAux : 0;
@@ -668,7 +660,9 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? day > 15 : day <= 15;
   };
 
+  // 🔥 AQUÍ SE ARREGLÓ EL PROBLEMA: Las variables ahora son globales para toda la vista
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
+  const existingMainShift = shiftsDelAno.find(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT'));
   const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
 
   if (!isMounted) {
@@ -850,7 +844,7 @@ export default function NominasPage() {
                       else if (hasShift && hasReunion) classes += '!bg-green-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasOff && hasReunion) classes += '!bg-red-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasReunion) classes += '!bg-orange-500 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasCompensatorio) classes += '!bg-yellow-400 !text-white shadow-sm ';
+                      else if (hasCompensatorio) classes += '!bg-yellow-400 !text-black shadow-sm ';
                       else if (hasOff) classes += '!bg-red-500 !text-white shadow-sm ';
                       else if (hasShift) classes += '!bg-green-500 !text-white shadow-sm ';
 
@@ -875,11 +869,14 @@ export default function NominasPage() {
                   <div className="mt-8 flex gap-3 transition-all duration-300">
                     <button
                       disabled={!selectedDate}
-                      onClick={() => { setSelectedDate(selectedDate); handleOpenNew(); }}
+                      onClick={(e) => {
+                        if (existingMainShift) handleOpenEdit(e, existingMainShift);
+                        else { setSelectedDate(selectedDate); handleOpenNew(); }
+                      }}
                       className={`flex-[4] py-4 rounded-2xl font-black shadow-lg uppercase text-[10px] md:text-xs tracking-widest transition-all
                             ${selectedDate ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` : 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed shadow-none'}`}
                     >
-                      + Agregar Turno
+                      {existingMainShift ? "✏️ Editar Turno" : "+ Agregar Turno"}
                     </button>
 
                     <button
@@ -957,30 +954,10 @@ export default function NominasPage() {
                                 {!s.isOff && s.type === 'INCAPACIDAD' && (<p className="font-bold text-[9px] md:text-xs text-red-500 uppercase">En Prox. Q.</p>)}
                               </div>
 
-                              <div className="flex items-center gap-2.5 md:gap-2.5">
-                                <button
-                                  onClick={(e) => handleOpenEdit(e, s)}
-                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10"
-                                  title="Editar Turno"
-                                >
-                                  ✏️
-                                </button>
-
-                                <button
-                                  onClick={(e) => handleRecalculate(e, s)}
-                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10"
-                                  title="Recalcular rápido"
-                                >
-                                  🔄
-                                </button>
-
-                                <button
-                                  onClick={(e) => handleDelete(e, s.id)}
-                                  className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10"
-                                  title="Eliminar"
-                                >
-                                  🗑️
-                                </button>
+                              <div className="flex items-center gap-1 md:gap-2">
+                                <button onClick={(e) => handleOpenEdit(e, s)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10" title="Editar Turno">✏️</button>
+                                <button onClick={(e) => handleRecalculate(e, s)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
+                                <button onClick={(e) => handleDelete(e, s.id)} className="p-1 md:p-1 text-[10px] md:text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
                               </div>
                             </div>
                           </div>
@@ -1066,7 +1043,7 @@ export default function NominasPage() {
                             <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-4 mt-2"></div>
 
                             <div className={tReunion_h > 0 ? "" : "opacity-30"}><p className="text-[9px] font-bold text-orange-400 uppercase">Reunión</p><p className={`font-black text-lg ${tReunion_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tReunion_h.toFixed(1)} h</p><p className="text-[10px] font-bold text-gray-500">${Math.floor(tReunion_p).toLocaleString()}</p></div>
-                            <div className={tCompensatorio_h > 0 ? "" : "opacity-30"}><p className="text-[9px] font-bold text-purple-400 uppercase">Compensatorio</p><p className={`font-black text-lg ${tCompensatorio_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tCompensatorio_h.toFixed(1)} h</p><p className="text-[10px] font-bold text-gray-500">${Math.floor(tCompensatorio_p).toLocaleString()}</p></div>
+                            <div className={tCompensatorio_h > 0 ? "" : "opacity-30"}><p className="text-[9px] font-bold text-yellow-400 uppercase">Compensatorio</p><p className={`font-black text-lg ${tCompensatorio_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tCompensatorio_h.toFixed(1)} h</p><p className="text-[10px] font-bold text-gray-500">${Math.floor(tCompensatorio_p).toLocaleString()}</p></div>
                             <div className={`col-span-2 md:col-span-2 ${tIncapacidad_h > 0 ? "" : "opacity-30"}`}><p className="text-[9px] font-bold text-red-400 uppercase">Incapacidad Pagada (Esta Q.)</p><p className={`font-black text-lg ${tIncapacidad_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tIncapacidad_h.toFixed(1)} h</p><p className="text-[10px] font-bold text-gray-500">${Math.floor(tIncapacidad_p).toLocaleString()}</p></div>
 
                             <div className="col-span-2 md:col-span-4 border-t border-gray-800/50 pt-4 mt-2"></div>
@@ -1242,8 +1219,8 @@ export default function NominasPage() {
                     onClick={() => setSpecialTab('REUNION')}
                     disabled={!!editingShiftId && specialTab !== 'REUNION'}
                     className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!!editingShiftId && specialTab !== 'REUNION' ? 'opacity-30 cursor-not-allowed text-gray-400'
-                      : specialTab === 'REUNION' ? 'bg-white dark:bg-gray-700 text-orange-500 shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600'
+                        : specialTab === 'REUNION' ? 'bg-white dark:bg-gray-700 text-orange-500 shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     Reunión
@@ -1255,8 +1232,8 @@ export default function NominasPage() {
                     }}
                     disabled={!!editingShiftId && specialTab !== 'COMPENSATORIO'}
                     className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'COMPENSATORIO') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400'
-                      : specialTab === 'COMPENSATORIO' ? 'bg-white dark:bg-gray-700 text-purple-500 shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600'
+                        : specialTab === 'COMPENSATORIO' ? 'bg-white dark:bg-gray-700 text-yellow-500 shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     Compensa.
@@ -1268,8 +1245,8 @@ export default function NominasPage() {
                     }}
                     disabled={!!editingShiftId && specialTab !== 'INCAPACIDAD'}
                     className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'INCAPACIDAD') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400'
-                      : specialTab === 'INCAPACIDAD' ? 'bg-white dark:bg-gray-700 text-red-500 shadow-sm'
-                        : 'text-gray-400 hover:text-gray-600'
+                        : specialTab === 'INCAPACIDAD' ? 'bg-white dark:bg-gray-700 text-red-500 shadow-sm'
+                          : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     Incapacidad
@@ -1328,8 +1305,8 @@ export default function NominasPage() {
 
                   <div className="flex gap-4 pt-2">
                     <button onClick={() => setShowSpecialModal(false)} className="flex-1 font-bold text-gray-400 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
-                    <button onClick={handleSaveSpecial} className={`flex-[2] py-4 rounded-2xl text-white font-black uppercase tracking-widest transition-all hover:scale-105 shadow-xl
-                      ${specialTab === 'REUNION' ? 'bg-orange-500' : specialTab === 'COMPENSATORIO' ? 'bg-purple-500' : 'bg-red-500'}`}>GUARDAR</button>
+                    <button onClick={handleSaveSpecial} className={`flex-[2] py-4 rounded-2xl text-black font-black uppercase tracking-widest transition-all hover:scale-105 shadow-xl
+                      ${specialTab === 'REUNION' ? 'bg-orange-500 text-white' : specialTab === 'COMPENSATORIO' ? 'bg-yellow-400 text-black' : 'bg-red-500 text-white'}`}>GUARDAR</button>
                   </div>
                 </div>
               </div>
