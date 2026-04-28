@@ -10,12 +10,11 @@ import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc, serverTim
 import { useTheme } from "@/context/ThemeContext";
 import { calculateShift } from "@/lib/calculator";
 import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR } from "@/constants/rates";
-import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import PayrollFeedback from "@/components/PayrollFeedback";
 import { motion } from "framer-motion";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+// IMPORTAMOS LOS NUEVOS COMPONENTES DE GRÁFICAS
+import { AnnualChart, QuincenaCharts } from "@/components/DashboardCharts";
 
 // Función utilitaria fuera del componente para no re-renderizar
 const toMinutes = (t?: string) => {
@@ -182,8 +181,9 @@ export default function NominasPage() {
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
   const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr && (!s.type || s.type === 'SHIFT' || s.isOff)), [shiftsDelAno, todayStr]);
 
+  // NUEVO USEMEMO ADAPTADO PARA RECHARTS (ANUAL)
   const statsAnuales = useMemo(() => {
-    const dataMeses = mesesFull.map(m => {
+    return mesesFull.map(m => {
       const turnosNeto = shiftsDelAno.filter(s => {
         let shiftM = s.month;
         if (s.type === 'INCAPACIDAD' && parseInt(s.date.split('-')[2]) > 15) {
@@ -192,15 +192,15 @@ export default function NominasPage() {
         return shiftM === m;
       }).reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
-      return turnosNeto + bvNeto;
+      
+      return {
+        month: m.substring(0, 3).toUpperCase(),
+        net: turnosNeto + bvNeto
+      };
     });
+  }, [shiftsDelAno, bigVentas, selectedYear]);
 
-    return {
-      labels: mesesFull.map(m => m.substring(0, 3).toUpperCase()),
-      datasets: [{ label: 'Neto', data: dataMeses, backgroundColor: colors.secondary, borderRadius: 6 }]
-    };
-  }, [shiftsDelAno, bigVentas, colors.secondary]);
-
+  // NUEVO USEMEMO ADAPTADO PARA RECHARTS (QUINCENAS)
   const statsQuincenas = useMemo(() => {
     const calcQ = (isQ1: boolean) => {
       const currentQ = isQ1 ? 1 : 2;
@@ -224,23 +224,22 @@ export default function NominasPage() {
         diasOff: filteredShifts.filter(s => s.isOff).length
       };
     };
+    
     const q1 = calcQ(true);
     const q2 = calcQ(false);
 
-    const chartColors = [colors.secondary, isDarkMode ? '#374151' : '#d1d5db'];
-
     return {
       q1, q2,
-      chartData: {
-        labels: ['Q1', 'Q2'],
-        datasets: [{ label: 'Dinero', data: [q1.dinero, q2.dinero], backgroundColor: chartColors, borderRadius: 10 }]
-      },
-      chartDataHours: {
-        labels: ['Q1', 'Q2'],
-        datasets: [{ label: 'Horas', data: [q1.horas, q2.horas], backgroundColor: chartColors, borderRadius: 10 }]
-      }
+      moneyData: [
+        { name: 'Quincena 1', value: q1.dinero },
+        { name: 'Quincena 2', value: q2.dinero }
+      ],
+      hoursData: [
+        { name: 'Q1', value: q1.horas },
+        { name: 'Q2', value: q2.horas }
+      ]
     };
-  }, [shiftsDelAno, bigVentas, selectedMonth, colors.secondary, isDarkMode]);
+  }, [shiftsDelAno, bigVentas, selectedMonth]);
 
   // Lista Visual
   const turnosLista = useMemo(() => {
@@ -714,9 +713,10 @@ export default function NominasPage() {
                     );
                   })}
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm border border-gray-50 dark:border-gray-800 transition-colors">
-                  <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-6 tracking-[0.2em] text-center">Resumen Anual {selectedYear}</p>
-                  <div className="h-64"><Bar data={statsAnuales} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} /></div>
+                
+                {/* AQUI INYECTAMOS LA GRAFICA ANUAL */}
+                <div className="mt-10">
+                  <AnnualChart data={statsAnuales} />
                 </div>
               </div>
             )}
@@ -765,19 +765,9 @@ export default function NominasPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm h-72 border border-gray-50 dark:border-gray-800 transition-colors flex flex-col">
-                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-4 tracking-[0.2em] text-center">Ingresos Q1 vs Q2</p>
-                    <div className="flex-1">
-                      <Bar data={statsQuincenas.chartData} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} />
-                    </div>
-                  </div>
-                  <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-sm h-72 border border-gray-50 dark:border-gray-800 transition-colors flex flex-col">
-                    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase mb-4 tracking-[0.2em] text-center">Horas Q1 vs Q2</p>
-                    <div className="flex-1">
-                      <Bar data={statsQuincenas.chartDataHours} options={{ maintainAspectRatio: false, color: isDarkMode ? '#9ca3af' : '#6b7280' }} />
-                    </div>
-                  </div>
+                {/* AQUI INYECTAMOS LAS GRAFICAS DE QUINCENA */}
+                <div className="mt-8">
+                  <QuincenaCharts data={statsQuincenas} />
                 </div>
 
               </div>
@@ -1029,7 +1019,7 @@ export default function NominasPage() {
                                   </div>
                                 </div>
 
-                                <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Turno</p>
+                                <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Evento</p>
 
                                 {/* Desglose Detallado de Horas (Difiere si es turno normal vs especial) */}
                                 {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) ? (

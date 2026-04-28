@@ -11,7 +11,6 @@
   "dependencies": {
     "@clerk/localizations": "^3.35.3",
     "@clerk/nextjs": "^6.37.3",
-    "chart.js": "^4.5.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "firebase": "^12.9.0",
@@ -20,8 +19,8 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-calendar": "^6.0.0",
-    "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.3",
+    "recharts": "^3.8.1",
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
