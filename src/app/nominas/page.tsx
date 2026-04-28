@@ -17,6 +17,13 @@ import { motion } from "framer-motion";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
+// Función utilitaria fuera del componente para no re-renderizar
+const toMinutes = (t?: string) => {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return (h * 60) + m;
+};
+
 export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
@@ -130,10 +137,8 @@ export default function NominasPage() {
 
   // CÁLCULO ASIMÉTRICO REDONDEADO
   const autoCalculateBreak = (start: string, end: string) => {
-    const [hStart, mStart] = start.split(":").map(Number);
-    const [hEnd, mEnd] = end.split(":").map(Number);
-    let startMins = hStart * 60 + mStart;
-    let endMins = hEnd * 60 + mEnd;
+    let startMins = toMinutes(start);
+    let endMins = toMinutes(end);
     if (endMins <= startMins) endMins += 24 * 60;
 
     const midMins = Math.floor((startMins + endMins) / 2);
@@ -152,23 +157,19 @@ export default function NominasPage() {
     setBreakEnd(formatTime(bEndMins));
   };
 
-  // VIGILANTE DE ERRORES
+  // VIGILANTE DE ERRORES (Matemático, seguro para cruces de medianoche)
   useEffect(() => {
     if (!hasBreak || !isManualBreak || !(showModal || (showSpecialModal && incapacidadType === 'TURNO'))) {
       setBreakError(null);
       return;
     }
-    const [hS, mS] = startTime.split(":").map(Number);
-    const [hE, mE] = endTime.split(":").map(Number);
-    const [hBS, mBS] = breakStart.split(":").map(Number);
-    const [hBE, mBE] = breakEnd.split(":").map(Number);
-
-    let sMins = hS * 60 + mS;
-    let eMins = hE * 60 + mE;
+    
+    let sMins = toMinutes(startTime);
+    let eMins = toMinutes(endTime);
     if (eMins <= sMins) eMins += 24 * 60;
 
-    let bsMins = hBS * 60 + mBS;
-    let beMins = hBE * 60 + mBE;
+    let bsMins = toMinutes(breakStart);
+    let beMins = toMinutes(breakEnd);
 
     if (bsMins < sMins && eMins > 24 * 60) bsMins += 24 * 60;
     if (beMins < sMins && eMins > 24 * 60) beMins += 24 * 60;
@@ -189,8 +190,8 @@ export default function NominasPage() {
           shiftM = mesesFull[(mesesFull.indexOf(shiftM) + 1) % 12];
         }
         return shiftM === m;
-      }).reduce((acc, curr) => acc + (curr.netPay || 0), 0);
-      const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + (curr.value * 0.92), 0);
+      }).reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
+      const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
       return turnosNeto + bvNeto;
     });
 
@@ -214,11 +215,11 @@ export default function NominasPage() {
         return m === selectedMonth && q === currentQ;
       });
       const filteredBV = bigVentas.find(b => b.month === selectedMonth && b.quincena === currentQ);
-      const bvNeto = filteredBV ? filteredBV.value * 0.92 : 0;
+      const bvNeto = filteredBV ? (Number(filteredBV.value) || 0) * 0.92 : 0;
 
       return {
-        dinero: filteredShifts.reduce((a, b) => a + (b.netPay || 0), 0) + bvNeto,
-        horas: filteredShifts.reduce((a, b) => a + (b.totalHours || 0), 0),
+        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto,
+        horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
         diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT')).length,
         diasOff: filteredShifts.filter(s => s.isOff).length
       };
@@ -256,7 +257,7 @@ export default function NominasPage() {
     });
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
 
-  // Cálculo Matemático (Incapacidad desplazada)
+  // Cálculo Matemático (Incapacidad desplazada - Lógica original intacta)
   const turnosCalculo = useMemo(() => {
     return shiftsDelAno.filter(s => {
       let day = parseInt(s.date.split('-')[2]);
@@ -276,53 +277,59 @@ export default function NominasPage() {
   }, [shiftsDelAno, selectedMonth, selectedQuincena]);
 
   const currentBigVenta = bigVentas.find(b => b.month === selectedMonth && b.quincena === selectedQuincena);
-  const bigVentaNeto = currentBigVenta ? currentBigVenta.value * 0.92 : 0;
-  const bigVentaDeduccion = currentBigVenta ? currentBigVenta.value * 0.08 : 0;
+  const bigVentaNeto = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.92 : 0;
+  const bigVentaDeduccion = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.08 : 0;
 
-  const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (curr.netPay || 0), 0);
+  const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
   const totalListaDinero = baseDineroTurnos + bigVentaNeto;
-  const totalListaHoras = turnosCalculo.reduce((acc, curr) => acc + (curr.totalHours || 0), 0);
+  const totalListaHoras = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0);
 
   const countTrabajados = turnosLista.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT')).length;
   const countOff = turnosLista.filter(s => s.isOff).length;
 
-  const tOrdD_h = turnosCalculo.reduce((a, c) => a + (c.hOrdD || 0), 0);
-  const tOrdD_p = turnosCalculo.reduce((a, c) => a + (c.pOrdD || 0), 0);
-  const tOrdN_h = turnosCalculo.reduce((a, c) => a + (c.hOrdN || 0), 0);
-  const tOrdN_p = turnosCalculo.reduce((a, c) => a + (c.pOrdN || 0), 0);
-  const tDomD_h = turnosCalculo.reduce((a, c) => a + (c.hDomD || 0), 0);
-  const tDomD_p = turnosCalculo.reduce((a, c) => a + (c.pDomD || 0), 0);
-  const tDomN_h = turnosCalculo.reduce((a, c) => a + (c.hDomN || 0), 0);
-  const tDomN_p = turnosCalculo.reduce((a, c) => a + (c.pDomN || 0), 0);
-  const tExtD_h = turnosCalculo.reduce((a, c) => a + (c.hExtD || 0), 0);
-  const tExtD_p = turnosCalculo.reduce((a, c) => a + (c.pExtD || 0), 0);
-  const tExtN_h = turnosCalculo.reduce((a, c) => a + (c.hExtN || 0), 0);
-  const tExtN_p = turnosCalculo.reduce((a, c) => a + (c.pExtN || 0), 0);
-  const tExtDomD_h = turnosCalculo.reduce((a, c) => a + (c.hExtDomD || 0), 0);
-  const tExtDomD_p = turnosCalculo.reduce((a, c) => a + (c.pExtDomD || 0), 0);
-  const tExtDomN_h = turnosCalculo.reduce((a, c) => a + (c.hExtDomN || 0), 0);
-  const tExtDomN_p = turnosCalculo.reduce((a, c) => a + (c.pExtDomN || 0), 0);
+  const tOrdD_h = turnosCalculo.reduce((a, c) => a + (Number(c.hOrdD) || 0), 0);
+  const tOrdD_p = turnosCalculo.reduce((a, c) => a + (Number(c.pOrdD) || 0), 0);
+  const tOrdN_h = turnosCalculo.reduce((a, c) => a + (Number(c.hOrdN) || 0), 0);
+  const tOrdN_p = turnosCalculo.reduce((a, c) => a + (Number(c.pOrdN) || 0), 0);
+  const tDomD_h = turnosCalculo.reduce((a, c) => a + (Number(c.hDomD) || 0), 0);
+  const tDomD_p = turnosCalculo.reduce((a, c) => a + (Number(c.pDomD) || 0), 0);
+  const tDomN_h = turnosCalculo.reduce((a, c) => a + (Number(c.hDomN) || 0), 0);
+  const tDomN_p = turnosCalculo.reduce((a, c) => a + (Number(c.pDomN) || 0), 0);
+  const tExtD_h = turnosCalculo.reduce((a, c) => a + (Number(c.hExtD) || 0), 0);
+  const tExtD_p = turnosCalculo.reduce((a, c) => a + (Number(c.pExtD) || 0), 0);
+  const tExtN_h = turnosCalculo.reduce((a, c) => a + (Number(c.hExtN) || 0), 0);
+  const tExtN_p = turnosCalculo.reduce((a, c) => a + (Number(c.pExtN) || 0), 0);
+  const tExtDomD_h = turnosCalculo.reduce((a, c) => a + (Number(c.hExtDomD) || 0), 0);
+  const tExtDomD_p = turnosCalculo.reduce((a, c) => a + (Number(c.pExtDomD) || 0), 0);
+  const tExtDomN_h = turnosCalculo.reduce((a, c) => a + (Number(c.hExtDomN) || 0), 0);
+  const tExtDomN_p = turnosCalculo.reduce((a, c) => a + (Number(c.pExtDomN) || 0), 0);
 
-  const tTransportAux = turnosCalculo.reduce((a, c) => a + (c.transportAux || 0), 0);
-  const tDeductionsBase = turnosCalculo.reduce((a, c) => a + (c.deductions || 0), 0);
+  const tTransportAux = turnosCalculo.reduce((a, c) => a + (Number(c.transportAux) || 0), 0);
+  const tDeductionsBase = turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0);
   const tDeductionsFinal = tDeductionsBase + bigVentaDeduccion;
 
-  const tReunion_h = turnosCalculo.filter(s => s.type === 'REUNION').reduce((a, c) => a + (c.totalHours || 0), 0);
-  const tReunion_p = turnosCalculo.filter(s => s.type === 'REUNION').reduce((a, c) => a + (c.salaryBase || 0), 0);
-  const tCompensatorio_h = turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (c.totalHours || 0), 0);
-  const tCompensatorio_p = turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (c.salaryBase || 0), 0);
-  const tIncapacidad_h = turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (c.totalHours || 0), 0);
-  const tIncapacidad_p = turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (c.salaryBase || 0), 0);
+  const tReunion_h = turnosCalculo.filter(s => s.type === 'REUNION').reduce((a, c) => a + (Number(c.totalHours) || 0), 0);
+  const tReunion_p = turnosCalculo.filter(s => s.type === 'REUNION').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0);
+  const tCompensatorio_h = turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (Number(c.totalHours) || 0), 0);
+  const tCompensatorio_p = turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0);
+  const tIncapacidad_h = turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.totalHours) || 0), 0);
+  const tIncapacidad_p = turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0);
 
   let tTransportBase = 0;
   let tTransportExtra = 0;
+  
   turnosCalculo.forEach(c => {
     if (c.transportAux) {
-      if (c.endTime && c.endTime >= "00:01" && c.endTime <= "04:59") {
-        tTransportExtra += 5000;
-        tTransportBase += (c.transportAux - 5000);
+      if (c.endTime) {
+        const endMins = toMinutes(c.endTime);
+        if (endMins >= 1 && endMins <= 299) { // 00:01 a 04:59
+          tTransportExtra += 5000;
+          tTransportBase += (Number(c.transportAux) - 5000);
+        } else {
+          tTransportBase += Number(c.transportAux);
+        }
       } else {
-        tTransportBase += c.transportAux;
+        tTransportBase += Number(c.transportAux);
       }
     }
   });
@@ -423,26 +430,11 @@ export default function NominasPage() {
       if (shift.breakStart && shift.breakEnd) {
         setBreakStart(shift.breakStart);
         setBreakEnd(shift.breakEnd);
+        setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : true);
       } else {
-        const [hS, mS] = sTime.split(":").map(Number);
-        const [hE, mE] = eTime.split(":").map(Number);
-        let sMins = hS * 60 + mS;
-        let eMins = hE * 60 + mE;
-        if (eMins <= sMins) eMins += 24 * 60;
-        const midMins = Math.floor((sMins + eMins) / 2);
-
-        let bStartMins = midMins - 15;
-        bStartMins = Math.round(bStartMins / 30) * 30;
-
-        const formatTime = (totalMins: number) => {
-          const h = Math.floor((totalMins % (24 * 60)) / 60).toString().padStart(2, "0");
-          const m = (totalMins % 60).toString().padStart(2, "0");
-          return `${h}:${m}`;
-        };
-        setBreakStart(formatTime(bStartMins));
-        setBreakEnd(formatTime(bStartMins + 30));
+        autoCalculateBreak(sTime, eTime);
+        setIsManualBreak(false);
       }
-      setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : false);
     } else {
       setBreakStart("16:00");
       setBreakEnd("16:30");
@@ -463,7 +455,7 @@ export default function NominasPage() {
     const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
 
     let exactSavedBreak = undefined;
-    if (shiftHasBreak && shift.isManualBreak && shift.breakStart && shift.breakEnd) {
+    if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
       exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
     }
 
@@ -491,8 +483,10 @@ export default function NominasPage() {
     let targetDateStr = "";
     if (editingShiftId) {
       const originalShift = shifts.find(s => s.id === editingShiftId);
-      targetDateStr = originalShift.date;
-    } else {
+      if(originalShift) targetDateStr = originalShift.date;
+    } 
+    
+    if(!targetDateStr) {
       if (!selectedDate) return alert("Error de fecha");
       const year = selectedDate.getFullYear();
       const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -500,22 +494,17 @@ export default function NominasPage() {
       targetDateStr = `${year}-${month}-${day}`;
     }
 
-    const existingSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT');
-    for (const sp of existingSpecials) {
-      if (isOff) {
-        await deleteDoc(doc(db, "shifts", sp.id));
-      } else {
-        if (sp.type === 'INCAPACIDAD' || sp.type === 'COMPENSATORIO') {
-          await deleteDoc(doc(db, "shifts", sp.id));
-        }
-      }
-    }
+    const existingSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && s.id !== editingShiftId);
+    const toDelete = existingSpecials.filter(sp => isOff || sp.type === 'INCAPACIDAD' || sp.type === 'COMPENSATORIO');
+    await Promise.all(toDelete.map(sp => deleteDoc(doc(db, "shifts", sp.id))));
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
 
-    const finalBreak = (!isOff && hasBreak && isManualBreak) ? { start: breakStart, end: breakEnd } : undefined;
+    const finalBreak = (!isOff && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
 
     const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
+
+    const shiftMonthVal = selectedMonth || mesesFull[new Date(Number(targetDateStr.split('-')[0]), Number(targetDateStr.split('-')[1])-1, Number(targetDateStr.split('-')[2])).getMonth()];
 
     const payload: any = {
       userId: user.id,
@@ -545,10 +534,11 @@ export default function NominasPage() {
       hExtDomD: isOff ? 0 : calc.hExtDomD, pExtDomD: isOff ? 0 : calc.pExtDomD,
       hExtDomN: isOff ? 0 : calc.hExtDomN, pExtDomN: isOff ? 0 : calc.pExtDomN,
       isOff,
-      month: selectedMonth || mesesFull[new Date(targetDateStr + 'T00:00:00').getMonth()],
+      month: shiftMonthVal,
       year: selectedYear,
       timestamp: serverTimestamp()
     };
+    
     await setDoc(doc(db, "shifts", docId), payload, { merge: true });
     setShowModal(false);
     setEditingShiftId(null);
@@ -564,36 +554,34 @@ export default function NominasPage() {
 
     const docId = editingShiftId || `${user.id}_${targetDateStr}_${specialTab}`;
 
-    const existingNormal = shifts.find(s => s.date === targetDateStr && (!s.type || s.type === 'SHIFT'));
+    const existingNormal = shifts.find(s => s.date === targetDateStr && (!s.type || s.type === 'SHIFT') && s.id !== docId);
+    let toDeleteIds: string[] = [];
 
     if (specialTab === 'INCAPACIDAD' || specialTab === 'COMPENSATORIO') {
-      if (existingNormal) await deleteDoc(doc(db, "shifts", existingNormal.id));
+      if (existingNormal) toDeleteIds.push(existingNormal.id);
       const otherSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && s.id !== docId);
-      for (const osp of otherSpecials) {
-        await deleteDoc(doc(db, "shifts", osp.id));
-      }
+      toDeleteIds.push(...otherSpecials.map(s => s.id));
     } else if (specialTab === 'REUNION') {
-      if (existingNormal && existingNormal.isOff) {
-        await deleteDoc(doc(db, "shifts", existingNormal.id));
-      }
+      if (existingNormal && existingNormal.isOff) toDeleteIds.push(existingNormal.id);
       const incompatSpecials = shifts.filter(s => s.date === targetDateStr && (s.type === 'INCAPACIDAD' || s.type === 'COMPENSATORIO') && s.id !== docId);
-      for (const isp of incompatSpecials) {
-        await deleteDoc(doc(db, "shifts", isp.id));
-      }
+      toDeleteIds.push(...incompatSpecials.map(s => s.id));
     }
+
+    await Promise.all(toDeleteIds.map(id => deleteDoc(doc(db, "shifts", id))));
 
     const rateTable = RATES_BY_YEAR[year]?.[role] || RATES_BY_YEAR[2026][role];
     const baseTransport = TRANSPORT_AUX_BY_YEAR[year] || TRANSPORT_AUX_BY_YEAR[2026];
+    const shiftMonthVal = selectedMonth || mesesFull[selectedDate.getMonth()];
 
     let payload: any = {
       userId: user.id, date: targetDateStr, type: specialTab, isOff: false,
-      month: selectedMonth || mesesFull[selectedDate.getMonth()], year: year, timestamp: serverTimestamp()
+      month: shiftMonthVal, year: year, timestamp: serverTimestamp()
     };
 
     if (specialTab === 'INCAPACIDAD' && incapacidadType === 'TURNO') {
       if (breakError) return alert("Corrige el break primero");
 
-      const finalBreak = (hasBreak && isManualBreak) ? { start: breakStart, end: breakEnd } : undefined;
+      const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
       const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
 
       const transportToApply = specialTransport ? calc.transportAux : 0;
@@ -923,7 +911,7 @@ export default function NominasPage() {
                               <div className="flex items-center gap-2 md:gap-3 mb-1">
                                 <span className={`flex-shrink-0 w-3 h-3 rounded-full border border-black dark:border-transparent ${s.isOff ? 'bg-red-500' : s.type === 'REUNION' ? 'bg-orange-400' : s.type === 'COMPENSATORIO' ? 'bg-yellow-400' : s.type === 'INCAPACIDAD' ? 'bg-white border-2 border-red-500' : 'bg-green-500'}`}></span>
                                 <p className="font-black text-lg md:text-xl text-gray-800 dark:text-gray-200 capitalize truncate">
-                                  {new Date(s.date + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
+                                  {new Date(Number(s.date.split('-')[0]), Number(s.date.split('-')[1]) - 1, Number(s.date.split('-')[2])).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' })}
                                 </p>
                               </div>
 
@@ -934,11 +922,11 @@ export default function NominasPage() {
                                   <>
                                     <span>{s.startTime} - {s.endTime}</span>
                                     <span className="hidden md:inline mx-1.5 text-gray-300 dark:text-gray-600">•</span>
-                                    <span className="text-gray-500 dark:text-gray-400">{s.totalHours?.toFixed(1)}H</span>
+                                    <span className="text-gray-500 dark:text-gray-400">{Number(s.totalHours || 0).toFixed(1)}H</span>
                                   </>
                                 ) : (
                                   <>
-                                    <span className="text-gray-500 dark:text-gray-400">{s.totalHours?.toFixed(1)}H</span>
+                                    <span className="text-gray-500 dark:text-gray-400">{Number(s.totalHours || 0).toFixed(1)}H</span>
                                     <span className="hidden md:inline mx-1.5 text-gray-300 dark:text-gray-600">•</span>
                                     <span className="text-[9px] md:text-xs text-gray-400">{s.type === 'INCAPACIDAD' && incapacidadType === 'HORAS' ? 'INCAPACIDAD' : s.type}</span>
                                   </>
@@ -993,13 +981,46 @@ export default function NominasPage() {
                                   <div><p className="text-[9px] md:text-[10px] font-bold text-red-400 uppercase">Deducciones</p><p className="font-black text-red-600 dark:text-red-400">-${Math.floor(s.deductions || 0).toLocaleString()}</p></div>
                                 </div>
 
-                                {/* NUEVO: TIEMPO EXACTO */}
+                                {/* FIX TIMELINE VISUAL */}
+                                {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) && (
+                                  <div className="flex justify-center mb-4">
+                                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-sm flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-black uppercase tracking-wider">
+                                      <span className="text-gray-800 dark:text-gray-100">ET: {s.startTime || "--:--"}</span>
+                                      
+                                      {s.hasBreak && s.breakStart && s.breakEnd && (
+                                        <>
+                                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                                          <span className="text-green-300 dark:text-green-300">EB: {s.breakStart}</span>
+                                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                                          <span className="text-red-300 dark:text-red-300">SB: {s.breakEnd}</span>
+                                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                                          <span className="text-yellow-200 dark:text-yellow-200">
+                                            TB: {(() => {
+                                              let sMins = toMinutes(s.breakStart);
+                                              let eMins = toMinutes(s.breakEnd);
+                                              if (eMins < sMins) eMins += 24 * 60;
+                                              const diff = eMins - sMins;
+                                              const h = Math.floor(diff / 60).toString().padStart(2, '0');
+                                              const m = (diff % 60).toString().padStart(2, '0');
+                                              return `${h}:${m}`;
+                                            })()}
+                                          </span>
+                                        </>
+                                      )}
+                                      
+                                      <span className="text-gray-300 dark:text-gray-600">|</span>
+                                      <span className="text-gray-800 dark:text-gray-100">ST: {s.endTime || "--:--"}</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* TIEMPO EXACTO */}
                                 <div className="flex justify-center mb-4">
                                   <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-sm flex items-center gap-2">
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">⏳ Tiempo Exacto:</span>
                                     <span className="text-sm font-black text-gray-800 dark:text-gray-200">
                                       {(() => {
-                                        const exactMins = Math.round((s.totalHours || 0) * 60);
+                                        const exactMins = Math.round((Number(s.totalHours) || 0) * 60);
                                         const h = Math.floor(exactMins / 60);
                                         const m = exactMins % 60;
                                         return `${h}h ${m.toString().padStart(2, '0')}m`;
@@ -1013,21 +1034,21 @@ export default function NominasPage() {
                                 {/* Desglose Detallado de Horas (Difiere si es turno normal vs especial) */}
                                 {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) ? (
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 text-center">
-                                    {s.hOrdD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Diurna</p><p className="font-black text-sm text-gray-800 dark:text-gray-200">{s.hOrdD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdD).toLocaleString()}</p></div>}
-                                    {s.hOrdN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Nocturna</p><p className="font-black text-sm text-blue-500 dark:text-blue-300">{s.hOrdN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdN).toLocaleString()}</p></div>}
-                                    {s.hDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Diurno</p><p className="font-black text-sm text-orange-500 dark:text-orange-400">{s.hDomD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomD).toLocaleString()}</p></div>}
-                                    {s.hDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Noct</p><p className="font-black text-sm text-orange-600 dark:text-orange-500">{s.hDomN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomN).toLocaleString()}</p></div>}
+                                    {s.hOrdD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Diurna</p><p className="font-black text-sm text-gray-800 dark:text-gray-200">{Number(s.hOrdD).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdD).toLocaleString()}</p></div>}
+                                    {s.hOrdN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Nocturna</p><p className="font-black text-sm text-blue-500 dark:text-blue-300">{Number(s.hOrdN).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdN).toLocaleString()}</p></div>}
+                                    {s.hDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Diurno</p><p className="font-black text-sm text-orange-500 dark:text-orange-400">{Number(s.hDomD).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomD).toLocaleString()}</p></div>}
+                                    {s.hDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Dom/Fest Noct</p><p className="font-black text-sm text-orange-600 dark:text-orange-500">{Number(s.hDomN).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pDomN).toLocaleString()}</p></div>}
 
-                                    {s.hExtD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Diurna</p><p className="font-black text-sm text-red-500 dark:text-red-400">{s.hExtD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtD).toLocaleString()}</p></div>}
-                                    {s.hExtN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Nocturna</p><p className="font-black text-sm text-red-600 dark:text-red-500">{s.hExtN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtN).toLocaleString()}</p></div>}
-                                    {s.hExtDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom D.</p><p className="font-black text-sm text-purple-500 dark:text-purple-400">{s.hExtDomD.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomD).toLocaleString()}</p></div>}
-                                    {s.hExtDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom N.</p><p className="font-black text-sm text-purple-600 dark:text-purple-500">{s.hExtDomN.toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomN).toLocaleString()}</p></div>}
+                                    {s.hExtD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Diurna</p><p className="font-black text-sm text-red-500 dark:text-red-400">{Number(s.hExtD).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtD).toLocaleString()}</p></div>}
+                                    {s.hExtN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Nocturna</p><p className="font-black text-sm text-red-600 dark:text-red-500">{Number(s.hExtN).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtN).toLocaleString()}</p></div>}
+                                    {s.hExtDomD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom D.</p><p className="font-black text-sm text-purple-500 dark:text-purple-400">{Number(s.hExtDomD).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomD).toLocaleString()}</p></div>}
+                                    {s.hExtDomN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Extra Dom N.</p><p className="font-black text-sm text-purple-600 dark:text-purple-500">{Number(s.hExtDomN).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pExtDomN).toLocaleString()}</p></div>}
                                   </div>
                                 ) : (
                                   <div className="flex justify-center text-center">
                                     <div>
                                       <p className="text-[8px] font-bold text-gray-400 uppercase">{s.type === 'INCAPACIDAD' ? 'INCAPACIDAD (POR HORAS)' : s.type}</p>
-                                      <p className="font-black text-lg text-gray-800 dark:text-gray-200">{s.totalHours?.toFixed(1)} h</p>
+                                      <p className="font-black text-lg text-gray-800 dark:text-gray-200">{Number(s.totalHours || 0).toFixed(1)} h</p>
                                       <p className="text-[9px] font-bold text-gray-500">${Math.floor(s.salaryBase || 0).toLocaleString()} {s.specialRateKey ? `(${s.specialRateKey})` : ''}</p>
                                     </div>
                                   </div>
@@ -1212,13 +1233,26 @@ export default function NominasPage() {
                         </button>
                       </div>
 
-                      {isManualBreak && hasBreak && (
+                      {hasBreak && (
                         <div className="animate-in fade-in slide-in-from-top-2 mt-3">
                           <div className="grid grid-cols-2 gap-3 mb-2">
-                            <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
-                            <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none focus:ring-2 focus:ring-gray-200 transition-colors ${breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700'}`} />
+                            <input 
+                              type="time" 
+                              value={breakStart} 
+                              onChange={(e) => setBreakStart(e.target.value)} 
+                              disabled={!isManualBreak}
+                              className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`} 
+                            />
+                            <input 
+                              type="time" 
+                              value={breakEnd} 
+                              onChange={(e) => setBreakEnd(e.target.value)} 
+                              disabled={!isManualBreak}
+                              className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`} 
+                            />
                           </div>
-                          {breakError && <p className="text-[10px] font-bold text-red-500 animate-pulse mt-1">{breakError}</p>}
+                          {!isManualBreak && <p className="text-[9px] font-bold text-gray-400 uppercase text-center mb-1 tracking-widest">⏱️ Auto-calculado</p>}
+                          {breakError && <p className="text-[10px] font-bold text-red-500 animate-pulse mt-1 text-center">{breakError}</p>}
                         </div>
                       )}
                     </div>

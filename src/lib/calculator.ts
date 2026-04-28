@@ -13,31 +13,56 @@ export function calculateShift(
   let end = new Date(`${dateStr}T${endTime}`);
   if (end <= start) end.setDate(end.getDate() + 1);
 
-  // Extraer el año del string 
   const shiftYear = parseInt(dateStr.split('-')[0], 10);
-  
-  // Buscar las tarifas de ese año 
   const rateTable = RATES_BY_YEAR[shiftYear]?.[role] || RATES_BY_YEAR[2026][role];
   const baseTransport = TRANSPORT_AUX_BY_YEAR[shiftYear] || TRANSPORT_AUX_BY_YEAR[2026];
 
-  // Contadores generales originales
+  // --- CONFIGURACIÓN EXACTA DEL BREAK ---
+  let bStart: Date | null = null;
+  let bEnd: Date | null = null;
+
+  if (hasBreak && manualBreak) {
+    bStart = new Date(`${dateStr}T${manualBreak.start}`);
+    bEnd = new Date(`${dateStr}T${manualBreak.end}`);
+    
+    // Si el break cruza la medianoche (ej: 23:45 a 00:15)
+    if (bEnd <= bStart) bEnd.setDate(bEnd.getDate() + 1);
+
+    // Si el break ocurre en la madrugada del día siguiente al inicio del turno
+    if (bStart < start) {
+       bStart.setDate(bStart.getDate() + 1);
+       bEnd.setDate(bEnd.getDate() + 1);
+    }
+  } else if (hasBreak && !manualBreak) {
+     // Fallback de seguridad (por si la UI falla): Break de 30 mins a la mitad
+     const duration = (end.getTime() - start.getTime()) / 60000;
+     if (duration >= 330) {
+         const mid = new Date(start.getTime() + (duration * 60000) / 2);
+         bStart = new Date(mid.getTime() - 15 * 60000);
+         bEnd = new Date(mid.getTime() + 15 * 60000);
+     }
+  }
+
   let dayMinutes = 0;
   let nightMinutes = 0;
-
-  // NUEVOS: Contadores detallados (Minutos)
   let mOrdD = 0, mOrdN = 0, mDomD = 0, mDomN = 0;
   let mExtD = 0, mExtN = 0, mExtDomD = 0, mExtDomN = 0;
-  
-  // NUEVOS: Contadores de dinero por cada tipo
   let pOrdD = 0, pOrdN = 0, pDomD = 0, pDomN = 0;
   let pExtD = 0, pExtN = 0, pExtDomD = 0, pExtDomN = 0;
 
   let moneyBase = 0;
   let totalMinutesWorked = 0;
 
-  // 1. PROCESAMIENTO MINUTO A MINUTO
+  // 1. PROCESAMIENTO MINUTO A MINUTO (UNIFICADO)
   const current = new Date(start);
   while (current < end) {
+    
+    // LÓGICA DE BREAK DEFENSIVA: Si estamos en horario de break, saltamos el minuto
+    if (bStart && bEnd && current >= bStart && current < bEnd) {
+        current.setMinutes(current.getMinutes() + 1);
+        continue;
+    }
+
     const year = current.getFullYear();
     const month = String(current.getMonth() + 1).padStart(2, '0');
     const day = String(current.getDate()).padStart(2, '0');
@@ -69,90 +94,20 @@ export function calculateShift(
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  // 2. LÓGICA DE BREAK EXACTA (SOLO SE EJECUTA SI hasBreak ES TRUE)
-  if (hasBreak) {
-    if (manualBreak) {
-      const bStart = new Date(`${dateStr}T${manualBreak.start}`);
-      let bEnd = new Date(`${dateStr}T${manualBreak.end}`);
-      if (bEnd <= bStart) bEnd.setDate(bEnd.getDate() + 1);
-
-      const bCurrent = new Date(bStart);
-      while (bCurrent < bEnd) {
-        if (bCurrent >= start && bCurrent < end) {
-          const bYear = bCurrent.getFullYear();
-          const bMonth = String(bCurrent.getMonth() + 1).padStart(2, '0');
-          const bDay = String(bCurrent.getDate()).padStart(2, '0');
-          const bDateStr = `${bYear}-${bMonth}-${bDay}`;
-          
-          const bHour = bCurrent.getHours();
-          const bIsNight = bHour >= 19 || bHour < 6;
-          const bIsFestivo = HOLIDAYS_COLOMBIA.includes(bDateStr) || isSunday(bCurrent);
-
-          let deductionPerMinute;
-          if (bIsNight) {
-            deductionPerMinute = bIsFestivo ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
-            nightMinutes--;
-            if (bIsFestivo) { mDomN = Math.max(0, mDomN - 1); pDomN = Math.max(0, pDomN - deductionPerMinute); }
-            else { mOrdN = Math.max(0, mOrdN - 1); pOrdN = Math.max(0, pOrdN - deductionPerMinute); }
-          } else {
-            deductionPerMinute = bIsFestivo ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
-            dayMinutes--;
-            if (bIsFestivo) { mDomD = Math.max(0, mDomD - 1); pDomD = Math.max(0, pDomD - deductionPerMinute); }
-            else { mOrdD = Math.max(0, mOrdD - 1); pOrdD = Math.max(0, pOrdD - deductionPerMinute); }
-          }
-          moneyBase -= deductionPerMinute;
-          totalMinutesWorked--;
-        }
-        bCurrent.setMinutes(bCurrent.getMinutes() + 1);
-      }
-    } 
-    else if (totalMinutesWorked >= 330) { 
-      const deductionMinutes = 30;
-      const isFestivoStart = HOLIDAYS_COLOMBIA.includes(dateStr) || isSunday(start);
-
-      const rateDayMinute = isFestivoStart ? rateTable.SUNDAY / 60 : rateTable.ORDINARY / 60;
-      const rateNightMinute = isFestivoStart ? rateTable.SUNDAY_NIGHT / 60 : rateTable.ORDINARY_NIGHT / 60;
-
-      if (dayMinutes >= deductionMinutes) {
-        moneyBase -= (rateDayMinute * deductionMinutes);
-        dayMinutes -= deductionMinutes;
-        if (isFestivoStart) { 
-          mDomD = Math.max(0, mDomD - deductionMinutes); 
-          pDomD = Math.max(0, pDomD - (rateDayMinute * deductionMinutes)); 
-        } else { 
-          mOrdD = Math.max(0, mOrdD - deductionMinutes); 
-          pOrdD = Math.max(0, pOrdD - (rateDayMinute * deductionMinutes)); 
-        }
-      } else {
-        const remaining = deductionMinutes - dayMinutes;
-        moneyBase -= (rateDayMinute * dayMinutes); 
-        moneyBase -= (rateNightMinute * remaining); 
-
-        if (isFestivoStart) {
-           pDomD = Math.max(0, pDomD - (rateDayMinute * dayMinutes));
-           mDomD = Math.max(0, mDomD - dayMinutes);
-           pDomN = Math.max(0, pDomN - (rateNightMinute * remaining));
-           mDomN = Math.max(0, mDomN - remaining);
-        } else {
-           pOrdD = Math.max(0, pOrdD - (rateDayMinute * dayMinutes));
-           mOrdD = Math.max(0, mOrdD - dayMinutes);
-           pOrdN = Math.max(0, pOrdN - (rateNightMinute * remaining));
-           mOrdN = Math.max(0, mOrdN - remaining);
-        }
-
-        dayMinutes = 0;
-        nightMinutes -= remaining;
-      }
-      totalMinutesWorked -= deductionMinutes;
-    }
-  }
-
-  // 3. CONSOLIDACIÓN FINAL
+  // 2. CONSOLIDACIÓN FINAL
   const salaryBase = Math.round(moneyBase);
   const healthPension = Math.round(salaryBase * 0.08); 
   
   let transport = baseTransport;
-  if (endTime >= "00:01" && endTime <= "04:59") {
+  
+  // FIX de string comparison para el auxilio nocturno
+  const toMins = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const endMins = toMins(endTime);
+  
+  if (endMins >= 1 && endMins <= 299) { // 00:01 a 04:59
     transport += 5000;
   }
 
