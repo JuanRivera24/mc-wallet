@@ -19,3 +19,12 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.recharts-wrapper svg {
+  outline: none !important;
+}
+
+.recharts-wrapper:focus,
+.recharts-wrapper *:focus {
+  outline: none !important;
+}
