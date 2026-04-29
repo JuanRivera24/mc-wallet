@@ -572,33 +572,131 @@ export default function NominasPage() {
                 </div>
               </div>
             )}
+
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div onClick={() => { setSelectedQuincena(1); goToStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
-                    <div className="flex justify-between items-start mb-6">
-                      <div><span className="text-5xl font-black text-gray-900 dark:text-white block">01</span><span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Días 01 - 15</span></div>
-                      <div className="text-right"><p className={`text-3xl font-black tracking-tighter transition-colors ${getDineroColor(statsQuincenas.q1.dinero)}`}>${Math.floor(statsQuincenas.q1.dinero).toLocaleString()}</p><p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Acumulado</p></div>
+
+                <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+
+                  {/* QUINCENA 1 */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 30, scale: 0.96 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.45, ease: "easeOut" }}
+                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { setSelectedQuincena(1); goToStep(3); }}
+                    className="
+          group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem]
+          cursor-pointer transition-all duration-300 overflow-hidden
+
+          border border-gray-200/60 dark:border-gray-800
+          shadow-[0_4px_12px_rgba(0,0,0,0.06)]
+          hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]
+        "
+                  >
+                    {/* borde interno 3D */}
+                    <span className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
+
+                    {/* glow hover */}
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
+
+                    <div className="flex justify-between items-start mb-6 relative z-10">
+                      <div>
+                        <span className="text-5xl font-black text-gray-900 dark:text-white block">01</span>
+                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                          Días 01 - 15
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <p className={`text-3xl font-black tracking-tighter ${getDineroColor(statsQuincenas.q1.dinero)}`}>
+                          ${Math.floor(statsQuincenas.q1.dinero).toLocaleString()}
+                        </p>
+                        <p className="text-[10px] font-black text-gray-400 uppercase">Acumulado</p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700">
-                      <div><p className="text-xl font-black dark:text-white">{statsQuincenas.q1.horas.toFixed(1)}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Horas</p></div>
-                      <div><p className="text-xl font-black text-green-600 dark:text-green-400">{statsQuincenas.q1.diasTrabajados}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Días Job</p></div>
-                      <div><p className="text-xl font-black text-red-500 dark:text-red-400">{statsQuincenas.q1.diasOff}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Días Off</p></div>
+
+                    <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700 relative z-10">
+                      <div>
+                        <p className="text-xl font-black dark:text-white">{statsQuincenas.q1.horas.toFixed(1)}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Horas</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-green-600 dark:text-green-400">{statsQuincenas.q1.diasTrabajados}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Días Job</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-red-500 dark:text-red-400">{statsQuincenas.q1.diasOff}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Días Off</p>
+                      </div>
                     </div>
-                  </div>
-                  <div onClick={() => { setSelectedQuincena(2); goToStep(3); }} className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-xl cursor-pointer hover:scale-[1.02] transition-transform border border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700">
-                    <div className="flex justify-between items-start mb-6">
-                      <div><span className="text-5xl font-black text-gray-900 dark:text-white block">02</span><span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Días 16 - {getLastDayOfMonth()}</span></div>
-                      <div className="text-right"><p className={`text-3xl font-black tracking-tighter transition-colors ${getDineroColor(statsQuincenas.q2.dinero)}`}>${Math.floor(statsQuincenas.q2.dinero).toLocaleString()}</p><p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Acumulado</p></div>
+                  </motion.div>
+
+
+                  {/* QUINCENA 2 */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 30, scale: 0.96 }}
+                    whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.45, ease: "easeOut", delay: 0.1 }}
+                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { setSelectedQuincena(2); goToStep(3); }}
+                    className="
+          group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem]
+          cursor-pointer transition-all duration-300 overflow-hidden
+
+          border border-gray-200/60 dark:border-gray-800
+          shadow-[0_4px_12px_rgba(0,0,0,0.06)]
+          hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]
+        "
+                  >
+                    {/* borde interno */}
+                    <span className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
+
+                    {/* glow */}
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
+
+                    <div className="flex justify-between items-start mb-6 relative z-10">
+                      <div>
+                        <span className="text-5xl font-black text-gray-900 dark:text-white block">02</span>
+                        <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                          Días 16 - {getLastDayOfMonth()}
+                        </span>
+                      </div>
+
+                      <div className="text-right">
+                        <p className={`text-3xl font-black tracking-tighter ${getDineroColor(statsQuincenas.q2.dinero)}`}>
+                          ${Math.floor(statsQuincenas.q2.dinero).toLocaleString()}
+                        </p>
+                        <p className="text-[10px] font-black text-gray-400 uppercase">Acumulado</p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700">
-                      <div><p className="text-xl font-black dark:text-white">{statsQuincenas.q2.horas.toFixed(1)}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Horas</p></div>
-                      <div><p className="text-xl font-black text-green-600 dark:text-green-400">{statsQuincenas.q2.diasTrabajados}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Días Job</p></div>
-                      <div><p className="text-xl font-black text-red-500 dark:text-red-400">{statsQuincenas.q2.diasOff}</p><p className="text-[9px] font-bold text-gray-400 uppercase">Días Off</p></div>
+
+                    <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700 relative z-10">
+                      <div>
+                        <p className="text-xl font-black dark:text-white">{statsQuincenas.q2.horas.toFixed(1)}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Horas</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-green-600 dark:text-green-400">{statsQuincenas.q2.diasTrabajados}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Días Job</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-black text-red-500 dark:text-red-400">{statsQuincenas.q2.diasOff}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Días Off</p>
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
+
                 </div>
-                <div className="mt-8"><QuincenaCharts data={statsQuincenas} /></div>
+
+                <div className="mt-8">
+                  <QuincenaCharts data={statsQuincenas} />
+                </div>
+
               </div>
             )}
 
