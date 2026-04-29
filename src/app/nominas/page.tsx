@@ -205,8 +205,8 @@ export default function NominasPage() {
     const q1 = calcQ(true); const q2 = calcQ(false);
     return {
       q1, q2,
-      moneyData: [ { name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero } ],
-      hoursData: [ { name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas } ]
+      moneyData: [{ name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero }],
+      hoursData: [{ name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas }]
     };
   }, [shiftsDelAno, bigVentas, selectedMonth]);
 
@@ -242,7 +242,7 @@ export default function NominasPage() {
   const bigVentaDeduccion = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.08 : 0;
 
   const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
-  
+
   let tTransportBase = 0; let tTransportExtra = 0;
   turnosCalculo.forEach(c => {
     if (c.transportAux) {
@@ -379,9 +379,9 @@ export default function NominasPage() {
     let targetDateStr = "";
     if (editingShiftId) {
       const originalShift = shifts.find(s => s.id === editingShiftId);
-      if(originalShift) targetDateStr = originalShift.date;
-    } 
-    if(!targetDateStr) {
+      if (originalShift) targetDateStr = originalShift.date;
+    }
+    if (!targetDateStr) {
       if (!selectedDate) return alert("Error de fecha");
       targetDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
     }
@@ -393,7 +393,7 @@ export default function NominasPage() {
     const docId = editingShiftId || `${user.id}_${targetDateStr}`;
     const finalBreak = (!isOff && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
     const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
-    const shiftMonthVal = selectedMonth || mesesFull[new Date(Number(targetDateStr.split('-')[0]), Number(targetDateStr.split('-')[1])-1, Number(targetDateStr.split('-')[2])).getMonth()];
+    const shiftMonthVal = selectedMonth || mesesFull[new Date(Number(targetDateStr.split('-')[0]), Number(targetDateStr.split('-')[1]) - 1, Number(targetDateStr.split('-')[2])).getMonth()];
 
     const payload: any = {
       userId: user.id, date: targetDateStr, type: 'SHIFT',
@@ -511,17 +511,67 @@ export default function NominasPage() {
             {step === 1 && (
               <div className="animate-in fade-in duration-500 space-y-10">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {mesesFull.map((m) => {
+                  {mesesFull.map((m, i) => {
                     const isCurrentMonth = m === currentMonthName && selectedYear === currentYear;
+
                     return (
-                      <button key={m} onClick={() => { setSelectedMonth(m); goToStep(2); }} className={`p-6 rounded-[2rem] shadow-sm font-black text-lg capitalize transition-all border hover:scale-105 active:scale-95 ${isCurrentMonth ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 text-yellow-800 dark:text-yellow-500 ring-2 ring-yellow-100 dark:ring-yellow-900/50' : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-transparent dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'}`}>{m}</button>
+                      <motion.button
+                        key={m}
+                        initial={{ opacity: 0, y: 25, scale: 0.96 }}
+                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                        viewport={{ once: true, margin: "-20px" }}
+                        transition={{
+                          duration: 0.45,
+                          ease: "easeOut",
+                          delay: i * 0.05,
+                        }}
+                        whileHover={{ y: -5, scale: 1.03 }}
+                        whileTap={{ scale: 0.95, y: 0 }}
+                        onClick={() => {
+                          setSelectedMonth(m);
+                          goToStep(2);
+                        }}
+                        className={`
+              group relative w-full p-5 rounded-[1.8rem] font-black text-base md:text-lg capitalize
+              transition-all duration-300 overflow-hidden
+
+              border
+              shadow-[0_2px_6px_rgba(0,0,0,0.05)]
+              hover:shadow-[0_6px_14px_rgba(0,0,0,0.08)]
+
+              ${isCurrentMonth
+                            ? 'bg-gradient-to-br from-yellow-100 to-yellow-50 dark:from-yellow-900/40 dark:to-yellow-800/20 text-yellow-900 dark:text-yellow-400 border-yellow-300/50'
+                            : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-gray-200/60 dark:border-gray-800'
+                          }
+            `}
+                      >
+                        {/* borde interno sutil (efecto 3D) */}
+                        <span className="absolute inset-0 rounded-[1.8rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
+
+                        {/* glow hover suave */}
+                        <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
+
+                        {/* línea inferior animada */}
+                        <span className="absolute bottom-0 left-0 h-[3px] w-0 group-hover:w-full transition-all duration-300 bg-gradient-to-r from-transparent via-black/40 to-transparent dark:via-white/40" />
+
+                        {/* contenido */}
+                        <span className="relative z-10 flex items-center justify-between">
+                          <span>{m}</span>
+
+                          {isCurrentMonth && (
+                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                          )}
+                        </span>
+                      </motion.button>
                     );
                   })}
                 </div>
-                <div className="mt-10"><AnnualChart data={statsAnuales} /></div>
+
+                <div className="mt-10">
+                  <AnnualChart data={statsAnuales} />
+                </div>
               </div>
             )}
-
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
                 <div className="grid md:grid-cols-2 gap-8">
