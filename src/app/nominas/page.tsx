@@ -9,7 +9,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, deleteDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useTheme } from "@/context/ThemeContext";
 import { calculateShift } from "@/lib/calculator";
-import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR } from "@/constants/rates";
+import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR, HOLIDAYS_COLOMBIA } from "@/constants/rates";
 import PayrollFeedback from "@/components/PayrollFeedback";
 import { motion } from "framer-motion";
 
@@ -716,29 +716,62 @@ export default function NominasPage() {
                   </div>
 
                   <Calendar
-                    showNavigation={false} onChange={(val) => setSelectedDate(val as Date)} value={selectedDate} activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)} tileDisabled={isDateDisabled}
+                    showNavigation={false} 
+                    onChange={(val) => setSelectedDate(val as Date)} 
+                    value={selectedDate} 
+                    activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)} 
+                    tileDisabled={isDateDisabled}
                     tileClassName={({ date }) => {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
                       const isDisabled = isDateDisabled({ date });
-                      const hasOff = dayEvents.some(e => e.isOff); const hasIncapacidad = dayEvents.some(e => e.type === 'INCAPACIDAD');
-                      const hasShift = dayEvents.some(e => e.type === 'SHIFT' || !e.type); const hasReunion = dayEvents.some(e => e.type === 'REUNION'); const hasCompensatorio = dayEvents.some(e => e.type === 'COMPENSATORIO');
-                      let classes = 'font-bold rounded-2xl transition-all relative overflow-hidden ';
-                      if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed '; else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
-                      if (hasIncapacidad) classes += '!bg-white !text-red-600 !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
-                      else if (hasShift && hasReunion) classes += '!bg-green-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasOff && hasReunion) classes += '!bg-red-500 !text-white !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasReunion) classes += '!bg-orange-500 !text-white !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasCompensatorio) classes += '!bg-yellow-400 !text-black shadow-sm ';
-                      else if (hasOff) classes += '!bg-red-500 !text-white shadow-sm ';
-                      else if (hasShift) classes += '!bg-green-500 !text-white shadow-sm ';
-                      if (selectedDate && date.getTime() === selectedDate.getTime()) classes += '!ring-4 !ring-blue-400 ';
-                      else if (date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()) {
-                        if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) classes += '!bg-yellow-100 dark:!bg-yellow-900/40 text-yellow-800 dark:!text-yellow-500 font-black !ring-2 !ring-inset !ring-yellow-400 ';
-                        else classes += '!ring-4 !ring-yellow-400 ';
+
+                      // Identificamos si es Festivo o Domingo
+                      const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
+
+                      const hasOff = dayEvents.some(e => e.isOff); 
+                      const hasIncapacidad = dayEvents.some(e => e.type === 'INCAPACIDAD');
+                      const hasShift = dayEvents.some(e => e.type === 'SHIFT' || !e.type); 
+                      const hasReunion = dayEvents.some(e => e.type === 'REUNION'); 
+                      const hasCompensatorio = dayEvents.some(e => e.type === 'COMPENSATORIO');
+                      
+                      let classes = 'font-bold rounded-2xl transition-all relative '; 
+                      
+                      if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed '; 
+                      else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
+
+                      // 1. Fondos y Anillos (Bordes de Tailwind)
+                      if (hasIncapacidad) classes += '!bg-white !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
+                      else if (hasShift && hasReunion) classes += '!bg-green-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
+                      else if (hasOff && hasReunion) classes += '!bg-red-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
+                      else if (hasReunion) classes += '!bg-orange-500 !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
+                      else if (hasCompensatorio) classes += '!bg-yellow-400 shadow-sm ';
+                      else if (hasOff) classes += '!bg-red-500 shadow-sm ';
+                      else if (hasShift) classes += '!bg-green-500 shadow-sm ';
+
+                      if (isFestivoArr) {
+                        if (hasOff) classes += 'festivo-off-outline ';
+                        else classes += 'festivo-outline ';
+                      } else {
+                        if (hasIncapacidad) classes += '!text-red-600 ';
+                        else if (hasCompensatorio) classes += '!text-black ';
+                        else if (hasShift || hasOff || hasReunion) classes += '!text-white ';
+                        else classes += 'text-gray-700 dark:text-gray-300 ';
                       }
-                      if (date.getDay() === 0 && !hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) classes += 'text-red-500 dark:text-red-400 ';
-                      if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio && date.getDay() !== 0) classes += 'text-gray-700 dark:text-gray-300 ';
+
+                      if (selectedDate && date.getTime() === selectedDate.getTime()) {
+                        classes += '!ring-4 !ring-blue-400 ';
+                      } else if (date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()) {
+                        if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) {
+                           classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
+                           classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
+                           // Si hoy NO es festivo, le ponemos el texto amarillo, si es festivo, se respeta el contorno
+                           if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
+                        } else {
+                           classes += '!ring-4 !ring-yellow-400 ';
+                        }
+                      }
+                      
                       return classes;
                     }}
                   />
@@ -750,7 +783,6 @@ export default function NominasPage() {
                   </div>
                 </div>
 
-                {/* AQUÍ SE APLICAN LOS CAMBIOS DE KEY Y OVERSCROLL */}
                 <div 
                   key={`lista-quincena-${selectedYear}-${selectedMonth}-${selectedQuincena}`} 
                   className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors"
@@ -779,7 +811,7 @@ export default function NominasPage() {
 
           <style jsx global>{`
             .react-calendar { width: 100% !important; border: none !important; font-family: inherit; background: transparent !important; }
-            .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; }
+            .react-calendar__tile { padding: 1.2em 0.5em !important; font-weight: 700; border-radius: 1.2rem; transition: all 0.2s; background: transparent; position: relative; }
             .react-calendar__tile:disabled { background: transparent !important; }
             .react-calendar__tile:enabled:hover { background-color: #f3f4f6; }
             
@@ -787,12 +819,25 @@ export default function NominasPage() {
             .dark .react-calendar__tile--active { color: #ffffff !important; }
             .react-calendar__tile--active:enabled:hover, .react-calendar__tile--active:enabled:focus { background: transparent !important; }
             
+            .react-calendar__tile abbr { position: relative; z-index: 10; }
+            
             .no-scrollbar::-webkit-scrollbar { display: none; }
             .dark .react-calendar__tile { color: #d1d5db; }
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
             .dark .react-calendar__navigation button { color: #fff; }
+            
+            /* Lógica visual de incapacidad */
             .is-incapacidad::after { content: '✚'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.2rem; line-height: 1; color: rgba(239, 68, 68, 0.15); pointer-events: none; z-index: 0; }
-            .is-incapacidad abbr { position: relative; z-index: 1; }
+            
+            /* LÓGICA DE CONTORNOS SÚPER FINOS PARA FESTIVOS Y DOMINGOS */
+            .festivo-outline abbr {
+              color: #ffffff !important;
+              -webkit-text-stroke: 0.55px rgba(220, 38, 38, 0.8) !important; /* Borde rojo extra delgado y sutil */
+            }
+            .festivo-off-outline abbr {
+              color: #ffffff !important;
+              -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.7) !important; /* Borde negro extra delgado y sutil */
+            }
           `}</style>
           <div className="h-16 md:h-20"></div>
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
