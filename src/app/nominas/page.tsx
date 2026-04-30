@@ -750,7 +750,12 @@ export default function NominasPage() {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors">
+                {/* AQUÍ SE APLICAN LOS CAMBIOS DE KEY Y OVERSCROLL */}
+                <div 
+                  key={`lista-quincena-${selectedYear}-${selectedMonth}-${selectedQuincena}`} 
+                  className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors"
+                  style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}
+                >
                   <div className="p-8 pb-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
                     <h2 className="text-2xl font-black italic uppercase dark:text-white">Turnos Registrados</h2>
                     <div className="flex gap-4">
@@ -760,6 +765,7 @@ export default function NominasPage() {
                   </div>
 
                   <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
+                  
                   {turnosLista.length > 0 && (
                     <QuincenaSummary totals={totalsData} getDineroColor={getDineroColor} currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta} />
                   )}
