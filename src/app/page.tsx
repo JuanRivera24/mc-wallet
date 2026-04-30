@@ -14,7 +14,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
-      
+
       <Onboarding /> {/* <-- Y llamamos al componente aquí, listo para funcionar */}
 
       {/* 1. justify-center aplica para todos (centra el texto perfectamente en la pantalla).
@@ -22,12 +22,12 @@ export default function Home() {
         3. min-h-[calc(100svh-72px)] mantiene la matemática para ocultar Tarifas.
       */}
       <section id="nosotros" className={`relative flex flex-col items-center justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
-        
+
         {/* BLOQUE DE TEXTO: Libre de márgenes forzados, el flexbox del padre lo centra solo */}
         <div className="max-w-5xl mx-auto space-y-8 lg:space-y-10 z-10">
 
           <h1 className="text-4xl sm:text-6xl lg:text-8xl font-black text-gray-900 dark:text-white tracking-tighter leading-[1.1] lg:leading-none">
-            Tu esfuerzo, <br className="hidden lg:block"/>
+            Tu esfuerzo, <br className="hidden lg:block" />
             <span className={`${colors.primary} italic underline decoration-gray-200 dark:decoration-gray-800 underline-offset-4 lg:underline-offset-8`}>al centavo.</span>
           </h1>
 
@@ -52,8 +52,22 @@ export default function Home() {
             </SignedOut>
 
             <SignedIn>
-              <Link href="/nominas" className="hidden lg:flex bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full lg:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base hover:shadow-xl transition-all items-center justify-center">
-                📂 MIS NÓMINAS
+              <Link
+                href="/nominas"
+                className="relative hidden lg:flex items-center justify-center px-7 py-4 rounded-2xl font-black text-sm lg:text-base text-gray-900 dark:text-white bg-white dark:bg-[#0a0a0a] overflow-hidden"
+              >
+                {/* BORDE BASE */}
+                <span className="absolute inset-0 rounded-2xl border border-gray-300 dark:border-gray-700" />
+
+                {/* LUZ QUE RECORRE */}
+                <span className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                  <span className="absolute -inset-[200%] bg-[linear-gradient(120deg,transparent,rgba(255,215,0,0.9),transparent)] animate-[borderRun_3s_linear_infinite]" />
+                </span>
+
+                {/* CONTENIDO */}
+                <span className="relative z-10 flex items-center gap-2">
+                  📂 MIS NÓMINAS
+                </span>
               </Link>
             </SignedIn>
           </div>
