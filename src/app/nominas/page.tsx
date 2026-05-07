@@ -163,7 +163,7 @@ export default function NominasPage() {
   }, [startTime, endTime, breakStart, breakEnd, hasBreak, isManualBreak, showModal, showSpecialModal, incapacidadType]);
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
-  const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr && (!s.type || s.type === 'SHIFT' || s.isOff)), [shiftsDelAno, todayStr]);
+  const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr && (!s.type || s.type === 'SHIFT' || s.isOff) && !s.id.includes('_split')), [shiftsDelAno, todayStr]);
 
   const statsAnuales = useMemo(() => {
     return mesesFull.map(m => {
@@ -198,8 +198,8 @@ export default function NominasPage() {
       return {
         dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto,
         horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
-        diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT')).length,
-        diasOff: filteredShifts.filter(s => s.isOff).length
+        diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT') && !s.id.includes('_split')).length,
+        diasOff: filteredShifts.filter(s => s.isOff && !s.id.includes('_split')).length
       };
     };
     const q1 = calcQ(true); const q2 = calcQ(false);
@@ -214,7 +214,8 @@ export default function NominasPage() {
     return shiftsDelAno.filter(s => {
       let day = parseInt(s.date.split('-')[2]);
       let shiftQ = day <= 15 ? 1 : 2;
-      return s.month === selectedMonth && shiftQ === selectedQuincena;
+      // BLOQUEAR _split de la lista principal de turnos registrados
+      return s.month === selectedMonth && shiftQ === selectedQuincena && !s.id.includes('_split');
     }).sort((a, b) => {
       const dateCompare = a.date.localeCompare(b.date);
       if (dateCompare !== 0) return dateCompare;
@@ -255,6 +256,8 @@ export default function NominasPage() {
     }
   });
 
+  const inheritedShifts = turnosCalculo.filter(s => s.id.includes('_split'));
+
   const totalsData: QuincenaTotals = {
     totalListaHoras: turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0),
     totalListaDinero: baseDineroTurnos + bigVentaNeto,
@@ -270,7 +273,17 @@ export default function NominasPage() {
     tCompensatorio_h: turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (Number(c.totalHours) || 0), 0), tCompensatorio_p: turnosCalculo.filter(s => s.type === 'COMPENSATORIO').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0),
     tIncapacidad_h: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.totalHours) || 0), 0), tIncapacidad_p: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0),
     tTransportBase, tTransportExtra,
-    tDeductionsFinal: turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0) + bigVentaDeduccion
+    tDeductionsFinal: turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0) + bigVentaDeduccion,
+    
+    // Datos procesados para el desglose sutil de horas heredadas
+    tInherited_h: inheritedShifts.reduce((a, c) => a + (Number(c.totalHours) || 0), 0),
+    tInherited_p: inheritedShifts.reduce((a, c) => a + (Number(c.netPay) || 0), 0),
+    inheritedDetails: inheritedShifts.map(s => ({
+      originalDate: s.originalDate || s.date,
+      currentDate: s.date,
+      hours: Number(s.totalHours) || 0,
+      pay: Number(s.netPay) || 0
+    }))
   };
 
   const countTrabajados = turnosLista.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT')).length;
@@ -318,70 +331,70 @@ export default function NominasPage() {
 
   const handleOpenEdit = (e: React.MouseEvent | null, shift: any) => {
     if (e) e.stopPropagation(); 
-    setEditingShiftId(shift.id);
     
-    const dToUse = shift.originalDate || shift.date;
+    const isSplit = shift.id.includes('_split');
+    const targetShift = isSplit ? (shifts.find(s => s.id === shift.id.replace('_split', '')) || shift) : shift;
+
+    setEditingShiftId(targetShift.id);
+    
+    const dToUse = targetShift.originalDate || targetShift.date;
     const [year, month, day] = dToUse.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
 
-    if (shift.type === 'REUNION' || shift.type === 'COMPENSATORIO' || shift.type === 'INCAPACIDAD') {
-      setSpecialTab(shift.type);
-      if (shift.type === 'INCAPACIDAD' && (shift.originalStartTime || shift.startTime)) {
+    if (targetShift.type === 'REUNION' || targetShift.type === 'COMPENSATORIO' || targetShift.type === 'INCAPACIDAD') {
+      setSpecialTab(targetShift.type);
+      if (targetShift.type === 'INCAPACIDAD' && (targetShift.originalStartTime || targetShift.startTime)) {
         setIncapacidadType('TURNO'); 
-        setStartTime(shift.originalStartTime || shift.startTime); 
-        setEndTime(shift.originalEndTime || shift.endTime);
-        const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
+        setStartTime(targetShift.originalStartTime || targetShift.startTime); 
+        setEndTime(targetShift.originalEndTime || targetShift.endTime);
+        const shiftHasBreak = targetShift.hasBreak !== undefined ? targetShift.hasBreak : true;
         setHasBreak(shiftHasBreak);
-        if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
-          setBreakStart(shift.breakStart); setBreakEnd(shift.breakEnd);
-          setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : true);
+        if (shiftHasBreak && targetShift.breakStart && targetShift.breakEnd) {
+          setBreakStart(targetShift.breakStart); setBreakEnd(targetShift.breakEnd);
+          setIsManualBreak(targetShift.isManualBreak !== undefined ? targetShift.isManualBreak : true);
         } else setIsManualBreak(false);
       } else {
-        if (shift.type === 'INCAPACIDAD') setIncapacidadType('HORAS');
-        setSpecialHours(shift.totalHours ? shift.totalHours.toString() : "");
-        setSpecialRateType(shift.specialRateKey || "ORDINARY");
+        if (targetShift.type === 'INCAPACIDAD') setIncapacidadType('HORAS');
+        setSpecialHours(targetShift.totalHours ? targetShift.totalHours.toString() : "");
+        setSpecialRateType(targetShift.specialRateKey || "ORDINARY");
       }
-      setSpecialTransport(shift.transportAux > 0); setShowSpecialModal(true); return;
+      setSpecialTransport(targetShift.transportAux > 0); setShowSpecialModal(true); return;
     }
 
-    const sTime = shift.originalStartTime || shift.startTime || "14:00"; 
-    const eTime = shift.originalEndTime || shift.endTime || "22:00";
+    const sTime = targetShift.originalStartTime || targetShift.startTime || "14:00"; 
+    const eTime = targetShift.originalEndTime || targetShift.endTime || "22:00";
     setStartTime(sTime); setEndTime(eTime);
-    const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
+    const shiftHasBreak = targetShift.hasBreak !== undefined ? targetShift.hasBreak : true;
     setHasBreak(shiftHasBreak);
     if (shiftHasBreak) {
-      if (shift.breakStart && shift.breakEnd) {
-        setBreakStart(shift.breakStart); setBreakEnd(shift.breakEnd);
-        setIsManualBreak(shift.isManualBreak !== undefined ? shift.isManualBreak : true);
+      if (targetShift.breakStart && targetShift.breakEnd) {
+        setBreakStart(targetShift.breakStart); setBreakEnd(targetShift.breakEnd);
+        setIsManualBreak(targetShift.isManualBreak !== undefined ? targetShift.isManualBreak : true);
       } else { autoCalculateBreak(sTime, eTime); setIsManualBreak(false); }
     } else { setBreakStart("16:00"); setBreakEnd("16:30"); setIsManualBreak(false); }
     setShowModal(true);
   };
 
-  // NUEVO: Lógica a prueba de balas para las flechas de navegación
   const handleModalNavigate = (direction: number) => {
     if (!selectedDate) return;
     
-    // 1. Calcular nueva fecha
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + direction);
     
-    // 2. Actualizar estado principal para que el calendario de fondo y la app viajen en el tiempo
     setSelectedDate(newDate);
     setSelectedYear(newDate.getFullYear());
     setSelectedMonth(mesesFull[newDate.getMonth()]);
     setSelectedQuincena(newDate.getDate() <= 15 ? 1 : 2);
 
-    // 3. Buscar si hay un turno en esta nueva fecha
     const dStr = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
     
     const existingShift = shifts.find(s => 
-      (s.originalDate === dStr || s.date === dStr) && 
+      ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) && 
       (!s.type || s.type === 'SHIFT') && 
-      !s.isOff
+      !s.isOff && 
+      !s.id.includes('_split')
     );
 
-    // 4. Comportarse exactamente como si el usuario tocara un turno de la lista, o un día en blanco
     if (existingShift) {
       setEditingShiftId(existingShift.id);
       const sTime = existingShift.originalStartTime || existingShift.startTime || "14:00"; 
@@ -584,8 +597,20 @@ export default function NominasPage() {
   };
 
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
-  const existingMainShift = shiftsDelAno.find(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT'));
-  const hasNormalShiftForModal = shifts.some(s => s.date === dStrForModal && (!s.type || s.type === 'SHIFT') && !s.isOff);
+  
+  const existingMainShift = shiftsDelAno.find(s => 
+    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) && 
+    (!s.type || s.type === 'SHIFT') && 
+    !s.id.includes('_split')
+  );
+  
+  const hasNormalShiftForModal = shifts.some(s => 
+    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) && 
+    (!s.type || s.type === 'SHIFT') && 
+    !s.isOff && 
+    !s.id.includes('_split')
+  );
+  
   const isEditingRealShift = existingMainShift && !existingMainShift.isOff;
 
   if (!isMounted) return <main className={`min-h-screen flex items-center justify-center font-sans ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}><p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest">Cargando datos...</p></main>;
@@ -628,53 +653,23 @@ export default function NominasPage() {
                         initial={{ opacity: 0, y: 25, scale: 0.96 }}
                         whileInView={{ opacity: 1, y: 0, scale: 1 }}
                         viewport={{ once: true, margin: "-20px" }}
-                        transition={{
-                          duration: 0.45,
-                          ease: "easeOut",
-                          delay: i * 0.05,
-                        }}
+                        transition={{ duration: 0.45, ease: "easeOut", delay: i * 0.05 }}
                         whileHover={{ y: -5, scale: 1.03 }}
                         whileTap={{ scale: 0.95, y: 0 }}
-                        onClick={() => {
-                          setSelectedMonth(m);
-                          goToStep(2);
-                        }}
-                        className={`
-              group relative w-full p-5 rounded-[1.8rem] font-black text-base md:text-lg capitalize
-              transition-all duration-300 overflow-hidden
-
-              border
-              shadow-[0_2px_6px_rgba(0,0,0,0.05)]
-              hover:shadow-[0_6px_14px_rgba(0,0,0,0.08)]
-
-              ${isCurrentMonth
-                            ? 'bg-gradient-to-br from-yellow-100 to-yellow-50 dark:from-yellow-900/40 dark:to-yellow-800/20 text-yellow-900 dark:text-yellow-400 border-yellow-300/50'
-                            : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-gray-200/60 dark:border-gray-800'
-                          }
-            `}
+                        onClick={() => { setSelectedMonth(m); goToStep(2); }}
+                        className={`group relative w-full p-5 rounded-[1.8rem] font-black text-base md:text-lg capitalize transition-all duration-300 overflow-hidden border shadow-[0_2px_6px_rgba(0,0,0,0.05)] hover:shadow-[0_6px_14px_rgba(0,0,0,0.08)] ${isCurrentMonth ? 'bg-gradient-to-br from-yellow-100 to-yellow-50 dark:from-yellow-900/40 dark:to-yellow-800/20 text-yellow-900 dark:text-yellow-400 border-yellow-300/50' : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300 border-gray-200/60 dark:border-gray-800'}`}
                       >
-                        {/* borde interno sutil (efecto 3D) */}
                         <span className="absolute inset-0 rounded-[1.8rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
-
-                        {/* glow hover suave */}
                         <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
-
-                        {/* línea inferior animada */}
                         <span className="absolute bottom-0 left-0 h-[3px] w-0 group-hover:w-full transition-all duration-300 bg-gradient-to-r from-transparent via-black/40 to-transparent dark:via-white/40" />
-
-                        {/* contenido */}
                         <span className="relative z-10 flex items-center justify-between">
                           <span>{m}</span>
-
-                          {isCurrentMonth && (
-                            <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-                          )}
+                          {isCurrentMonth && <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />}
                         </span>
                       </motion.button>
                     );
                   })}
                 </div>
-
                 <div className="mt-10">
                   <AnnualChart data={statsAnuales} />
                 </div>
@@ -683,10 +678,7 @@ export default function NominasPage() {
 
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
-
                 <div className="grid md:grid-cols-2 gap-6 md:gap-8">
-
-                  {/* QUINCENA 1 */}
                   <motion.div
                     initial={{ opacity: 0, y: 30, scale: 0.96 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -695,21 +687,10 @@ export default function NominasPage() {
                     whileHover={{ y: -6, scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => { setSelectedQuincena(1); goToStep(3); }}
-                    className="
-          group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem]
-          cursor-pointer transition-all duration-300 overflow-hidden
-
-          border border-gray-200/60 dark:border-gray-800
-          shadow-[0_4px_12px_rgba(0,0,0,0.06)]
-          hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]
-        "
+                    className="group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem] cursor-pointer transition-all duration-300 overflow-hidden border border-gray-200/60 dark:border-gray-800 shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]"
                   >
-                    {/* borde interno 3D */}
                     <span className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
-
-                    {/* glow hover */}
                     <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
-
                     <div className="flex justify-between items-start mb-6 relative z-10">
                       <div>
                         <span className="text-5xl font-black text-gray-900 dark:text-white block">01</span>
@@ -717,7 +698,6 @@ export default function NominasPage() {
                           Días 01 - 15
                         </span>
                       </div>
-
                       <div className="text-right">
                         <p className={`text-3xl font-black tracking-tighter ${getDineroColor(statsQuincenas.q1.dinero)}`}>
                           ${Math.floor(statsQuincenas.q1.dinero).toLocaleString()}
@@ -725,7 +705,6 @@ export default function NominasPage() {
                         <p className="text-[10px] font-black text-gray-400 uppercase">Acumulado</p>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700 relative z-10">
                       <div>
                         <p className="text-xl font-black dark:text-white">{statsQuincenas.q1.horas.toFixed(1)}</p>
@@ -742,8 +721,6 @@ export default function NominasPage() {
                     </div>
                   </motion.div>
 
-
-                  {/* QUINCENA 2 */}
                   <motion.div
                     initial={{ opacity: 0, y: 30, scale: 0.96 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -752,21 +729,10 @@ export default function NominasPage() {
                     whileHover={{ y: -6, scale: 1.02 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => { setSelectedQuincena(2); goToStep(3); }}
-                    className="
-          group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem]
-          cursor-pointer transition-all duration-300 overflow-hidden
-
-          border border-gray-200/60 dark:border-gray-800
-          shadow-[0_4px_12px_rgba(0,0,0,0.06)]
-          hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]
-        "
+                    className="group relative bg-white dark:bg-gray-900 p-7 md:p-8 rounded-[3rem] cursor-pointer transition-all duration-300 overflow-hidden border border-gray-200/60 dark:border-gray-800 shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_10px_25px_rgba(0,0,0,0.08)]"
                   >
-                    {/* borde interno */}
                     <span className="absolute inset-0 rounded-[3rem] ring-1 ring-inset ring-white/40 dark:ring-white/5 pointer-events-none" />
-
-                    {/* glow */}
                     <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-300 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 pointer-events-none" />
-
                     <div className="flex justify-between items-start mb-6 relative z-10">
                       <div>
                         <span className="text-5xl font-black text-gray-900 dark:text-white block">02</span>
@@ -774,7 +740,6 @@ export default function NominasPage() {
                           Días 16 - {getLastDayOfMonth()}
                         </span>
                       </div>
-
                       <div className="text-right">
                         <p className={`text-3xl font-black tracking-tighter ${getDineroColor(statsQuincenas.q2.dinero)}`}>
                           ${Math.floor(statsQuincenas.q2.dinero).toLocaleString()}
@@ -782,7 +747,6 @@ export default function NominasPage() {
                         <p className="text-[10px] font-black text-gray-400 uppercase">Acumulado</p>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-gray-800 p-4 rounded-2xl text-center border border-gray-100 dark:border-gray-700 relative z-10">
                       <div>
                         <p className="text-xl font-black dark:text-white">{statsQuincenas.q2.horas.toFixed(1)}</p>
@@ -798,13 +762,10 @@ export default function NominasPage() {
                       </div>
                     </div>
                   </motion.div>
-
                 </div>
-
                 <div className="mt-8">
                   <QuincenaCharts data={statsQuincenas} />
                 </div>
-
               </div>
             )}
 
@@ -832,15 +793,18 @@ export default function NominasPage() {
                     tileClassName={({ date }) => {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
+                      
+                      // EXCLUYE los fragmentos para no pintar días en verde accidentalmente
+                      const realDayEvents = dayEvents.filter(e => !e.id.includes('_split'));
+                      
                       const isDisabled = isDateDisabled({ date });
-
                       const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
 
-                      const hasOff = dayEvents.some(e => e.isOff); 
-                      const hasIncapacidad = dayEvents.some(e => e.type === 'INCAPACIDAD');
-                      const hasShift = dayEvents.some(e => e.type === 'SHIFT' || !e.type); 
-                      const hasReunion = dayEvents.some(e => e.type === 'REUNION'); 
-                      const hasCompensatorio = dayEvents.some(e => e.type === 'COMPENSATORIO');
+                      const hasOff = realDayEvents.some(e => e.isOff); 
+                      const hasIncapacidad = realDayEvents.some(e => e.type === 'INCAPACIDAD');
+                      const hasShift = realDayEvents.some(e => e.type === 'SHIFT' || !e.type); 
+                      const hasReunion = realDayEvents.some(e => e.type === 'REUNION'); 
+                      const hasCompensatorio = realDayEvents.some(e => e.type === 'COMPENSATORIO');
                       
                       let classes = 'font-bold rounded-2xl transition-all relative '; 
                       
@@ -891,7 +855,6 @@ export default function NominasPage() {
                 <div 
                   key={`lista-quincena-${selectedYear}-${selectedMonth}-${selectedQuincena}`} 
                   className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors"
-                  style={{ overscrollBehaviorY: 'contain', touchAction: 'pan-y' }}
                 >
                   <div className="p-8 pb-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
                     <h2 className="text-2xl font-black italic uppercase dark:text-white">Turnos Registrados</h2>
@@ -918,7 +881,6 @@ export default function NominasPage() {
             isManualBreak={isManualBreak} setIsManualBreak={setIsManualBreak} breakStart={breakStart} 
             setBreakStart={setBreakStart} breakEnd={breakEnd} setBreakEnd={setBreakEnd} 
             breakError={breakError} autoCalculateBreak={autoCalculateBreak} handleSaveShift={handleSaveShift} 
-            // NUEVO: Conectando la navegación real
             handleNavigateDay={handleModalNavigate}
             handleDeleteShift={() => {
               if (!editingShiftId) return;

@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 
-// Agrupamos todos los totales en una interfaz para no pasar 30 variables sueltas
 export interface QuincenaTotals {
   totalListaHoras: number;
   totalListaDinero: number;
@@ -19,12 +18,15 @@ export interface QuincenaTotals {
   tTransportBase: number;
   tTransportExtra: number;
   tDeductionsFinal: number;
+  tInherited_h?: number;
+  tInherited_p?: number;
+  // Detalle exacto para saber de qué turno vienen las horas
+  inheritedDetails?: { originalDate: string, currentDate: string, hours: number, pay: number }[];
 }
 
 interface QuincenaSummaryProps {
   totals: QuincenaTotals;
   getDineroColor: (dinero: number) => string;
-  // Props de la Big Venta
   currentBigVenta: any;
   isEditingBigVenta: boolean;
   setIsEditingBigVenta: (v: boolean) => void;
@@ -50,10 +52,8 @@ export default function QuincenaSummary({
   deleteBigVenta
 }: QuincenaSummaryProps) {
   
-  // Estado local, ya no contamina la página principal
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
 
-  // Destructuramos para no escribir totals.tOrdD_h en cada línea
   const {
     totalListaHoras, totalListaDinero,
     tOrdD_h, tOrdD_p, tOrdN_h, tOrdN_p,
@@ -61,7 +61,8 @@ export default function QuincenaSummary({
     tExtD_h, tExtD_p, tExtN_h, tExtN_p,
     tExtDomD_h, tExtDomD_p, tExtDomN_h, tExtDomN_p,
     tReunion_h, tReunion_p, tCompensatorio_h, tCompensatorio_p, tIncapacidad_h, tIncapacidad_p,
-    tTransportBase, tTransportExtra, tDeductionsFinal
+    tTransportBase, tTransportExtra, tDeductionsFinal,
+    tInherited_h = 0, tInherited_p = 0, inheritedDetails = []
   } = totals;
 
   return (
@@ -88,6 +89,38 @@ export default function QuincenaSummary({
       {isTotalExpanded && (
         <div className="bg-[#111] dark:bg-black px-6 md:px-8 pb-10 pt-6 animate-in slide-in-from-top-2 border-t border-gray-800 rounded-b-[3rem]">
           <p className="text-[10px] font-black uppercase text-gray-600 tracking-widest mb-6 text-center">Desglose Exacto Quincenal</p>
+
+          {/* DISEÑO MINIMALISTA Y SUTIL PARA HORAS HEREDADAS */}
+          {tInherited_h > 0 && inheritedDetails.length > 0 && (
+            <div className="mb-6 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                  <span>⏳</span> Horas heredadas <span className="text-[8px] text-purple-300/60 ml-1">(Ya sumadas)</span>
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {inheritedDetails.map((det, idx) => {
+                  const [y1, m1, d1] = det.originalDate.split('-');
+                  const [y2, m2, d2] = det.currentDate.split('-');
+                  const mesesCortos = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+                  const fD1 = parseInt(d1, 10); const fM1 = mesesCortos[parseInt(m1, 10) - 1];
+                  const fD2 = parseInt(d2, 10); const fM2 = mesesCortos[parseInt(m2, 10) - 1];
+                  
+                  return (
+                    <div key={idx} className="flex justify-between items-center bg-black/30 rounded-xl p-3 border border-purple-500/10">
+                      <p className="text-[11px] font-medium text-gray-300">
+                        Turno <span className="font-bold text-white">{fD1} {fM1}</span> → <span className="font-bold text-white">{fD2} {fM2}</span>
+                      </p>
+                      <div className="flex items-center gap-3 text-right">
+                        <p className="text-sm font-black text-white">{det.hours.toFixed(1)} <span className="text-[10px] text-gray-500 font-bold">h</span></p>
+                        <p className="text-sm font-black text-purple-400">+${Math.floor(det.pay).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4 text-center">
             <div className={tOrdD_h > 0 ? "" : "opacity-30"}><p className="text-[9px] font-bold text-gray-400 uppercase">Ord. Diurna</p><p className={`font-black text-lg ${tOrdD_h > 0 ? 'text-white' : 'text-gray-600'}`}>{tOrdD_h.toFixed(1)} h</p><p className="text-[10px] font-bold text-gray-500">${Math.floor(tOrdD_p).toLocaleString()}</p></div>
@@ -126,17 +159,20 @@ export default function QuincenaSummary({
 
           <div className="mt-8 pt-8 border-t border-gray-800/50 flex flex-col w-full">
             {currentBigVenta && !isEditingBigVenta ? (
-              <div className="flex justify-between items-center bg-gray-800/40 p-5 rounded-2xl border border-gray-700/50">
+              <div className="flex justify-between items-center bg-gray-800/40 p-6 rounded-3xl border-2 border-yellow-500/30 shadow-md">
                 <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Big Venta Registrada 💸</p>
-                  <p className="font-black text-2xl text-yellow-400">${Math.floor(currentBigVenta.value).toLocaleString()}</p>
-                  <p className="text-[11.5px] font-bold text-gray-500 uppercase tracking-tighter mt-1">
-                    Neto: <span className="text-green-400">+${Math.floor(currentBigVenta.value * 0.92).toLocaleString()}</span> | Deduc: <span className="text-red-400">-${Math.floor(currentBigVenta.value * 0.08).toLocaleString()}</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">🍔</span>
+                    <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest">Incentivo Big Venta</p>
+                  </div>
+                  <p className="font-black text-3xl text-white">${Math.floor(currentBigVenta.value).toLocaleString()}</p>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-tighter mt-1">
+                    Neto: <span className="text-green-400">+${Math.floor(currentBigVenta.value * 0.92).toLocaleString()}</span> <span className="mx-1">|</span> Retención 8%: <span className="text-red-400">-${Math.floor(currentBigVenta.value * 0.08).toLocaleString()}</span>
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { setIsEditingBigVenta(true); setHasBigVenta(true); setBigVentaValue(currentBigVenta.value); }} className="p-3 bg-gray-700/50 rounded-xl hover:bg-white hover:text-black transition-colors" title="Editar">✏️</button>
-                  <button onClick={() => deleteBigVenta(currentBigVenta.id)} className="p-3 bg-gray-700/50 rounded-xl hover:bg-red-500 hover:text-white transition-colors" title="Eliminar">🗑️</button>
+                  <button onClick={() => { setIsEditingBigVenta(true); setHasBigVenta(true); setBigVentaValue(currentBigVenta.value); }} className="p-3 bg-gray-700/80 rounded-xl hover:bg-yellow-500 hover:text-black transition-colors shadow-sm" title="Editar">✏️</button>
+                  <button onClick={() => deleteBigVenta(currentBigVenta.id)} className="p-3 bg-gray-700/80 rounded-xl hover:bg-red-500 hover:text-white transition-colors shadow-sm" title="Eliminar">🗑️</button>
                 </div>
               </div>
             ) : (
