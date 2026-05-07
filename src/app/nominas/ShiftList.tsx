@@ -1,14 +1,12 @@
 "use client";
 import React from "react";
 
-// Función utilitaria copiada aquí para que el componente sea independiente
 const toMinutes = (t?: string) => {
   if (!t) return 0;
   const [h, m] = t.split(":").map(Number);
   return (h * 60) + m;
 };
 
-// Definimos qué datos necesita recibir este componente para funcionar
 interface ShiftListProps {
   turnosLista: any[];
   expandedShiftId: string | null;
@@ -16,7 +14,7 @@ interface ShiftListProps {
   handleToggleExpand: (id: string) => void;
   handleOpenEdit: (e: React.MouseEvent, shift: any) => void;
   handleRecalculate: (e: React.MouseEvent, shift: any) => void;
-  handleDelete: (e: React.MouseEvent, id: string) => void;
+  handleDelete: (e: React.MouseEvent, shift: any) => void;
 }
 
 export default function ShiftList({
@@ -45,7 +43,6 @@ export default function ShiftList({
             {/* LIST ITEM PRINCIPAL */}
             <div className="p-4 md:p-8 flex justify-between items-center gap-2 md:gap-4">
               
-              {/* Información a la Izquierda */}
               <div className="flex-1 min-w-0 pr-1">
                 <div className="flex items-center gap-2 md:gap-3 mb-1">
                   <span className={`flex-shrink-0 w-3 h-3 rounded-full border border-black dark:border-transparent ${
@@ -62,11 +59,11 @@ export default function ShiftList({
                 <div className="flex flex-col md:flex-row md:items-center text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide pl-[1.25rem] md:pl-6 leading-tight gap-0.5 md:gap-0">
                   {s.isOff ? (
                     <span>Día de Descanso</span>
-                  ) : s.startTime ? (
+                  ) : (s.originalStartTime || s.startTime) ? (
                     <>
-                      <span>{s.startTime} - {s.endTime}</span>
+                      <span>{s.originalStartTime || s.startTime} - {s.originalEndTime || s.endTime}</span>
                       <span className="hidden md:inline mx-1.5 text-gray-300 dark:text-gray-600">•</span>
-                      <span className="text-gray-500 dark:text-gray-400">{Number(s.totalHours || 0).toFixed(1)}H</span>
+                      <span className="text-gray-500 dark:text-gray-400">{Number(s.totalHours || 0).toFixed(1)}H {s.isSplitPart ? '(Aca)' : ''}</span>
                     </>
                   ) : (
                     <>
@@ -78,7 +75,6 @@ export default function ShiftList({
                 </div>
               </div>
 
-              {/* Información y Botones a la Derecha */}
               <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
                 <div className="text-right flex-shrink-0 mr-[3%]">
                   {!s.isOff && s.type !== 'INCAPACIDAD' && (
@@ -92,39 +88,26 @@ export default function ShiftList({
                 </div>
 
                 <div className="flex items-center gap-2.5 md:gap-2.5">
-                  <button
-                    onClick={(e) => handleOpenEdit(e, s)}
-                    className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10"
-                    title="Editar Turno"
-                  >
-                    ✏️
-                  </button>
-
-                  <button
-                    onClick={(e) => handleRecalculate(e, s)}
-                    className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10"
-                    title="Recalcular rápido"
-                  >
-                    🔄
-                  </button>
-
-                  <button
-                    onClick={(e) => handleDelete(e, s.id)}
-                    className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10"
-                    title="Eliminar"
-                  >
-                    🗑️
-                  </button>
+                  <button onClick={(e) => handleOpenEdit(e, s)} className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10" title="Editar Turno">✏️</button>
+                  <button onClick={(e) => handleRecalculate(e, s)} className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-blue-500 dark:hover:bg-blue-600 hover:text-white transition-colors z-10" title="Recalcular rápido">🔄</button>
+                  <button onClick={(e) => handleDelete(e, s)} className="p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:bg-red-500 dark:hover:bg-red-600 hover:text-white transition-colors z-10" title="Eliminar">🗑️</button>
                 </div>
               </div>
             </div>
 
-            {/* DESGLOSE AL EXPANDIR (PARA TODOS LOS TURNOS MENOS OFF) */}
+            {/* DESGLOSE AL EXPANDIR */}
             {!s.isOff && expandedShiftId === s.id && (
               <div className="px-6 pb-6 md:px-8 md:pb-8 animate-in slide-in-from-top-2 fade-in duration-300">
+                
+                {s.isSplitPart && (
+                    <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 p-4 rounded-2xl mb-4 text-xs text-center font-black uppercase tracking-wider shadow-sm">
+                        ⚠️ Turno cruzado a la otra quincena <br/>
+                        <span className="text-[9px] text-indigo-500 dark:text-indigo-400 mt-1 block tracking-widest">Inició el {s.originalDate} ({s.originalStartTime} a {s.originalEndTime})</span>
+                    </div>
+                )}
+
                 <div className="bg-gray-50 dark:bg-gray-800/80 rounded-2xl p-5 border border-gray-100 dark:border-gray-700 transition-colors shadow-inner">
                   
-                  {/* Resumen General del Turno */}
                   <div className="grid grid-cols-3 gap-2 md:gap-4 text-center mb-4 pb-4 border-b border-gray-200/50 dark:border-gray-700">
                     <div>
                       <p className="text-[9px] md:text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Base (Horas)</p>
@@ -140,11 +123,10 @@ export default function ShiftList({
                     </div>
                   </div>
 
-                  {/* TIMELINE VISUAL CON LOS COLORES CORREGIDOS */}
-                  {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) && (
+                  {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && (s.originalStartTime || s.startTime))) && (
                     <div className="flex justify-center mb-4">
                       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-sm flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-black uppercase tracking-wider">
-                        <span className="text-gray-800 dark:text-gray-100">ET: {s.startTime || "--:--"}</span>
+                        <span className="text-gray-800 dark:text-gray-100">ET: {s.originalStartTime || s.startTime || "--:--"}</span>
                         
                         {s.hasBreak && s.breakStart && s.breakEnd && (
                           <>
@@ -168,15 +150,14 @@ export default function ShiftList({
                         )}
                         
                         <span className="text-gray-300 dark:text-gray-600">|</span>
-                        <span className="text-gray-800 dark:text-gray-100">ST: {s.endTime || "--:--"}</span>
+                        <span className="text-gray-800 dark:text-gray-100">ST: {s.originalEndTime || s.endTime || "--:--"}</span>
                       </div>
                     </div>
                   )}
 
-                  {/* TIEMPO EXACTO */}
                   <div className="flex justify-center mb-4">
                     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl shadow-sm flex items-center gap-2">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">⏳ Tiempo Exacto:</span>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">⏳ Tiempo Exacto {s.isSplitPart ? '(Esta Q.)' : ''}:</span>
                       <span className="text-sm font-black text-gray-800 dark:text-gray-200">
                         {(() => {
                           const exactMins = Math.round((Number(s.totalHours) || 0) * 60);
@@ -188,10 +169,9 @@ export default function ShiftList({
                     </div>
                   </div>
 
-                  <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas de este Evento</p>
+                  <p className="text-[9px] font-black uppercase text-gray-400 tracking-widest text-center mb-3">Desglose de Horas {s.isSplitPart ? 'en esta Quincena' : 'de este Evento'}</p>
 
-                  {/* Desglose Detallado de Horas */}
-                  {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && s.startTime)) ? (
+                  {(!s.type || s.type === 'SHIFT' || (s.type === 'INCAPACIDAD' && (s.originalStartTime || s.startTime))) ? (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-2 text-center">
                       {s.hOrdD > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Diurna</p><p className="font-black text-sm text-gray-800 dark:text-gray-200">{Number(s.hOrdD).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdD).toLocaleString()}</p></div>}
                       {s.hOrdN > 0 && <div><p className="text-[8px] font-bold text-gray-400 uppercase">Ord. Nocturna</p><p className="font-black text-sm text-blue-500 dark:text-blue-300">{Number(s.hOrdN).toFixed(1)} h</p><p className="text-[9px] font-bold text-gray-500">${Math.floor(s.pOrdN).toLocaleString()}</p></div>}

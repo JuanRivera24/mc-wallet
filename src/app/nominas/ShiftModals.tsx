@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useTheme } from "@/context/ThemeContext";
 
 interface NormalModalProps {
@@ -16,6 +16,9 @@ interface NormalModalProps {
   breakError: string | null;
   autoCalculateBreak: (start: string, end: string) => void;
   handleSaveShift: (isOff: boolean) => void;
+  // Props actualizadas para navegación perfecta
+  handleNavigateDay?: (direction: number) => void;
+  handleDeleteShift?: () => void;
 }
 
 export function NormalShiftModal({
@@ -23,22 +26,90 @@ export function NormalShiftModal({
   startTime, setStartTime, endTime, setEndTime,
   hasBreak, setHasBreak, isManualBreak, setIsManualBreak,
   breakStart, setBreakStart, breakEnd, setBreakEnd,
-  breakError, autoCalculateBreak, handleSaveShift
+  breakError, autoCalculateBreak, handleSaveShift,
+  handleNavigateDay, handleDeleteShift
 }: NormalModalProps) {
   const { colors } = useTheme();
+  const [showMenu, setShowMenu] = useState(false);
 
   if (!showModal) return null;
 
+  // LÓGICA DEL PORTAPAPELES Y MENÚ
+  const handleCopy = () => {
+    const shiftData = { startTime, endTime, hasBreak, isManualBreak, breakStart, breakEnd };
+    localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+    setShowMenu(false);
+    alert("¡Turno copiado! Ve a otro día y presiona 'Pegar'.");
+  };
+
+  const handlePaste = () => {
+    const data = localStorage.getItem('mc_shift_clipboard');
+    if (data) {
+      const p = JSON.parse(data);
+      setStartTime(p.startTime); setEndTime(p.endTime);
+      setHasBreak(p.hasBreak); setIsManualBreak(p.isManualBreak);
+      setBreakStart(p.breakStart); setBreakEnd(p.breakEnd);
+    } else {
+      alert("No hay ningún turno copiado aún.");
+    }
+    setShowMenu(false);
+  };
+
+  const handleCut = () => {
+    const shiftData = { startTime, endTime, hasBreak, isManualBreak, breakStart, breakEnd };
+    localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+    setShowMenu(false);
+    if (handleDeleteShift) handleDeleteShift();
+  };
+
+  const handleTrash = () => {
+    setShowMenu(false);
+    if (handleDeleteShift) handleDeleteShift();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-      <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-8 md:p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors">
-        <h3 className="text-2xl font-black mb-8 text-center uppercase italic dark:text-white">
-          {editingShiftId ? 'Editar Turno' : 'Nuevo Turno'}
-        </h3>
+      <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[2.5rem] p-8 md:p-10 animate-in zoom-in-95 border border-gray-100 dark:border-gray-800 shadow-2xl transition-colors relative">
+
+        {/* ENCABEZADO CON MENÚ DE 3 PUNTITOS */}
+        <div className="relative flex items-center justify-center mb-6">
+          <h3 className="text-2xl font-black uppercase italic dark:text-white">
+            {editingShiftId ? 'Editar Turno' : 'Nuevo Turno'}
+          </h3>
+
+          <div className="absolute right-[-10px] top-[-5px]">
+            <button
+              type="button"
+              onClick={() => setShowMenu(!showMenu)}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-xl font-black text-gray-500"
+            >
+              ⋮
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                <button type="button" onClick={handleCopy} className="w-full text-left px-4 py-3 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors">📄 Copiar</button>
+                <button type="button" onClick={handlePaste} className="w-full text-left px-4 py-3 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors">📋 Pegar</button>
+                {editingShiftId && (
+                  <>
+                    <div className="border-t border-gray-100 dark:border-gray-700"></div>
+                    <button type="button" onClick={handleCut} className="w-full text-left px-4 py-3 text-xs font-bold text-orange-500 hover:bg-orange-50 dark:hover:bg-gray-700 transition-colors">✂️ Cortar</button>
+                    <button type="button" onClick={handleTrash} className="w-full text-left px-4 py-3 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-gray-700 transition-colors">🗑️ Eliminar</button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* NAVEGADOR DE FECHA CON FLECHAS */}
         {selectedDate && (
-          <p className="text-center text-gray-400 dark:text-gray-500 font-bold mb-6">
-            {selectedDate.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+          <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-1 mb-8">
+            <button type="button" onClick={() => handleNavigateDay && handleNavigateDay(-1)} className="p-2 px-4 text-gray-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 rounded-xl transition-all font-black text-lg shadow-sm">‹</button>
+            <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest text-center flex-1">
+              {selectedDate.toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' }).replace('.', '')}
+            </p>
+            <button type="button" onClick={() => handleNavigateDay && handleNavigateDay(1)} className="p-2 px-4 text-gray-400 hover:text-black dark:hover:text-white hover:bg-white dark:hover:bg-gray-700 rounded-xl transition-all font-black text-lg shadow-sm">›</button>
+          </div>
         )}
 
         <div className="space-y-6 mb-8">
@@ -73,7 +144,7 @@ export function NormalShiftModal({
             <div className={`p-4 rounded-2xl border-2 transition-colors ${hasBreak ? colors.accent : 'border-gray-100 dark:border-gray-800'}`}>
               <div className="flex items-center justify-between">
                 <span className={`text-[10px] md:text-xs font-black uppercase transition-colors ${hasBreak ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600'}`}>¿Turno con Break?</span>
-                <button onClick={() => {
+                <button type="button" onClick={() => {
                   const nextBreak = !hasBreak;
                   setHasBreak(nextBreak);
                   if (nextBreak) {
@@ -89,7 +160,7 @@ export function NormalShiftModal({
             <div className={`p-4 rounded-2xl border-2 border-dashed transition-all duration-300 ${!hasBreak ? 'opacity-40 pointer-events-none border-gray-100 dark:border-gray-800' : (isManualBreak ? colors.accent : 'border-gray-100 dark:border-gray-800')}`}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] md:text-xs font-black text-gray-500 uppercase">¿Break Manual?</span>
-                <button onClick={() => {
+                <button type="button" onClick={() => {
                   const nextState = !isManualBreak;
                   setIsManualBreak(nextState);
                   if (!nextState && hasBreak) {
@@ -103,19 +174,19 @@ export function NormalShiftModal({
               {hasBreak && (
                 <div className="animate-in fade-in slide-in-from-top-2 mt-3">
                   <div className="grid grid-cols-2 gap-3 mb-2">
-                    <input 
-                      type="time" 
-                      value={breakStart} 
-                      onChange={(e) => setBreakStart(e.target.value)} 
+                    <input
+                      type="time"
+                      value={breakStart}
+                      onChange={(e) => setBreakStart(e.target.value)}
                       disabled={!isManualBreak}
-                      className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`} 
+                      className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`}
                     />
-                    <input 
-                      type="time" 
-                      value={breakEnd} 
-                      onChange={(e) => setBreakEnd(e.target.value)} 
+                    <input
+                      type="time"
+                      value={breakEnd}
+                      onChange={(e) => setBreakEnd(e.target.value)}
                       disabled={!isManualBreak}
-                      className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`} 
+                      className={`p-3 bg-white dark:bg-gray-800 dark:text-white rounded-xl text-xs font-bold border outline-none transition-colors ${!isManualBreak ? 'opacity-50 cursor-not-allowed border-gray-100 dark:border-gray-800' : (breakError ? 'border-red-400 focus:ring-red-200' : 'border-gray-100 dark:border-gray-700 focus:ring-2 focus:ring-gray-200')}`}
                     />
                   </div>
                   {!isManualBreak && <p className="text-[9px] font-bold text-gray-400 uppercase text-center mb-1 tracking-widest">⏱️ Auto-calculado</p>}
@@ -127,8 +198,9 @@ export function NormalShiftModal({
         </div>
 
         <div className="flex gap-4">
-          <button onClick={() => setShowModal(false)} className="flex-1 font-bold text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
+          <button type="button" onClick={() => setShowModal(false)} className="flex-1 font-bold text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-colors text-xs">CANCELAR</button>
           <button
+            type="button"
             onClick={() => handleSaveShift(false)}
             disabled={!!breakError}
             className={`flex-[2] py-4 rounded-2xl text-white font-black uppercase tracking-widest transition-all
@@ -141,6 +213,8 @@ export function NormalShiftModal({
     </div>
   );
 }
+
+// === SPECIAL SHIFT MODAL ===
 
 interface SpecialModalProps {
   showSpecialModal: boolean;
@@ -172,7 +246,7 @@ export function SpecialShiftModal({
   hasBreak, setHasBreak, isManualBreak, autoCalculateBreak,
   specialTransport, setSpecialTransport, handleSaveSpecial
 }: SpecialModalProps) {
-  
+
   if (!showSpecialModal) return null;
 
   return (
@@ -190,49 +264,16 @@ export function SpecialShiftModal({
         </div>
 
         <div className="grid grid-cols-3 bg-gray-100 dark:bg-gray-800 p-1 m-4 rounded-xl">
-          <button
-            onClick={() => setSpecialTab('REUNION')}
-            disabled={!!editingShiftId && specialTab !== 'REUNION'}
-            className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!!editingShiftId && specialTab !== 'REUNION' ? 'opacity-30 cursor-not-allowed text-gray-400'
-                : specialTab === 'REUNION' ? 'bg-white dark:bg-gray-700 text-orange-500 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-          >
-            Reunión
-          </button>
-          <button
-            onClick={() => {
-              if (hasNormalShiftForModal) alert("Día con turno. Elimínalo e inténtalo de nuevo para agregar un Compensatorio.");
-              else setSpecialTab('COMPENSATORIO');
-            }}
-            disabled={!!editingShiftId && specialTab !== 'COMPENSATORIO'}
-            className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'COMPENSATORIO') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400'
-                : specialTab === 'COMPENSATORIO' ? 'bg-white dark:bg-gray-700 text-yellow-500 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-          >
-            Compensa.
-          </button>
-          <button
-            onClick={() => {
-              if (hasNormalShiftForModal) alert("Día con turno. Elimínalo e inténtalo de nuevo para agregar una Incapacidad.");
-              else setSpecialTab('INCAPACIDAD');
-            }}
-            disabled={!!editingShiftId && specialTab !== 'INCAPACIDAD'}
-            className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'INCAPACIDAD') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400'
-                : specialTab === 'INCAPACIDAD' ? 'bg-white dark:bg-gray-700 text-red-500 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-          >
-            Incapacidad
-          </button>
+          <button type="button" onClick={() => setSpecialTab('REUNION')} disabled={!!editingShiftId && specialTab !== 'REUNION'} className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${!!editingShiftId && specialTab !== 'REUNION' ? 'opacity-30 cursor-not-allowed text-gray-400' : specialTab === 'REUNION' ? 'bg-white dark:bg-gray-700 text-orange-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Reunión</button>
+          <button type="button" onClick={() => { if (hasNormalShiftForModal) alert("Día con turno. Elimínalo e inténtalo de nuevo para agregar un Compensatorio."); else setSpecialTab('COMPENSATORIO'); }} disabled={!!editingShiftId && specialTab !== 'COMPENSATORIO'} className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'COMPENSATORIO') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400' : specialTab === 'COMPENSATORIO' ? 'bg-white dark:bg-gray-700 text-yellow-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Compensa.</button>
+          <button type="button" onClick={() => { if (hasNormalShiftForModal) alert("Día con turno. Elimínalo e inténtalo de nuevo para agregar una Incapacidad."); else setSpecialTab('INCAPACIDAD'); }} disabled={!!editingShiftId && specialTab !== 'INCAPACIDAD'} className={`py-3 text-[9px] font-black uppercase rounded-lg transition-all ${(!!editingShiftId && specialTab !== 'INCAPACIDAD') || hasNormalShiftForModal ? 'opacity-30 cursor-not-allowed text-gray-400' : specialTab === 'INCAPACIDAD' ? 'bg-white dark:bg-gray-700 text-red-500 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Incapacidad</button>
         </div>
 
         <div className="px-8 pb-8 space-y-6">
           {specialTab === 'INCAPACIDAD' && (
             <div className="flex gap-2">
-              <button onClick={() => setIncapacidadType('HORAS')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border-2 ${incapacidadType === 'HORAS' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 text-gray-400'}`}>Por Horas</button>
-              <button onClick={() => setIncapacidadType('TURNO')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border-2 ${incapacidadType === 'TURNO' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 text-gray-400'}`}>Turno Completo</button>
+              <button type="button" onClick={() => setIncapacidadType('HORAS')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border-2 ${incapacidadType === 'HORAS' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 text-gray-400'}`}>Por Horas</button>
+              <button type="button" onClick={() => setIncapacidadType('TURNO')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg border-2 ${incapacidadType === 'TURNO' ? 'border-red-500 text-red-500 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 text-gray-400'}`}>Turno Completo</button>
             </div>
           )}
 
@@ -263,7 +304,7 @@ export function SpecialShiftModal({
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
                 <span className="text-[10px] font-black uppercase text-gray-500">¿Con Break?</span>
-                <button onClick={() => setHasBreak(!hasBreak)} className={`w-10 h-5 rounded-full relative transition-all ${hasBreak ? 'bg-red-500' : 'bg-gray-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${hasBreak ? 'left-6' : 'left-1'}`} /></button>
+                <button type="button" onClick={() => setHasBreak(!hasBreak)} className={`w-10 h-5 rounded-full relative transition-all ${hasBreak ? 'bg-red-500' : 'bg-gray-300'}`}><div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${hasBreak ? 'left-6' : 'left-1'}`} /></button>
               </div>
             </div>
           )}
@@ -273,14 +314,14 @@ export function SpecialShiftModal({
               <p className="text-[10px] md:text-xs font-black uppercase text-gray-700 dark:text-gray-300">Aux. Transporte</p>
               <p className="text-[8px] font-bold uppercase text-gray-400">¿Aplica subsidio este día?</p>
             </div>
-            <button onClick={() => setSpecialTransport(!specialTransport)} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${specialTransport ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
+            <button type="button" onClick={() => setSpecialTransport(!specialTransport)} className={`w-10 h-5 md:w-12 md:h-6 rounded-full transition-all relative ${specialTransport ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
               <div className={`absolute top-1 w-3 h-3 md:w-4 md:h-4 bg-white rounded-full transition-all ${specialTransport ? 'left-[1.35rem] md:left-7' : 'left-1'}`} />
             </button>
           </div>
 
           <div className="flex gap-4 pt-2">
-            <button onClick={() => setShowSpecialModal(false)} className="flex-1 font-bold text-gray-400 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
-            <button onClick={handleSaveSpecial} className={`flex-[2] py-4 rounded-2xl text-black font-black uppercase tracking-widest transition-all hover:scale-105 shadow-xl
+            <button type="button" onClick={() => setShowSpecialModal(false)} className="flex-1 font-bold text-gray-400 hover:text-black dark:hover:text-white transition-colors">CANCELAR</button>
+            <button type="button" onClick={handleSaveSpecial} className={`flex-[2] py-4 rounded-2xl text-black font-black uppercase tracking-widest transition-all hover:scale-105 shadow-xl
               ${specialTab === 'REUNION' ? 'bg-orange-500 text-white' : specialTab === 'COMPENSATORIO' ? 'bg-yellow-400 text-black' : 'bg-red-500 text-white'}`}>GUARDAR</button>
           </div>
         </div>

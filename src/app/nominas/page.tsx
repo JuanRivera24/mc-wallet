@@ -246,8 +246,8 @@ export default function NominasPage() {
   let tTransportBase = 0; let tTransportExtra = 0;
   turnosCalculo.forEach(c => {
     if (c.transportAux) {
-      if (c.endTime) {
-        const endMins = toMinutes(c.endTime);
+      if (c.originalEndTime || c.endTime) {
+        const endMins = toMinutes(c.originalEndTime || c.endTime);
         if (endMins >= 1 && endMins <= 299) {
           tTransportExtra += 5000; tTransportBase += (Number(c.transportAux) - 5000);
         } else tTransportBase += Number(c.transportAux);
@@ -309,19 +309,27 @@ export default function NominasPage() {
   };
 
   const handleQuickAddToday = () => {
-    setSelectedYear(today.getFullYear()); setSelectedMonth(mesesFull[today.getMonth()]);
-    setSelectedDate(today); handleOpenNew();
+    setSelectedYear(today.getFullYear()); 
+    setSelectedMonth(mesesFull[today.getMonth()]);
+    setSelectedQuincena(today.getDate() <= 15 ? 1 : 2);
+    setSelectedDate(today); 
+    handleOpenNew();
   };
 
-  const handleOpenEdit = (e: React.MouseEvent, shift: any) => {
-    e.stopPropagation(); setEditingShiftId(shift.id);
-    const [year, month, day] = shift.date.split('-');
+  const handleOpenEdit = (e: React.MouseEvent | null, shift: any) => {
+    if (e) e.stopPropagation(); 
+    setEditingShiftId(shift.id);
+    
+    const dToUse = shift.originalDate || shift.date;
+    const [year, month, day] = dToUse.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
 
     if (shift.type === 'REUNION' || shift.type === 'COMPENSATORIO' || shift.type === 'INCAPACIDAD') {
       setSpecialTab(shift.type);
-      if (shift.type === 'INCAPACIDAD' && shift.startTime) {
-        setIncapacidadType('TURNO'); setStartTime(shift.startTime); setEndTime(shift.endTime);
+      if (shift.type === 'INCAPACIDAD' && (shift.originalStartTime || shift.startTime)) {
+        setIncapacidadType('TURNO'); 
+        setStartTime(shift.originalStartTime || shift.startTime); 
+        setEndTime(shift.originalEndTime || shift.endTime);
         const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
         setHasBreak(shiftHasBreak);
         if (shiftHasBreak && shift.breakStart && shift.breakEnd) {
@@ -336,7 +344,8 @@ export default function NominasPage() {
       setSpecialTransport(shift.transportAux > 0); setShowSpecialModal(true); return;
     }
 
-    const sTime = shift.startTime || "14:00"; const eTime = shift.endTime || "22:00";
+    const sTime = shift.originalStartTime || shift.startTime || "14:00"; 
+    const eTime = shift.originalEndTime || shift.endTime || "22:00";
     setStartTime(sTime); setEndTime(eTime);
     const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
     setHasBreak(shiftHasBreak);
@@ -349,8 +358,63 @@ export default function NominasPage() {
     setShowModal(true);
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); if (confirm("¿Eliminar turno?")) deleteDoc(doc(db, "shifts", id));
+  // NUEVO: Lógica a prueba de balas para las flechas de navegación
+  const handleModalNavigate = (direction: number) => {
+    if (!selectedDate) return;
+    
+    // 1. Calcular nueva fecha
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + direction);
+    
+    // 2. Actualizar estado principal para que el calendario de fondo y la app viajen en el tiempo
+    setSelectedDate(newDate);
+    setSelectedYear(newDate.getFullYear());
+    setSelectedMonth(mesesFull[newDate.getMonth()]);
+    setSelectedQuincena(newDate.getDate() <= 15 ? 1 : 2);
+
+    // 3. Buscar si hay un turno en esta nueva fecha
+    const dStr = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
+    
+    const existingShift = shifts.find(s => 
+      (s.originalDate === dStr || s.date === dStr) && 
+      (!s.type || s.type === 'SHIFT') && 
+      !s.isOff
+    );
+
+    // 4. Comportarse exactamente como si el usuario tocara un turno de la lista, o un día en blanco
+    if (existingShift) {
+      setEditingShiftId(existingShift.id);
+      const sTime = existingShift.originalStartTime || existingShift.startTime || "14:00"; 
+      const eTime = existingShift.originalEndTime || existingShift.endTime || "22:00";
+      setStartTime(sTime); setEndTime(eTime);
+      const shiftHasBreak = existingShift.hasBreak !== undefined ? existingShift.hasBreak : true;
+      setHasBreak(shiftHasBreak);
+      if (shiftHasBreak) {
+        if (existingShift.breakStart && existingShift.breakEnd) {
+          setBreakStart(existingShift.breakStart); setBreakEnd(existingShift.breakEnd);
+          setIsManualBreak(existingShift.isManualBreak !== undefined ? existingShift.isManualBreak : true);
+        } else { autoCalculateBreak(sTime, eTime); setIsManualBreak(false); }
+      } else { setBreakStart("16:00"); setBreakEnd("16:30"); setIsManualBreak(false); }
+    } else {
+      setEditingShiftId(null);
+      setStartTime("13:00"); setEndTime("20:00");
+      setHasBreak(true); setIsManualBreak(false); setBreakStart("16:30"); setBreakEnd("17:00");
+    }
+    setBreakError(null);
+  };
+
+  const handleDelete = (e: React.MouseEvent | null, shift: any) => {
+    if (e) e.stopPropagation(); 
+    if (confirm("¿Eliminar turno?")) {
+      const baseId = shift.id.replace('_split', '');
+      deleteDoc(doc(db, "shifts", baseId));
+      deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
+      
+      if (editingShiftId === shift.id || editingShiftId === baseId) {
+        setShowModal(false);
+        setEditingShiftId(null);
+      }
+    }
   }
 
   const handleRecalculate = async (e: React.MouseEvent, shift: any) => {
@@ -359,17 +423,19 @@ export default function NominasPage() {
     const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
     let exactSavedBreak = undefined;
     if (shiftHasBreak && shift.breakStart && shift.breakEnd) exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
-    const calc = calculateShift(shift.date, shift.startTime, shift.endTime, exactSavedBreak, role, shiftHasBreak);
+    
+    const targetDate = shift.originalDate || shift.date;
+    const startT = shift.originalStartTime || shift.startTime;
+    const endT = shift.originalEndTime || shift.endTime;
 
-    const payload: any = {
-      ...shift, ...calc,
-      hOrdD: calc.hOrdD, pOrdD: calc.pOrdD, hOrdN: calc.hOrdN, pOrdN: calc.pOrdN,
-      hDomD: calc.hDomD, pDomD: calc.pDomD, hDomN: calc.hDomN, pDomN: calc.pDomN,
-      hExtD: calc.hExtD, pExtD: calc.pExtD, hExtN: calc.hExtN, pExtN: calc.pExtN,
-      hExtDomD: calc.hExtDomD, pExtDomD: calc.pExtDomD, hExtDomN: calc.hExtDomN, pExtDomN: calc.pExtDomN,
-      timestamp: serverTimestamp()
-    };
-    await setDoc(doc(db, "shifts", shift.id), payload, { merge: true });
+    const calcs = calculateShift(targetDate, startT, endT, exactSavedBreak, role, shiftHasBreak);
+    const baseDocId = shift.id.replace('_split', '');
+
+    await Promise.all(calcs.map(async (calc, i) => {
+        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const payload = { ...shift, ...calc, timestamp: serverTimestamp() }; 
+        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+    }));
   };
 
   const handleToggleExpand = (id: string) => setExpandedShiftId(expandedShiftId === id ? null : id);
@@ -377,86 +443,128 @@ export default function NominasPage() {
   const handleSaveShift = async (isOff: boolean = false) => {
     if (!user || breakError) return;
     let targetDateStr = "";
+    let baseDocId = "";
+
     if (editingShiftId) {
       const originalShift = shifts.find(s => s.id === editingShiftId);
-      if (originalShift) targetDateStr = originalShift.date;
+      if (originalShift) {
+        targetDateStr = originalShift.originalDate || originalShift.date;
+        baseDocId = editingShiftId.replace('_split', '');
+      }
     }
+    
     if (!targetDateStr) {
       if (!selectedDate) return alert("Error de fecha");
       targetDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+      baseDocId = `${user.id}_${targetDateStr}`;
     }
 
-    const existingSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && s.id !== editingShiftId);
+    const existingSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && !s.id.includes(baseDocId));
     const toDelete = existingSpecials.filter(sp => isOff || sp.type === 'INCAPACIDAD' || sp.type === 'COMPENSATORIO');
     await Promise.all(toDelete.map(sp => deleteDoc(doc(db, "shifts", sp.id))));
 
-    const docId = editingShiftId || `${user.id}_${targetDateStr}`;
-    const finalBreak = (!isOff && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
-    const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
-    const shiftMonthVal = selectedMonth || mesesFull[new Date(Number(targetDateStr.split('-')[0]), Number(targetDateStr.split('-')[1]) - 1, Number(targetDateStr.split('-')[2])).getMonth()];
+    if (editingShiftId) {
+       await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
+    }
 
-    const payload: any = {
-      userId: user.id, date: targetDateStr, type: 'SHIFT',
-      startTime: isOff ? "" : startTime, endTime: isOff ? "" : endTime,
-      hasBreak: isOff ? false : hasBreak, isManualBreak: isOff ? false : isManualBreak,
-      breakStart: isOff ? "" : breakStart, breakEnd: isOff ? "" : breakEnd,
-      netPay: isOff ? 0 : calc.netPay, salaryBase: isOff ? 0 : calc.salaryBase, transportAux: isOff ? 0 : calc.transportAux,
-      deductions: isOff ? 0 : calc.deductions, totalHours: isOff ? 0 : calc.totalHours,
-      hoursDay: isOff ? 0 : calc.hoursDay, hoursNight: isOff ? 0 : calc.hoursNight,
-      hOrdD: isOff ? 0 : calc.hOrdD, pOrdD: isOff ? 0 : calc.pOrdD, hOrdN: isOff ? 0 : calc.hOrdN, pOrdN: isOff ? 0 : calc.pOrdN,
-      hDomD: isOff ? 0 : calc.hDomD, pDomD: isOff ? 0 : calc.pDomD, hDomN: isOff ? 0 : calc.hDomN, pDomN: isOff ? 0 : calc.pDomN,
-      hExtD: isOff ? 0 : calc.hExtD, pExtD: isOff ? 0 : calc.pExtD, hExtN: isOff ? 0 : calc.hExtN, pExtN: isOff ? 0 : calc.pExtN,
-      hExtDomD: isOff ? 0 : calc.hExtDomD, pExtDomD: isOff ? 0 : calc.pExtDomD, hExtDomN: isOff ? 0 : calc.hExtDomN, pExtDomN: isOff ? 0 : calc.pExtDomN,
-      isOff, month: shiftMonthVal, year: selectedYear, timestamp: serverTimestamp()
-    };
-    await setDoc(doc(db, "shifts", docId), payload, { merge: true });
+    if (isOff) {
+      const shiftMonthVal = selectedMonth || mesesFull[new Date(Number(targetDateStr.split('-')[0]), Number(targetDateStr.split('-')[1]) - 1, Number(targetDateStr.split('-')[2])).getMonth()];
+      const payload: any = {
+        userId: user.id, date: targetDateStr, type: 'SHIFT',
+        startTime: "", endTime: "", hasBreak: false, isManualBreak: false,
+        breakStart: "", breakEnd: "", netPay: 0, salaryBase: 0, transportAux: 0,
+        deductions: 0, totalHours: 0, hoursDay: 0, hoursNight: 0, hOrdD: 0, pOrdD: 0, hOrdN: 0, pOrdN: 0,
+        hDomD: 0, pDomD: 0, hDomN: 0, pDomN: 0, hExtD: 0, pExtD: 0, hExtN: 0, pExtN: 0, hExtDomD: 0, pExtDomD: 0, hExtDomN: 0, pExtDomN: 0,
+        isOff: true, month: shiftMonthVal, year: selectedYear, timestamp: serverTimestamp()
+      };
+      await setDoc(doc(db, "shifts", baseDocId), payload, { merge: true });
+    } else {
+      const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
+      const calcs = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
+
+      await Promise.all(calcs.map(async (calc, i) => {
+          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+          const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
+          
+          const payload = {
+              userId: user.id, type: 'SHIFT',
+              startTime: startTime, endTime: endTime, 
+              hasBreak, isManualBreak, breakStart, breakEnd,
+              ...calc,
+              isOff: false, month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
+          };
+          await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+      }));
+    }
     setShowModal(false); setEditingShiftId(null);
   };
 
   const handleSaveSpecial = async () => {
     if (!user || !selectedDate) return;
-    const targetDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-    const docId = editingShiftId || `${user.id}_${targetDateStr}_${specialTab}`;
-    const existingNormal = shifts.find(s => s.date === targetDateStr && (!s.type || s.type === 'SHIFT') && s.id !== docId);
+    let targetDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+    let baseDocId = editingShiftId ? editingShiftId.replace('_split', '') : `${user.id}_${targetDateStr}_${specialTab}`;
+
+    if (editingShiftId) {
+      const originalShift = shifts.find(s => s.id === editingShiftId);
+      if (originalShift) targetDateStr = originalShift.originalDate || originalShift.date;
+    }
+
+    const existingNormal = shifts.find(s => s.date === targetDateStr && (!s.type || s.type === 'SHIFT') && !s.id.includes(baseDocId));
     let toDeleteIds: string[] = [];
 
     if (specialTab === 'INCAPACIDAD' || specialTab === 'COMPENSATORIO') {
       if (existingNormal) toDeleteIds.push(existingNormal.id);
-      const otherSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && s.id !== docId);
+      const otherSpecials = shifts.filter(s => s.date === targetDateStr && s.type && s.type !== 'SHIFT' && !s.id.includes(baseDocId));
       toDeleteIds.push(...otherSpecials.map(s => s.id));
     } else if (specialTab === 'REUNION') {
       if (existingNormal && existingNormal.isOff) toDeleteIds.push(existingNormal.id);
-      const incompatSpecials = shifts.filter(s => s.date === targetDateStr && (s.type === 'INCAPACIDAD' || s.type === 'COMPENSATORIO') && s.id !== docId);
+      const incompatSpecials = shifts.filter(s => s.date === targetDateStr && (s.type === 'INCAPACIDAD' || s.type === 'COMPENSATORIO') && !s.id.includes(baseDocId));
       toDeleteIds.push(...incompatSpecials.map(s => s.id));
     }
     await Promise.all(toDeleteIds.map(id => deleteDoc(doc(db, "shifts", id))));
 
+    if (editingShiftId) await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
+
     const rateTable = RATES_BY_YEAR[selectedDate.getFullYear()]?.[role] || RATES_BY_YEAR[2026][role];
     const baseTransport = TRANSPORT_AUX_BY_YEAR[selectedDate.getFullYear()] || TRANSPORT_AUX_BY_YEAR[2026];
-    const shiftMonthVal = selectedMonth || mesesFull[selectedDate.getMonth()];
-
-    let payload: any = { userId: user.id, date: targetDateStr, type: specialTab, isOff: false, month: shiftMonthVal, year: selectedDate.getFullYear(), timestamp: serverTimestamp() };
 
     if (specialTab === 'INCAPACIDAD' && incapacidadType === 'TURNO') {
       if (breakError) return alert("Corrige el break primero");
       const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
-      const calc = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
-      const transportToApply = specialTransport ? calc.transportAux : 0;
-      payload = { ...payload, ...calc, transportAux: transportToApply, netPay: calc.salaryBase + transportToApply - calc.deductions };
+      const calcs = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
+      
+      await Promise.all(calcs.map(async (calc, i) => {
+          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+          const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
+          const transportToApply = specialTransport ? calc.transportAux : 0;
+          
+          const payload = {
+              userId: user.id, type: specialTab, isOff: false, 
+              startTime: startTime, endTime: endTime, hasBreak, isManualBreak, breakStart, breakEnd,
+              ...calc, 
+              transportAux: transportToApply, netPay: calc.salaryBase + transportToApply - calc.deductions,
+              month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
+          };
+          await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+      }));
     } else {
       if (!specialHours || Number(specialHours) <= 0) return alert("Ingresa horas válidas");
       const rate = rateTable[specialRateType as keyof typeof rateTable] || rateTable.ORDINARY;
       const hrs = Number(specialHours); const moneyBase = hrs * rate;
       const healthPension = Math.round(moneyBase * 0.08); const transport = specialTransport ? baseTransport : 0;
-      payload = {
-        ...payload, startTime: "", endTime: "", hasBreak: false, totalHours: hrs, salaryBase: Math.round(moneyBase),
+      const shiftMonthVal = selectedMonth || mesesFull[selectedDate.getMonth()];
+      
+      const payload = {
+        userId: user.id, date: targetDateStr, type: specialTab, isOff: false, month: shiftMonthVal, year: selectedDate.getFullYear(),
+        startTime: "", endTime: "", hasBreak: false, totalHours: hrs, salaryBase: Math.round(moneyBase),
         deductions: healthPension, transportAux: transport, netPay: Math.round(moneyBase - healthPension + transport),
         specialRateKey: specialRateType, breakStart: "", breakEnd: "", hoursDay: 0, hoursNight: 0,
         hOrdD: 0, pOrdD: 0, hOrdN: 0, pOrdN: 0, hDomD: 0, pDomD: 0, hDomN: 0, pDomN: 0,
-        hExtD: 0, pExtD: 0, hExtN: 0, pExtN: 0, hExtDomD: 0, pExtDomD: 0, hExtDomN: 0, pExtDomN: 0
+        hExtD: 0, pExtD: 0, hExtN: 0, pExtN: 0, hExtDomD: 0, pExtDomD: 0, hExtDomN: 0, pExtDomN: 0, timestamp: serverTimestamp()
       }
+      await setDoc(doc(db, "shifts", baseDocId), payload, { merge: true });
     }
-    await setDoc(doc(db, "shifts", docId), payload, { merge: true });
+    
     setShowSpecialModal(false); setEditingShiftId(null);
   }
 
@@ -726,7 +834,6 @@ export default function NominasPage() {
                       const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
                       const isDisabled = isDateDisabled({ date });
 
-                      // Identificamos si es Festivo o Domingo
                       const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
 
                       const hasOff = dayEvents.some(e => e.isOff); 
@@ -740,7 +847,6 @@ export default function NominasPage() {
                       if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed '; 
                       else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
 
-                      // 1. Fondos y Anillos (Bordes de Tailwind)
                       if (hasIncapacidad) classes += '!bg-white !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
                       else if (hasShift && hasReunion) classes += '!bg-green-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
                       else if (hasOff && hasReunion) classes += '!bg-red-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
@@ -765,7 +871,6 @@ export default function NominasPage() {
                         if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) {
                            classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
                            classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
-                           // Si hoy NO es festivo, le ponemos el texto amarillo, si es festivo, se respeta el contorno
                            if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
                         } else {
                            classes += '!ring-4 !ring-yellow-400 ';
@@ -806,7 +911,27 @@ export default function NominasPage() {
             )}
           </div>
 
-          <NormalShiftModal showModal={showModal} setShowModal={setShowModal} editingShiftId={editingShiftId} selectedDate={selectedDate} startTime={startTime} setStartTime={setStartTime} endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak} isManualBreak={isManualBreak} setIsManualBreak={setIsManualBreak} breakStart={breakStart} setBreakStart={setBreakStart} breakEnd={breakEnd} setBreakEnd={setBreakEnd} breakError={breakError} autoCalculateBreak={autoCalculateBreak} handleSaveShift={handleSaveShift} />
+          <NormalShiftModal 
+            showModal={showModal} setShowModal={setShowModal} editingShiftId={editingShiftId} 
+            selectedDate={selectedDate} startTime={startTime} setStartTime={setStartTime} 
+            endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak} 
+            isManualBreak={isManualBreak} setIsManualBreak={setIsManualBreak} breakStart={breakStart} 
+            setBreakStart={setBreakStart} breakEnd={breakEnd} setBreakEnd={setBreakEnd} 
+            breakError={breakError} autoCalculateBreak={autoCalculateBreak} handleSaveShift={handleSaveShift} 
+            // NUEVO: Conectando la navegación real
+            handleNavigateDay={handleModalNavigate}
+            handleDeleteShift={() => {
+              if (!editingShiftId) return;
+              if (confirm("¿Eliminar turno?")) {
+                const baseId = editingShiftId.replace('_split', '');
+                deleteDoc(doc(db, "shifts", baseId));
+                deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
+                setShowModal(false);
+                setEditingShiftId(null);
+              }
+            }}
+          />
+          
           <SpecialShiftModal showSpecialModal={showSpecialModal} setShowSpecialModal={setShowSpecialModal} editingShiftId={editingShiftId} selectedDate={selectedDate} hasNormalShiftForModal={hasNormalShiftForModal} specialTab={specialTab} setSpecialTab={setSpecialTab} incapacidadType={incapacidadType} setIncapacidadType={setIncapacidadType} specialHours={specialHours} setSpecialHours={setSpecialHours} specialRateType={specialRateType} setSpecialRateType={setSpecialRateType} startTime={startTime} setStartTime={setStartTime} endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak} isManualBreak={isManualBreak} autoCalculateBreak={autoCalculateBreak} specialTransport={specialTransport} setSpecialTransport={setSpecialTransport} handleSaveSpecial={handleSaveSpecial} />
 
           <style jsx global>{`
@@ -826,18 +951,10 @@ export default function NominasPage() {
             .dark .react-calendar__tile:enabled:hover { background-color: #1f2937; color: #fff; }
             .dark .react-calendar__navigation button { color: #fff; }
             
-            /* Lógica visual de incapacidad */
             .is-incapacidad::after { content: '✚'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.2rem; line-height: 1; color: rgba(239, 68, 68, 0.15); pointer-events: none; z-index: 0; }
             
-            /* LÓGICA DE CONTORNOS SÚPER FINOS PARA FESTIVOS Y DOMINGOS */
-            .festivo-outline abbr {
-              color: #ffffff !important;
-              -webkit-text-stroke: 0.55px rgba(220, 38, 38, 0.8) !important; /* Borde rojo extra delgado y sutil */
-            }
-            .festivo-off-outline abbr {
-              color: #ffffff !important;
-              -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.7) !important; /* Borde negro extra delgado y sutil */
-            }
+            .festivo-outline abbr { color: #ffffff !important; -webkit-text-stroke: 0.55px rgba(220, 38, 38, 0.8) !important; }
+            .festivo-off-outline abbr { color: #ffffff !important; -webkit-text-stroke: 0.55px rgba(0, 0, 0, 0.7) !important; }
           `}</style>
           <div className="h-16 md:h-20"></div>
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
