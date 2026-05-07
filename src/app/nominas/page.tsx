@@ -80,7 +80,11 @@ export default function NominasPage() {
 
   const [shifts, setShifts] = useState<any[]>([]);
   const [bigVentas, setBigVentas] = useState<any[]>([]);
+  
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // ESTADO PARA RASTREAR EL DOBLE CLIC/TOQUE
+  const [lastClick, setLastClick] = useState<{ date: Date | null; time: number }>({ date: null, time: 0 });
+  
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null);
@@ -214,7 +218,6 @@ export default function NominasPage() {
     return shiftsDelAno.filter(s => {
       let day = parseInt(s.date.split('-')[2]);
       let shiftQ = day <= 15 ? 1 : 2;
-      // BLOQUEAR _split de la lista principal de turnos registrados
       return s.month === selectedMonth && shiftQ === selectedQuincena && !s.id.includes('_split');
     }).sort((a, b) => {
       const dateCompare = a.date.localeCompare(b.date);
@@ -275,7 +278,6 @@ export default function NominasPage() {
     tTransportBase, tTransportExtra,
     tDeductionsFinal: turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0) + bigVentaDeduccion,
     
-    // Datos procesados para el desglose sutil de horas heredadas
     tInherited_h: inheritedShifts.reduce((a, c) => a + (Number(c.totalHours) || 0), 0),
     tInherited_p: inheritedShifts.reduce((a, c) => a + (Number(c.netPay) || 0), 0),
     inheritedDetails: inheritedShifts.map(s => ({
@@ -596,6 +598,34 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? date.getDate() > 15 : date.getDate() <= 15;
   };
 
+  // LOGICA DEL DOBLE CLIC EN EL CALENDARIO
+  const handleCalendarChange = (val: any) => {
+    const clickedDate = val as Date;
+    setSelectedDate(clickedDate);
+
+    const currentTime = new Date().getTime();
+    const isSameDate = lastClick.date && clickedDate.getTime() === lastClick.date.getTime();
+
+    // Si hace doble toque en la misma fecha en menos de 800ms
+    if (isSameDate && currentTime - lastClick.time < 800) {
+      const dStr = `${clickedDate.getFullYear()}-${String(clickedDate.getMonth() + 1).padStart(2, '0')}-${String(clickedDate.getDate()).padStart(2, '0')}`;
+      
+      const existingMainShift = shiftsDelAno.find(s => 
+        ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) && 
+        (!s.type || s.type === 'SHIFT') && 
+        !s.id.includes('_split')
+      );
+
+      if (existingMainShift && !existingMainShift.isOff) {
+        handleOpenEdit(null, existingMainShift);
+      } else {
+        handleOpenNew();
+      }
+    }
+    
+    setLastClick({ date: clickedDate, time: currentTime });
+  };
+
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
   
   const existingMainShift = shiftsDelAno.find(s => 
@@ -786,7 +816,7 @@ export default function NominasPage() {
 
                   <Calendar
                     showNavigation={false} 
-                    onChange={(val) => setSelectedDate(val as Date)} 
+                    onChange={handleCalendarChange} 
                     value={selectedDate} 
                     activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)} 
                     tileDisabled={isDateDisabled}
@@ -794,7 +824,6 @@ export default function NominasPage() {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
                       
-                      // EXCLUYE los fragmentos para no pintar días en verde accidentalmente
                       const realDayEvents = dayEvents.filter(e => !e.id.includes('_split'));
                       
                       const isDisabled = isDateDisabled({ date });
