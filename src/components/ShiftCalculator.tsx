@@ -5,14 +5,15 @@ import { calculateShift } from "@/lib/calculator";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, deleteDoc } from "firebase/firestore";
 
-// ✅ Tipos estrictos para evitar bugs de tipos
+// ✅ Tipos estrictos para evitar bugs
 type CalcFragment = {
   netPay: number;
   salaryBase: number;
   transportAux: number;
   deductions: number;
+  date: string;
   [key: string]: any;
 };
 
@@ -25,14 +26,14 @@ type ShiftResult = {
 };
 
 export default function ShiftCalculator() {
-  // --- 1. CONTEXTO SEGURO (Protección contra fallos de Provider) ---
+  // --- 1. CONTEXTO SEGURO ---
   const theme = useTheme?.(); 
   const role = theme?.role ?? "CREW";
   const colors = theme?.colors ?? { primary: "text-blue-600", secondary: "bg-blue-600" };
 
   const { user } = useUser();
 
-  // --- 2. ESTADOS DE CONTROL (Hydration Safe) ---
+  // --- 2. ESTADOS DE CONTROL ---
   const [mounted, setMounted] = useState(false);
   const [date, setDate] = useState("");
   const [start, setStart] = useState("13:00");
@@ -60,7 +61,6 @@ export default function ShiftCalculator() {
     setDate(d.toISOString().split("T")[0]);
   }, []);
 
-  // ✅ UX: Reset inteligente de breakTouched (Solo si no es manual)
   useEffect(() => {
     if (!isManualBreak) {
       setBreakTouched(false);
@@ -137,49 +137,62 @@ export default function ShiftCalculator() {
       salaryBase: fragments.reduce((a, b) => a + (b?.salaryBase || 0), 0),
       transportAux: fragments.reduce((a, b) => a + (b?.transportAux || 0), 0),
       deductions: fragments.reduce((a, b) => a + (b?.deductions || 0), 0),
-      raw: fragments,
+      raw: fragments, // Guarda el detalle separado para el momento de guardar en BD
     });
 
     setNotification(null);
   };
 
-  // --- 💾 GUARDAR (Normalizado y Protegido contra Double-Click) ---
+  // --- 💾 GUARDAR (Mapeo IDÉNTICO a NominasPage) ---
   const handleSave = async () => {
     if (!user || !result || !date || isSaving) return;
     setIsSaving(true);
 
     try {
-      const docId = `${user.id}_${date}`;
-      const [yearStr, monthStr] = date.split("-");
-      const monthName = mesesFull[parseInt(monthStr, 10) - 1];
+      const baseDocId = `${user.id}_${date}`;
+      
+      // Borramos posibles rastros de un split anterior (si antes era turno de amanecida y ahora ya no)
+      await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
 
-      // Separamos el 'raw' de los totales para una DB limpia
-      const { raw, ...totals } = result;
+      // Guardamos cada fragmento exacto como lo hace NominasPage
+      await Promise.all(result.raw.map(async (calc, i) => {
+        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
 
-      await setDoc(
-        doc(db, "shifts", docId),
-        {
+        const payload = {
           userId: user.id,
-          date,
+          type: 'SHIFT', // FUNDAMENTAL PARA QUE NOMINASPAGE LO LEA
           startTime: start,
           endTime: end,
-          month: monthName,
-          year: parseInt(yearStr, 10),
+          hasBreak,
+          isManualBreak,
+          breakStart: hasBreak ? breakStart : "",
+          breakEnd: hasBreak ? breakEnd : "",
+          ...calc, // Esparce totalHours, hOrdD, netPay, etc. directo a la raíz
           isOff: false,
-          ...totals,
-          rawCalcs: raw,
-          timestamp: serverTimestamp(),
-        },
-        { merge: true }
-      );
+          month: shiftMonthVal,
+          year: Number(calc.date.split('-')[0]),
+          timestamp: serverTimestamp()
+        };
 
-      setNotification({ msg: "Guardado con éxito ✅", type: 'success' });
+        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+      }));
+
+      setNotification({ msg: "Guardado en la Nómina ✅", type: 'success' });
     } catch (e) {
       console.error(e);
       setNotification({ msg: "Error de conexión ❌", type: 'error' });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Función extraída para los botones flecha de fecha
+  const changeDateByDays = (days: number) => {
+    if (!date) return;
+    const currentD = new Date(`${date}T12:00:00`);
+    currentD.setDate(currentD.getDate() + days);
+    setDate(currentD.toISOString().split("T")[0]);
   };
 
   if (!mounted) return null;
@@ -195,22 +208,27 @@ export default function ShiftCalculator() {
 
       <div className="p-6 sm:p-8 space-y-5">
         <div className="space-y-4">
+          {/* FECHA CON FLECHAS */}
           <div>
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Fecha del Turno</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full mt-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none focus:ring-2 ring-gray-100 dark:ring-gray-700 transition-all" />
+            <div className="flex items-center gap-2 mt-1">
+              <button onClick={() => changeDateByDays(-1)} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black">‹</button>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                className="flex-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none focus:ring-2 ring-gray-100 dark:ring-gray-700 transition-all text-center" />
+              <button onClick={() => changeDateByDays(1)} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black">›</button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Entrada</label>
               <input type="time" value={start} onChange={(e) => setStart(e.target.value)}
-                className="w-full mt-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none" />
+                className="w-full mt-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none text-center" />
             </div>
             <div>
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Salida</label>
               <input type="time" value={end} onChange={(e) => setEnd(e.target.value)}
-                className="w-full mt-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none" />
+                className="w-full mt-1 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border-none font-bold text-gray-700 dark:text-white outline-none text-center" />
             </div>
           </div>
 
@@ -234,7 +252,7 @@ export default function ShiftCalculator() {
             {hasBreak && (
               <div className="p-4 rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-800 animate-in fade-in">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">¿Modo Manual?</span>
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">¿Break Manual?</span>
                   <div className="flex items-center gap-2">
                     {breakTouched && (
                       <button onClick={() => setBreakTouched(false)} className="text-[8px] font-bold text-blue-500 hover:underline uppercase">Auto-reset</button>
@@ -247,9 +265,9 @@ export default function ShiftCalculator() {
                 {isManualBreak && (
                   <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
                     <input type="time" value={breakStart} onChange={(e) => { setBreakTouched(true); setBreakStart(e.target.value); }} 
-                      className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg font-bold border transition-all ${breakError ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
+                      className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg font-bold border text-center transition-all ${breakError ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
                     <input type="time" value={breakEnd} onChange={(e) => { setBreakTouched(true); setBreakEnd(e.target.value); }} 
-                      className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg font-bold border transition-all ${breakError ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
+                      className={`p-2 bg-white dark:bg-gray-800 dark:text-white rounded-lg font-bold border text-center transition-all ${breakError ? 'border-red-400' : 'border-gray-100 dark:border-gray-700'}`} />
                   </div>
                 )}
                 {breakError && <p className="text-[10px] font-bold text-red-500 mt-2 italic">{breakError}</p>}
@@ -273,24 +291,24 @@ export default function ShiftCalculator() {
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center mb-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-xl">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-xl border border-blue-100/50 dark:border-blue-800/30">
                 <p className="text-[9px] font-black text-blue-400 uppercase">Base</p>
-                <p className="font-bold text-xs dark:text-gray-300">${(result.salaryBase ?? 0).toLocaleString()}</p>
+                <p className="font-bold text-xs dark:text-gray-200">${(result.salaryBase ?? 0).toLocaleString()}</p>
               </div>
-              <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-xl">
+              <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-xl border border-green-100/50 dark:border-green-800/30">
                 <p className="text-[9px] font-black text-green-400 uppercase">Auxilio</p>
-                <p className="font-bold text-xs dark:text-gray-300">+${(result.transportAux ?? 0).toLocaleString()}</p>
+                <p className="font-bold text-xs dark:text-gray-200">+${(result.transportAux ?? 0).toLocaleString()}</p>
               </div>
-              <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-xl">
+              <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-xl border border-red-100/50 dark:border-red-800/30">
                 <p className="text-[9px] font-black text-red-400 uppercase">Deduc</p>
-                <p className="font-bold text-xs dark:text-gray-300">-${(result.deductions ?? 0).toLocaleString()}</p>
+                <p className="font-bold text-xs dark:text-gray-200">-${(result.deductions ?? 0).toLocaleString()}</p>
               </div>
             </div>
 
             {user && (
               <div className="space-y-4">
                 <button onClick={handleSave} disabled={isSaving}
-                  className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl transition-all ${isSaving ? 'bg-gray-400 cursor-not-allowed animate-pulse' : 'bg-green-500 hover:bg-green-600 active:scale-95'}`}>
+                  className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl transition-all ${isSaving ? 'bg-gray-400 cursor-not-allowed animate-pulse' : 'bg-green-500 hover:bg-green-600 active:scale-95 shadow-green-500/20'}`}>
                   {isSaving ? 'Guardando...' : '💾 GUARDAR EN MI NÓMINA'}
                 </button>
               </div>
