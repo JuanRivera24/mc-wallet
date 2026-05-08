@@ -21,12 +21,22 @@ export default function MobileDock() {
     }
   };
 
+  // --- Lógica del botón Nóminas ---
+  const isNominasActive = isActive('/nominas');
+  
+  // Clases dinámicas para la iluminación (Glow) dependiendo del rol/color
+  const nominasGlowEffect = themeColor === 'blue'
+    ? 'text-blue-500 drop-shadow-[0_0_6px_rgba(59,130,246,0.8)]'
+    : 'text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]';
+
+  // Si está activo toma su color normal, si no, toma la luz neón
+  const nominasColorClass = isNominasActive ? activeColor : nominasGlowEffect;
+
   return (
-    // Redujimos el bottom a 3 y ajustamos el padding/ancho para que se vea más anclada
     <div className="lg:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[100] w-[96%] max-w-sm pb-safe">
       <div className="flex items-center justify-between bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-2xl border border-gray-200 dark:border-gray-800 rounded-[2rem] p-1.5 shadow-xl dark:shadow-black/80">
         
-        {/* 1. BOTÓN INICIO (Calculadora) - Flex-1 amplía el área táctil */}
+        {/* 1. BOTÓN INICIO (Calculadora) */}
         <Link href="/" className="flex-1 flex justify-center">
           <motion.div whileTap={{ scale: 0.85 }} className={`flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors ${isActive('/') ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isActive('/') ? 2.5 : 1.5} stroke="currentColor" className={`w-6 h-6 ${isActive('/') ? activeColor : 'text-gray-500'}`}>
@@ -46,17 +56,37 @@ export default function MobileDock() {
           </motion.div>
         </Link>
 
-        {/* 3. BOTÓN NÓMINAS */}
+        {/* 3. BOTÓN NÓMINAS CON GLOW ANIMADO Y RESET */}
         <SignedIn>
-          <Link href="/nominas" className="flex-1 flex justify-center">
-            <motion.div whileTap={{ scale: 0.85 }} className={`flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors ${isActive('/nominas') ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isActive('/nominas') ? 2.5 : 1.5} stroke="currentColor" className={`w-6 h-6 ${isActive('/nominas') ? activeColor : 'text-gray-500'}`}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-              </svg>
-              <span className={`text-[10px] font-black mt-0.5 ${isActive('/nominas') ? activeColor : 'text-gray-500'}`}>Nóminas</span>
+          <Link 
+            href="/nominas" 
+            onClick={(e) => {
+              if (isNominasActive) {
+                e.preventDefault();
+                // Si ya estás en nóminas, forzamos la recarga limpia para volver al inicio del selector de mes
+                window.location.href = '/nominas';
+              }
+            }}
+            className="flex-1 flex justify-center"
+          >
+            <motion.div whileTap={{ scale: 0.85 }} className={`flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors ${isNominasActive ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
+              
+              {/* Contenedor animado para el efecto de luz intermitente */}
+              <motion.div 
+                animate={!isNominasActive ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                className={`flex flex-col items-center justify-center transition-all duration-500 ${nominasColorClass}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isNominasActive ? 2.5 : 2} stroke="currentColor" className="w-6 h-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                </svg>
+                <span className="text-[10px] font-black mt-0.5">Nóminas</span>
+              </motion.div>
+
             </motion.div>
           </Link>
         </SignedIn>
+
         <SignedOut>
           <div className="flex-1 flex justify-center">
             <div className="flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl opacity-40">

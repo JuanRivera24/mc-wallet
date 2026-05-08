@@ -135,7 +135,7 @@ export default function ShiftCalculator() {
       setBreakStart(data.breakStart || "16:15");
       setBreakEnd(data.breakEnd || "16:45");
       setBreakTouched(true);
-      setIsCalculated(false); // Resetea el botón a la moneda
+      setIsCalculated(false);
       setNotification({ msg: "Pegado ⚡", type: 'success' });
     } catch (e) {
       setNotification({ msg: "Error al pegar", type: 'error' });
@@ -146,7 +146,7 @@ export default function ShiftCalculator() {
   const handleReset = () => {
     setStartTime("13:00"); setEndTime("20:00"); setHasBreak(true); setIsManualBreak(false);
     setBreakTouched(false); setNotification(null); setResult(null);
-    setIsCalculated(false); // Resetea el botón a la moneda
+    setIsCalculated(false);
     setIsMenuOpen(false);
   };
 
@@ -163,7 +163,7 @@ export default function ShiftCalculator() {
       deductions: fragments.reduce((a, b) => a + (b?.deductions || 0), 0),
       raw: fragments,
     });
-    setIsCalculated(true); // Activa la memoria de que ya se calculó
+    setIsCalculated(true);
     setNotification(null);
   };
 
@@ -197,7 +197,7 @@ export default function ShiftCalculator() {
           isManualBreak,
           breakStart: hasBreak ? breakStart : "",
           breakEnd: hasBreak ? breakEnd : "",
-          ...calc, // totalHours, netPay, hOrdD, etc. a la raíz
+          ...calc,
           isOff: false,
           month: shiftMonthVal,
           year: parseInt(dateParts[0], 10),
@@ -224,7 +224,7 @@ export default function ShiftCalculator() {
   if (!mounted) return null;
 
   return (
-    <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 mx-auto transition-all duration-500">
+    <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-[0_10px_0_#d1d5db,0_15px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_0_#374151,0_15px_20px_rgba(0,0,0,0.3)] border border-gray-200 dark:border-gray-800 overflow-hidden mx-auto transition-all duration-500 mb-3">
       
       {/* HEADER CON MENÚ ⋮ */}
       <div className={`${colors.secondary} p-6 text-white text-center relative`}>
