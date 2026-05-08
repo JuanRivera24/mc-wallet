@@ -167,7 +167,7 @@ export default function NominasPage() {
   }, [startTime, endTime, breakStart, breakEnd, hasBreak, isManualBreak, showModal, showSpecialModal, incapacidadType]);
 
   const shiftsDelAno = useMemo(() => shifts.filter(s => s.year === selectedYear), [shifts, selectedYear]);
-  const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr && (!s.type || s.type === 'SHIFT' || s.isOff) && !s.id.includes('_split')), [shiftsDelAno, todayStr]);
+  const todayShift = useMemo(() => shiftsDelAno.find(s => s.date === todayStr && (!s.type || s.type === 'SHIFT') && !s.isOff && !s.id.includes('_split')), [shiftsDelAno, todayStr]);
 
   const statsAnuales = useMemo(() => {
     return mesesFull.map(m => {
