@@ -51,6 +51,7 @@ export default function ShiftCalculator() {
   const [isSaving, setIsSaving] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
+  const [isCalculated, setIsCalculated] = useState(false);
 
   const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
@@ -70,6 +71,11 @@ export default function ShiftCalculator() {
   useEffect(() => {
     if (!isManualBreak) setBreakTouched(false);
   }, [startTime, endTime, isManualBreak]);
+
+  useEffect(() => {
+    setResult(null);
+    setShowOverwriteConfirm(false);
+  }, [date, startTime, endTime, hasBreak, isManualBreak, breakStart, breakEnd]);
 
   // ✅ Lógica de Break Automático
   useEffect(() => {
@@ -129,6 +135,7 @@ export default function ShiftCalculator() {
       setBreakStart(data.breakStart || "16:15");
       setBreakEnd(data.breakEnd || "16:45");
       setBreakTouched(true);
+      setIsCalculated(false); // Resetea el botón a la moneda
       setNotification({ msg: "Pegado ⚡", type: 'success' });
     } catch (e) {
       setNotification({ msg: "Error al pegar", type: 'error' });
@@ -139,6 +146,7 @@ export default function ShiftCalculator() {
   const handleReset = () => {
     setStartTime("13:00"); setEndTime("20:00"); setHasBreak(true); setIsManualBreak(false);
     setBreakTouched(false); setNotification(null); setResult(null);
+    setIsCalculated(false); // Resetea el botón a la moneda
     setIsMenuOpen(false);
   };
 
@@ -155,6 +163,7 @@ export default function ShiftCalculator() {
       deductions: fragments.reduce((a, b) => a + (b?.deductions || 0), 0),
       raw: fragments,
     });
+    setIsCalculated(true); // Activa la memoria de que ya se calculó
     setNotification(null);
   };
 
@@ -300,7 +309,7 @@ export default function ShiftCalculator() {
 
         <button onClick={handleCalculate} disabled={!!breakError}
           className={`w-full py-4 rounded-2xl font-black text-lg shadow-lg transition-all text-white ${breakError ? 'bg-gray-400 cursor-not-allowed grayscale' : `${colors.secondary} hover:brightness-110 active:scale-95 shadow-blue-500/20`}`}>
-          {breakError ? 'CORRIGE EL BREAK' : 'CALCULAR 💰'}
+          {breakError ? 'CORRIGE EL BREAK ⚠️' : (isCalculated && !result ? 'CALCULAR 🔁' : 'CALCULAR 💰')}
         </button>
 
         {result && !breakError && (
