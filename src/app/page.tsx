@@ -98,11 +98,22 @@ export default function Home() {
               </a>
             </div>
 
+            {/* 👇 BOTÓN INGRESAR ANIMADO (HERO) 👇 */}
             <SignedOut>
               <SignInButton mode="modal">
-                <button className="bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full sm:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base hover:bg-gray-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-all relative z-10">
-                  INGRESAR Y VER TUS NÓMINAS
-                </button>
+                <motion.button 
+                  animate={{ scale: [1, 1.03, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="relative overflow-hidden group bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white w-full sm:w-auto border-2 border-gray-900 dark:border-white px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base hover:bg-gray-900 dark:hover:bg-white hover:text-white dark:hover:text-black transition-colors z-10"
+                >
+                  <span className="relative z-10">INGRESAR Y VER TUS NÓMINAS</span>
+                  {/* Rayo de luz diagonal (Shimmer) */}
+                  <motion.div
+                    animate={{ x: ["-150%", "250%"] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                    className="absolute inset-0 z-0 w-1/3 bg-gradient-to-r from-transparent via-gray-300/30 dark:via-gray-600/30 to-transparent skew-x-12"
+                  />
+                </motion.button>
               </SignInButton>
             </SignedOut>
 
@@ -159,13 +170,26 @@ export default function Home() {
 
         {/* BOTONES INFERIORES RESTAURADOS */}
         <div className="mt-6 w-full max-w-lg flex flex-col gap-3 relative z-10">
+          
+          {/* 👇 BOTÓN INGRESAR ANIMADO (CALCULADORA) 👇 */}
           <SignedOut>
             <SignInButton mode="modal">
-              <button className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
-                🔐 INGRESAR Y GUARDAR TURNOS
-              </button>
+              <motion.button 
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                className="relative overflow-hidden group bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 transition-colors shadow-xl"
+              >
+                <span className="relative z-10">🔐 INGRESAR Y GUARDAR TURNOS</span>
+                {/* Rayo de luz diagonal (Shimmer) adaptado al color invertido */}
+                <motion.div
+                  animate={{ x: ["-150%", "250%"] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                  className="absolute inset-0 z-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-12"
+                />
+              </motion.button>
             </SignInButton>
           </SignedOut>
+
           <SignedIn>
             <Link href="/nominas" className="hidden lg:block bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center">
               📂 IR A MIS NÓMINAS
