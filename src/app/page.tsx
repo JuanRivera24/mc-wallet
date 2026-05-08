@@ -20,11 +20,22 @@ export default function Home() {
   const smoothY = useSpring(mouseY, { stiffness: 60, damping: 20 });
 
   useEffect(() => {
+    // 1. Lógica del spotlight
     const handleMouse = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
     };
     window.addEventListener("mousemove", handleMouse);
+
+    // ✅ 2. SOLUCIÓN AL BUG DE NAVEGACIÓN DESDE NÓMINAS
+    if (window.location.hash) {
+      const hash = window.location.hash;
+      // Esperamos 400ms a que Framer Motion termine de renderizar el layout y luego hacemos scroll
+      setTimeout(() => {
+        document.querySelector(hash)?.scrollIntoView({ behavior: 'smooth' });
+      }, 400); 
+    }
+
     return () => window.removeEventListener("mousemove", handleMouse);
   }, [mouseX, mouseY]);
 

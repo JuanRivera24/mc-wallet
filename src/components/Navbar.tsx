@@ -2,13 +2,23 @@
 import { useTheme } from "@/context/ThemeContext";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Navbar() {
   const { role, setRole, themeColor } = useTheme(); 
+  const pathname = usePathname(); // Obtenemos la ruta actual
 
   const activeText = themeColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400';
 
   const toggleRole = () => setRole(role === 'CREW' ? 'ENTRENADOR' : 'CREW');
+
+  // ✅ Función inteligente para el scroll suave
+  const handleScroll = (e: React.MouseEvent<HTMLAnchorElement>, hash: string) => {
+    if (pathname === '/') {
+      e.preventDefault();
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-gray-100 dark:border-gray-900 h-[72px] lg:h-20 transition-all">
@@ -21,9 +31,9 @@ export default function Navbar() {
 
         {/* hidden lg:flex -> Solo se muestra en laptops y computadores */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-8 text-[11px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
-          <Link href="/#nosotros" className="hover:text-black dark:hover:text-white transition-colors py-2">Nosotros</Link>
-          <Link href="/#tarifas" className="hover:text-black dark:hover:text-white transition-colors py-2">Tarifas</Link>
-          <Link href="/#calculadora" className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
+          <Link href="/#nosotros" onClick={(e) => handleScroll(e, 'nosotros')} className="hover:text-black dark:hover:text-white transition-colors py-2">Nosotros</Link>
+          <Link href="/#tarifas" onClick={(e) => handleScroll(e, 'tarifas')} className="hover:text-black dark:hover:text-white transition-colors py-2">Tarifas</Link>
+          <Link href="/#calculadora" onClick={(e) => handleScroll(e, 'calculadora')} className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
           <SignedIn>
             <Link href="/nominas" className={`hover:brightness-110 transition-colors py-2 ${activeText}`}>📂 Mis Nóminas</Link>
           </SignedIn>
