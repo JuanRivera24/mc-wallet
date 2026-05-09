@@ -12,17 +12,32 @@ export default function RatesSection() {
   const r = RATES_BY_YEAR[currentYear]?.[role] || RATES_BY_YEAR[2026][role];
   const transportAux = TRANSPORT_AUX_BY_YEAR[currentYear] || TRANSPORT_AUX_BY_YEAR[2026];
 
-  // --- LÓGICA DE DOBLE CLIC (800ms) ---
+  // --- LÓGICA DE DOBLE CLIC Y LUZ TEMPORAL ---
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [activeLight, setActiveLight] = useState<string | null>(null);
   const lastClickTimes = useRef<{ [key: string]: number }>({});
+  const lightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCardClick = (cardId: string) => {
     const now = Date.now();
     const lastClick = lastClickTimes.current[cardId] || 0;
     
     if (now - lastClick < 800) {
+      // Abre o cierra el texto
       setExpandedCard(prev => prev === cardId ? null : cardId);
+      
+      // Enciende la luz
+      setActiveLight(cardId);
+      
+      // Reinicia el contador de clics
       lastClickTimes.current[cardId] = 0; 
+
+      // Apaga la luz después de 2 segundos (2000 ms)
+      if (lightTimeoutRef.current) clearTimeout(lightTimeoutRef.current);
+      lightTimeoutRef.current = setTimeout(() => {
+        setActiveLight(null);
+      }, 2000);
+
     } else {
       lastClickTimes.current[cardId] = now;
     }
@@ -30,6 +45,10 @@ export default function RatesSection() {
 
   useEffect(() => {
     setMounted(true);
+    // Limpieza del temporizador al desmontar el componente
+    return () => {
+      if (lightTimeoutRef.current) clearTimeout(lightTimeoutRef.current);
+    };
   }, []);
 
   const containerVariant = {
@@ -79,9 +98,9 @@ export default function RatesSection() {
           <motion.div 
             variants={cardVariant} 
             onClick={() => handleCardClick('ordinarias')}
-            className={`group relative p-8 rounded-[2rem] border-2 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 ${colors.accent} ${themeColor === 'blue' ? 'bg-blue-50 dark:bg-blue-900/10' : 'bg-red-50 dark:bg-red-900/10'}`}
+            // 🔥 Nueva contraluz (Backlight) temporal conectada al estado 'activeLight'
+            className={`group relative p-8 rounded-[2rem] border-2 cursor-pointer transition-all duration-700 hover:-translate-y-1 hover:shadow-xl dark:border-gray-800 ${colors.accent} ${themeColor === 'blue' ? 'bg-blue-50 dark:bg-blue-900/10 shadow-blue-500/10' : 'bg-red-50 dark:bg-red-900/10 shadow-red-500/10'} ${themeColor === 'blue' ? (activeLight === 'ordinarias' ? 'drop-shadow-[0_0_15px_rgba(59,130,246,0.6)]' : '') : (activeLight === 'ordinarias' ? 'drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]' : '')}`}
           >
-            <div className="absolute -inset-1 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 bg-gradient-to-r from-blue-400 to-purple-400 rounded-[2rem] -z-10" />
             <h3 className="text-sm font-black uppercase text-gray-400 dark:text-gray-500 mb-6">Ordinarias</h3>
             <div className="space-y-4">
               <RateRow label="Diurna" value={r.ORDINARY} />
@@ -110,9 +129,9 @@ export default function RatesSection() {
           <motion.div 
             variants={cardVariant} 
             onClick={() => handleCardClick('extras')}
-            className="group relative p-8 rounded-[2rem] bg-gray-50 dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+            // 🔥 Nueva contraluz temporal gris
+            className={`group relative p-8 rounded-[2rem] bg-gray-50 dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 cursor-pointer transition-all duration-700 hover:-translate-y-1 hover:shadow-xl ${activeLight === 'extras' ? 'drop-shadow-[0_0_15px_rgba(107,114,128,0.6)]' : ''}`}
           >
-            <div className="absolute -inset-1 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 bg-gradient-to-r from-gray-400 to-gray-600 rounded-[2rem] -z-10" />
             <h3 className="text-sm font-black uppercase text-gray-400 dark:text-gray-500 mb-6">Extras</h3>
             <div className="space-y-4">
               <RateRow label="Extra Diurna" value={r.EXTRA_DAY} />
@@ -139,9 +158,9 @@ export default function RatesSection() {
           <motion.div 
             variants={cardVariant} 
             onClick={() => handleCardClick('dominicales')}
-            className="group relative p-8 rounded-[2rem] bg-green-50 dark:bg-green-900/10 border-2 border-green-100 dark:border-green-900/30 text-green-800 dark:text-green-400 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-500/10"
+            // 🔥 Nueva contraluz temporal verde
+            className={`group relative p-8 rounded-[2rem] bg-green-50 dark:bg-green-900/10 border-2 border-green-100 dark:border-green-900/30 text-green-800 dark:text-green-400 cursor-pointer transition-all duration-700 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-500/10 ${activeLight === 'dominicales' ? 'drop-shadow-[0_0_15px_rgba(74,222,128,0.6)]' : ''}`}
           >
-            <div className="absolute -inset-1 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 bg-gradient-to-r from-green-400 to-emerald-400 rounded-[2rem] -z-10" />
             <h3 className="text-sm font-black uppercase text-green-400 dark:text-green-500 mb-6">Dominicales</h3>
             <div className="space-y-4">
               <RateRow label="Dominical" value={r.SUNDAY} isGreen />
@@ -168,9 +187,9 @@ export default function RatesSection() {
           <motion.div 
             variants={cardVariant} 
             onClick={() => handleCardClick('festivas')}
-            className="group relative p-8 rounded-[2rem] bg-orange-50 dark:bg-orange-900/10 border-2 border-orange-100 dark:border-orange-900/30 text-orange-800 dark:text-orange-400 cursor-pointer md:col-span-2 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/10"
+            // 🔥 Nueva contraluz temporal naranja
+            className={`group relative p-8 rounded-[2rem] bg-orange-50 dark:bg-orange-900/10 border-2 border-orange-100 dark:border-orange-900/30 text-orange-800 dark:text-orange-400 cursor-pointer md:col-span-2 transition-all duration-700 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/10 ${activeLight === 'festivas' ? 'drop-shadow-[0_0_15px_rgba(251,146,60,0.6)]' : ''}`}
           >
-            <div className="absolute -inset-1 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-500 bg-gradient-to-r from-orange-400 to-yellow-400 rounded-[2rem] -z-10" />
             <h3 className="text-sm font-black uppercase text-orange-400 dark:text-orange-500 mb-6">Extras Festivas</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 relative z-10">
               <RateRow label="Extra Fest. Diurna" value={r.EXTRA_FESTIVE_DAY} isOrange />
@@ -197,9 +216,9 @@ export default function RatesSection() {
           <motion.div 
             variants={cardVariant} 
             onClick={() => handleCardClick('transporte')}
-            className="group relative p-8 rounded-[2rem] bg-gray-900 dark:bg-[#111] border border-transparent dark:border-gray-800 text-white flex flex-col justify-center items-center cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/20 overflow-hidden"
+            // 🔥 Contraluz azul suave sobre fondo negro (sutil)
+            className={`group relative p-8 rounded-[2rem] bg-gray-900 dark:bg-[#111] border border-transparent dark:border-gray-800 text-white flex flex-col justify-center items-center cursor-pointer transition-all duration-700 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/20 overflow-hidden ${activeLight === 'transporte' ? 'drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]' : ''}`}
           >
-            <div className="absolute -inset-2 bg-gradient-to-r from-blue-500 to-purple-500 blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-700" />
             <span className="text-blue-400 dark:text-blue-500 font-black uppercase text-[9px] mb-2 relative z-10">Transporte</span>
             <h3 suppressHydrationWarning className="text-4xl font-black relative z-10">
               ${transportAux.toLocaleString('es-CO')}
