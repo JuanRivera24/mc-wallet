@@ -4,6 +4,7 @@
 ![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
 ![Clerk](https://img.shields.io/badge/Clerk-6C47FF?style=for-the-badge&logo=clerk&logoColor=white)
 
 ---
@@ -11,72 +12,78 @@ https://mc-wallet-three.vercel.app
 ---
 
 ## 📝 Visión General
-**MCWallet** es una solución robusta desarrollada para resolver la opacidad en los cálculos de nómina del sector de servicio rápido. Esta plataforma permite a los empleados (Crew) realizar un seguimiento milimétrico de sus jornadas laborales, garantizando que cada segundo trabajado sea remunerado según la legislación laboral colombiana vigente para el año **2026**.
+**MCWallet** es una solución robusta y de grado empresarial desarrollada para resolver la opacidad en los cálculos de nómina del sector de servicio rápido. Esta plataforma permite a los empleados (Crew y Entrenadores) realizar un seguimiento milimétrico de sus jornadas laborales, garantizando que cada minuto trabajado sea remunerado según la estricta legislación laboral colombiana vigente para el año **2026**.
 
-La aplicación no solo calcula el salario neto, sino que audita recargos, gestiona la persistencia de datos en la nube y ofrece una experiencia de usuario (UX) de nivel premium tanto en desktop como en dispositivos móviles.
+La aplicación no solo calcula el salario neto, sino que procesa turnos complejos (cruces de medianoche, cortes de quincena), audita recargos minuto a minuto, gestiona la persistencia de datos en la nube mediante Firestore y ofrece una experiencia de usuario (UX) de nivel premium que se siente y se comporta exactamente como una app nativa.
 
 ---
 
-## 🔥 Funcionalidades Core (Detallado)
+## 🔥 Arquitectura Core: Las 3 Bestias (Deep Dive)
 
-### 🧠 Motor de Cálculo Salarial (El Cerebro)
-El algoritmo de cálculo es el corazón de MCWallet, diseñado para procesar variables complejas en tiempo real:
-* **Segmentación de Horas:** Clasificación automática de horas en 8 categorías diferentes (Diurnas, Nocturnas, Dominicales, Extras, etc.).
-* **Gestión de Recargos:** Aplicación de porcentajes legales sobre el valor de la hora base según el rol del usuario.
-* **Subsidio de Transporte:** Cálculo proporcional según los días laborados y el cumplimiento de la normativa de ley.
-* **Deducciones Automáticas:** Cálculo preciso de aportes a Salud y Pensión (4% cada uno) sobre el IBC (Ingreso Base de Cotización).
-* **Extra Transportation Allowance:** Soporte para recargos especiales en jornadas que finalizan en horarios de difícil movilidad (madrugada).
+La aplicación está sostenida por tres pilares fundamentales que manejan toda la lógica de negocio, recolección de datos y visualización:
 
-### 🎨 Interfaz y Experiencia de Usuario (UX/UI)
-* **Modo Oscuro "True Black":** Optimizado para pantallas OLED, reduciendo el consumo de batería y la fatiga visual.
-* **Navegación Fluida (Mobile Sync):** Sistema de estados sincronizado con el historial del navegador (`pushState`), permitiendo el uso del botón físico de "Atrás" en smartphones sin cerrar la aplicación.
-* **Calendario Inteligente:** Componente personalizado que distingue visualmente los estados de la nómina mediante códigos de colores y opacidades dinámicas para días de otras quincenas.
+### 1. El Core Algorítmico (`lib/calculator.ts`)
+No es una simple calculadora de diferencias de tiempo; es un motor de procesamiento cronológico diseñado para evitar cualquier desfase legal o de redondeo.
+* **Iteración Minuto a Minuto (`while current < end`):** El algoritmo descompone el turno en minutos. Para cada iteración, evalúa el contexto temporal exacto: ¿Es festivo hoy? ¿La hora actual es nocturna (>=19h o <6h)? ¿Ya superamos el umbral de las 8 horas (480 min) para cobrar recargo extra? Esto permite cálculos matemáticamente perfectos incluso en turnos híbridos.
+* **Gestor Dinámico de Quincenas (`getQuincenaKey`):** Lógica avanzada que detecta cuando un turno cruza la medianoche hacia un día de corte fiscal (del 15 al 16, o del último día del mes al día 1). Automáticamente, el motor divide el resultado en un `Array` de dos bloques financieros distintos, asegurando que los minutos de la madrugada caigan en la siguiente nómina.
+* **Smart Break System:** Inyecta espacios muertos de tiempo que no contabilizan para el pago ni para el umbral de horas extra, ya sea generados algorítmicamente (automático al centro del turno) o superpuestos manualmente por el usuario validando los límites (bounds) del turno.
+* **Acumuladores Monetarios y de Tiempo:** Mapeo exhaustivo de 8 variables independientes (ej. `mOrdD`, `pOrdD`) que separan la cuenta de minutos físicos de la bolsa de dinero, previniendo errores de punto flotante en JavaScript hasta el redondeo final.
 
-### ⚡ Optimización de Datos y Performance
-* **Firebase Persistence:** Implementación de `persistentLocalCache` para permitir el funcionamiento offline y reducir las lecturas de base de datos en un 90%.
-* **Consultas Indexadas:** Filtrado de datos a nivel de servidor por `userId` y `year`, asegurando que la app escale sin degradar el rendimiento.
-* **Arquitectura Singleton:** Gestión eficiente de instancias de Firebase para evitar fugas de memoria y errores de re-inicialización en entornos de desarrollo rápido.
+### 2. El Puente Interactivo (`ShiftCalculator.tsx`)
+Este componente es el cerebro del frontend. Conecta la interfaz de usuario con el motor de cálculo y la base de datos de manera atómica.
+* **Validación de Sobreescritura (Collision Detection):** Antes de ejecutar un guardado en la nube, el componente hace un "peek" a Firestore comprobando la tupla `userId_date`. Si detecta un turno preexistente, congela la UI y exige confirmación del usuario para evitar pérdida de datos.
+* **Multi-Document Writes (Split Shifts):** Cuando el motor de cálculo devuelve un turno fraccionado por cruzar una quincena, el componente ejecuta un mapeo concurrente (`Promise.all`), guardando el fragmento base y el fragmento `_split` de forma asíncrona, inyectando meta-datos vitales como el mes, año y el identificador `isSplitPart`.
+* **Portapapeles Interno Dinámico:** Implementación de un menú de herramientas avanzadas (`localStorage`) que permite Copiar, Cortar, Pegar y Resetear patrones de turnos recurrentes, inyectando los datos parseados directamente en los estados de React, reduciendo el tiempo de ingreso de datos a dos clics.
+
+### 3. El Agregador Financiero (`Mis Nóminas / Dashboard`)
+El módulo encargado de la lectura masiva, agregación y visualización del esfuerzo acumulado del usuario.
+* **Filtros Indexados y Aggregation Functions:** Lee desde Firebase utilizando consultas estructuradas por usuario y fecha. Procesa el array masivo de turnos y recalcula totales en vivo: Salario Base, Auxilios de Transporte (incluyendo validación del bono extralegal de $5.000 de madrugada) y Deducciones (4% Salud y 4% Pensión del IBC acumulado).
+* **Smart Reset y Jerarquía Visual:** Integrado con el *Smart Mobile Dock*, este panel sabe si el usuario interactúa desde móvil o desktop. Renderiza tarjetas detalladas por cada día, marcando visualmente si un turno pertenece a la quincena actual o si es un "huérfano" de un turno partido de la quincena anterior.
+
+---
+
+## 🎨 Interfaz y Experiencia de Usuario Nativa (UX/UI)
+* **Tematización por Rol (ThemeContext):** La UI muta sus colores dinámicamente (tonos azules para Crew, tonos rojos para Entrenadores) inyectando variables a través del contexto global y Tailwind.
+* **Micro-interacciones y Framer Motion:** Uso extensivo de físicas de resorte (`useSpring`) para efectos como el Spotlight del mouse, animaciones de entrada escalonada (`staggerChildren`) y botones CTA con respiración suave y reflejos de luz ("shimmer").
+* **Gestos Nativos y Anti-Conflicto:** Implementación de un sistema de información legal desplegable en las tarifas mediante un cronómetro de *doble clic personalizado (800ms)* protegido con `select-none` para evitar sombreados azules nativos en pantallas táctiles.
+* **Neobrutalismo y Backlights Temporales:** Elementos flotantes con CSS `box-shadow` sólido y luces de neón traseras atadas a temporizadores en React (la luz se enciende al expandir y se apaga suavemente a los 2 segundos para no saturar la vista).
 
 ---
 
 ## 🛠️ Stack Tecnológico
-* **Frontend:** Next.js 14+ (App Router) con TypeScript.
-* **Base de Datos Real-time:** Google Firebase Firestore.
-* **Autenticación:** Clerk Auth (OAuth y Passwordless).
-* **Gráficos:** Chart.js con integración React-Chartjs-2.
-* **Estilos:** Tailwind CSS con animaciones de Framer Motion (opcional).
+* **Frontend Core:** Next.js 14+ (App Router), React 18, TypeScript.
+* **Estilos y UI:** Tailwind CSS, Framer Motion (Animaciones complejas, gestos).
+* **Base de Datos & Backend:** Google Firebase Firestore (Documentos noSQL, `serverTimestamp`).
+* **Autenticación y Sesiones:** Clerk Auth (Integración modal OAuth y protección de rutas).
+* **Manejo de Fechas:** Lógica nativa de JS y utilidades de `date-fns`.
+* **Visualización de Datos:** Chart.js con `react-chartjs-2`.
 
 ---
 
 ## 📖 Guía de Operación
 
-### Para el Usuario Final
-1.  **Registro de Jornada:** * Ingresa a la sección "Nóminas".
-    * Usa el "Acceso Rápido" si estás terminando tu turno hoy.
-    * O navega por Año > Mes > Quincena para registros históricos.
-2.  **Configuración de Break:** * La app calcula el break estándar, pero permite el ajuste manual si tu descanso fue superior o inferior al programado.
-3.  **Auditoría de Pago:** * Despliega el panel de "Total Neto" para comparar los valores calculados por la app contra tu desprendible de pago oficial.
-
 ### Para el Desarrollador
-1.  **Variables de Entorno:** Configura `.env.local` con tus claves de Firebase y Clerk.
-2.  **Instalación:** `npm install`.
-3.  **Ejecución:** `npm run dev`.
-4.  **Despliegue:** Optimizado para Vercel mediante un solo clic.
+1.  **Variables de Entorno:** Configura `.env.local` con las credenciales de Firebase y Clerk (Publishable Key y Secret).
+2.  **Instalación:** Ejecuta `npm install`.
+3.  **Ambiente Local:** `npm run dev` (Disponible en `localhost:3000`).
+4.  **Despliegue:** Proyecto acoplado y optimizado para **Vercel** sin configuraciones adicionales.
 
 ---
 
 ## 🗺️ Roadmap de Desarrollo
-- [x] Implementación de Modo Oscuro.
-- [x] Optimización de lecturas Firebase (Caché local).
-- [x] Soporte para navegación nativa de Android/iOS.
-- [ ] Exportación de reportes quincenales en PDF.
-- [ ] Sistema de notificaciones push para recordar el registro del turno.
-- [ ] Comparativa de ingresos contra meses anteriores (Insights).
+- [x] Motor de cálculo minucioso con partición matemática de quincenas.
+- [x] Implementación de Modo Oscuro "True Black" y UI/UX Neobrutalista.
+- [x] Prevención de Errores de Hidratación (SSR Sync).
+- [x] Portapapeles inteligente integrado en la UI de cálculo.
+- [ ] **Conversión a PWA:** Soporte Offline total (Service Workers), permitiendo guardar turnos sin internet y sincronizar al reconectar.
+- [ ] **Feedback Háptico:** Uso de la Web Vibration API para micro-vibraciones al guardar exitosamente o expandir tarjetas legales.
+- [ ] **Notificaciones Inteligentes:** Alertas push recordatorias ("En 2 horas comienza tu turno") y avisos de días de pago.
+- [ ] Exportación de reportes quincenales completos a PDF.
 
 ---
 
 ## 🛡️ Seguridad y Privacidad
-MCWallet utiliza **Clerk** para garantizar que los datos salariales sean privados y encriptados. La base de datos de Firebase está protegida por reglas de seguridad de Firestore que solo permiten al propietario de los datos leer o escribir en sus propios documentos (`request.auth.uid == resource.data.userId`).
+MCWallet delega la seguridad criptográfica a **Clerk**, garantizando un manejo de sesiones robusto. La base de datos de Firebase está fortificada mediante Reglas de Seguridad de Firestore de estricto cumplimiento: cada documento inyecta el ID del usuario de Clerk y las reglas aseguran que las lecturas y escrituras solo sean posibles si `request.auth.uid == resource.data.userId`. La información salarial es 100% privada y cifrada.
 
 ---
 **Desarrollado con ❤️ por un Crew para el equipo de Arcos Dorados.**
