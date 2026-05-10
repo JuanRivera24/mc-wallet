@@ -1,5 +1,5 @@
 # 🍔 MCWallet - Advanced Payroll Ecosystem
-> **Sistema Inteligente de Gestión y Auditoría de Nómina para Colaboradores (Arcos Dorados Colombia)**
+> **Sistema Inteligente de Gestión y Auditoría de Nómina para Colaboradores (Arcos Dorados Colombia).**
 
 ![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
