@@ -12,6 +12,7 @@ import { calculateShift } from "@/lib/calculator";
 import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR, HOLIDAYS_COLOMBIA } from "@/constants/rates";
 import PayrollFeedback from "@/components/PayrollFeedback";
 import { motion } from "framer-motion";
+import { useHaptics } from "@/hooks/useHaptics"; // ✅ AÑADIDO: Hook de vibración
 
 import { AnnualChart, QuincenaCharts } from "@/components/DashboardCharts";
 import ShiftList from "./ShiftList";
@@ -27,6 +28,9 @@ const toMinutes = (t?: string) => {
 export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
+  
+  // ✅ AÑADIDO: Inicializamos las funciones de vibración
+  const { hapticLight, hapticSuccess, hapticError, hapticWarning } = useHaptics();
 
   const [isMounted, setIsMounted] = useState(false);
   const [step, setStep] = useState(1);
@@ -115,6 +119,7 @@ export default function NominasPage() {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const goToStep = (newStep: number) => {
+    hapticLight(); // ✅ AÑADIDO: Tap ligero al cambiar de pantalla
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
     setStep(newStep);
   };
@@ -299,31 +304,42 @@ export default function NominasPage() {
   };
 
   const handlePrevMonth = () => {
+    hapticLight(); // ✅ AÑADIDO
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 0) { setSelectedMonth("diciembre"); setSelectedYear(prev => prev - 1); }
     else setSelectedMonth(mesesFull[currentIndex - 1]);
   };
   const handleNextMonth = () => {
+    hapticLight(); // ✅ AÑADIDO
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 11) { setSelectedMonth("enero"); setSelectedYear(prev => prev + 1); }
     else setSelectedMonth(mesesFull[currentIndex + 1]);
   };
-  const handlePrevQuincena = () => selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
-  const handleNextQuincena = () => selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
+  const handlePrevQuincena = () => {
+    hapticLight(); // ✅ AÑADIDO
+    selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
+  };
+  const handleNextQuincena = () => {
+    hapticLight(); // ✅ AÑADIDO
+    selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
+  };
 
   const handleOpenNew = () => {
+    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal de nuevo turno
     setEditingShiftId(null); setStartTime("13:00"); setEndTime("20:00");
     setHasBreak(true); setIsManualBreak(false); setBreakStart("16:30"); setBreakEnd("17:00");
     setShowModal(true);
   };
 
   const handleOpenSpecial = () => {
+    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal especial
     setEditingShiftId(null); setSpecialHours(""); setSpecialRateType("ORDINARY");
     setSpecialTransport(false); setIncapacidadType('HORAS'); setSpecialTab('REUNION');
     setShowSpecialModal(true);
   };
 
   const handleQuickAddToday = () => {
+    hapticLight(); // ✅ AÑADIDO: Tap del FAB Button
     setSelectedYear(today.getFullYear()); 
     setSelectedMonth(mesesFull[today.getMonth()]);
     setSelectedQuincena(today.getDate() <= 15 ? 1 : 2);
@@ -333,6 +349,7 @@ export default function NominasPage() {
 
   const handleOpenEdit = (e: React.MouseEvent | null, shift: any) => {
     if (e) e.stopPropagation(); 
+    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal de edición
     
     const isSplit = shift.id.includes('_split');
     const targetShift = isSplit ? (shifts.find(s => s.id === shift.id.replace('_split', '')) || shift) : shift;
@@ -379,6 +396,7 @@ export default function NominasPage() {
 
   const handleModalNavigate = (direction: number) => {
     if (!selectedDate) return;
+    hapticLight(); // ✅ AÑADIDO: Navegación dentro del modal
     
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + direction);
@@ -420,10 +438,12 @@ export default function NominasPage() {
 
   const handleDelete = (e: React.MouseEvent | null, shift: any) => {
     if (e) e.stopPropagation(); 
+    hapticWarning(); // ✅ AÑADIDO: Pulso de advertencia antes de borrar
     if (confirm("¿Eliminar turno?")) {
       const baseId = shift.id.replace('_split', '');
       deleteDoc(doc(db, "shifts", baseId));
       deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
+      hapticSuccess(); // ✅ AÑADIDO: Doble pulso al borrar con éxito
       
       if (editingShiftId === shift.id || editingShiftId === baseId) {
         setShowModal(false);
@@ -451,12 +471,19 @@ export default function NominasPage() {
         const payload = { ...shift, ...calc, timestamp: serverTimestamp() }; 
         await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
     }));
+    hapticSuccess(); // ✅ AÑADIDO: Feedback al recalcular desde la lista
   };
 
-  const handleToggleExpand = (id: string) => setExpandedShiftId(expandedShiftId === id ? null : id);
+  const handleToggleExpand = (id: string) => {
+    hapticLight(); // ✅ AÑADIDO: Tap al expandir información en la lista
+    setExpandedShiftId(expandedShiftId === id ? null : id);
+  };
 
   const handleSaveShift = async (isOff: boolean = false) => {
-    if (!user || breakError) return;
+    if (!user || breakError) {
+      if (breakError) hapticError(); // ✅ AÑADIDO: Vibra fuerte si falla la validación
+      return;
+    }
     let targetDateStr = "";
     let baseDocId = "";
 
@@ -511,6 +538,7 @@ export default function NominasPage() {
           await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
       }));
     }
+    hapticSuccess(); // ✅ AÑADIDO: Éxito total
     setShowModal(false); setEditingShiftId(null);
   };
 
@@ -544,7 +572,10 @@ export default function NominasPage() {
     const baseTransport = TRANSPORT_AUX_BY_YEAR[selectedDate.getFullYear()] || TRANSPORT_AUX_BY_YEAR[2026];
 
     if (specialTab === 'INCAPACIDAD' && incapacidadType === 'TURNO') {
-      if (breakError) return alert("Corrige el break primero");
+      if (breakError) {
+        hapticError(); // ✅ AÑADIDO: Fallo validación
+        return alert("Corrige el break primero");
+      }
       const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
       const calcs = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
       
@@ -563,7 +594,10 @@ export default function NominasPage() {
           await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
       }));
     } else {
-      if (!specialHours || Number(specialHours) <= 0) return alert("Ingresa horas válidas");
+      if (!specialHours || Number(specialHours) <= 0) {
+        hapticError(); // ✅ AÑADIDO: Fallo validación
+        return alert("Ingresa horas válidas");
+      }
       const rate = rateTable[specialRateType as keyof typeof rateTable] || rateTable.ORDINARY;
       const hrs = Number(specialHours); const moneyBase = hrs * rate;
       const healthPension = Math.round(moneyBase * 0.08); const transport = specialTransport ? baseTransport : 0;
@@ -580,17 +614,29 @@ export default function NominasPage() {
       await setDoc(doc(db, "shifts", baseDocId), payload, { merge: true });
     }
     
+    hapticSuccess(); // ✅ AÑADIDO: Éxito total en turnos especiales
     setShowSpecialModal(false); setEditingShiftId(null);
   }
 
   const saveBigVenta = async () => {
-    if (!user || !bigVentaValue || Number(bigVentaValue) <= 0) return;
+    if (!user || !bigVentaValue || Number(bigVentaValue) <= 0) {
+      hapticError(); // ✅ AÑADIDO
+      return;
+    }
     const docId = `${user.id}_BV_${selectedYear}_${selectedMonth}_${selectedQuincena}`;
     await setDoc(doc(db, "bigVentas", docId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(bigVentaValue), timestamp: serverTimestamp() });
+    hapticSuccess(); // ✅ AÑADIDO
     setHasBigVenta(false); setIsEditingBigVenta(false); setBigVentaValue("");
   };
+  
   const deleteBigVenta = async (id: string) => {
-    if (confirm("¿Eliminar Big Venta?")) { await deleteDoc(doc(db, "bigVentas", id)); setIsEditingBigVenta(false); setHasBigVenta(false); }
+    hapticWarning(); // ✅ AÑADIDO
+    if (confirm("¿Eliminar Big Venta?")) { 
+      await deleteDoc(doc(db, "bigVentas", id)); 
+      hapticSuccess(); // ✅ AÑADIDO
+      setIsEditingBigVenta(false); 
+      setHasBigVenta(false); 
+    }
   };
 
   const isDateDisabled = ({ date }: { date: Date }) => {
@@ -659,14 +705,14 @@ export default function NominasPage() {
           <div className="max-w-5xl mx-auto p-6">
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                {step > 1 && <button onClick={() => { window.history.back(); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
+                {step > 1 && <button onClick={() => { hapticLight(); window.history.back(); setSelectedDate(null); }} className="text-[10px] font-black text-gray-400 dark:text-gray-500 mb-1 hover:text-black dark:hover:text-white transition-colors">← ATRÁS</button>}
                 <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900 dark:text-white leading-none transition-colors">{step === 1 && "Selecciona Mes"}{step === 2 && `Quincenas ${selectedMonth || "..."}`}{step === 3 && `Quincena ${selectedQuincena || "..."}`}</h1>
               </div>
               {step === 1 && (
                 <div className="flex items-center gap-4 bg-white dark:bg-gray-900 px-6 py-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 transition-colors">
-                  <button onClick={() => setSelectedYear(selectedYear - 1)} className="text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black text-xl">←</button>
+                  <button onClick={() => { hapticLight(); setSelectedYear(selectedYear - 1); }} className="text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black text-xl">←</button>
                   <span className="text-2xl font-black italic tracking-tighter dark:text-white">{selectedYear}</span>
-                  <button onClick={() => setSelectedYear(selectedYear + 1)} className="text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black text-xl">→</button>
+                  <button onClick={() => { hapticLight(); setSelectedYear(selectedYear + 1); }} className="text-gray-400 hover:text-black dark:hover:text-white transition-colors font-black text-xl">→</button>
                 </div>
               )}
             </div>
@@ -913,10 +959,12 @@ export default function NominasPage() {
             handleNavigateDay={handleModalNavigate}
             handleDeleteShift={() => {
               if (!editingShiftId) return;
+              hapticWarning(); // ✅ AÑADIDO
               if (confirm("¿Eliminar turno?")) {
                 const baseId = editingShiftId.replace('_split', '');
                 deleteDoc(doc(db, "shifts", baseId));
                 deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
+                hapticSuccess(); // ✅ AÑADIDO
                 setShowModal(false);
                 setEditingShiftId(null);
               }

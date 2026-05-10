@@ -6,6 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, serverTimestamp, deleteDoc, getDoc } from "firebase/firestore";
+import { useHaptics } from "@/hooks/useHaptics"; // ✅ AÑADIDO: Importamos el motor de vibración
 
 // ✅ Tipos para asegurar la estructura de datos
 type CalcFragment = {
@@ -32,6 +33,9 @@ export default function ShiftCalculator() {
 
   const { user } = useUser();
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  // ✅ AÑADIDO: Inicializamos las vibraciones
+  const { hapticLight, hapticSuccess, hapticError, hapticWarning } = useHaptics();
 
   // --- ESTADOS (Unificados con Nómina) ---
   const [mounted, setMounted] = useState(false);
@@ -151,10 +155,16 @@ export default function ShiftCalculator() {
   };
 
   const handleCalculate = () => {
-    if (!date || !startTime || !endTime || breakError) return;
+    if (!date || !startTime || !endTime || breakError) {
+      if (breakError) hapticError(); // ✅ AÑADIDO: Vibra fuerte si intentas calcular con error en el break
+      return;
+    }
     const manual = (isManualBreak && hasBreak) ? { start: breakStart, end: breakEnd } : undefined;
     const calcs = calculateShift(date, startTime, endTime, manual, role, hasBreak);
-    if (!calcs) return setResult(null);
+    if (!calcs) {
+      hapticError(); // ✅ AÑADIDO: Vibra fuerte si falla el cálculo algorítmico
+      return setResult(null);
+    }
     const fragments = Array.isArray(calcs) ? calcs : [calcs];
     setResult({
       netPay: fragments.reduce((a, b) => a + (b?.netPay || 0), 0),
@@ -165,16 +175,23 @@ export default function ShiftCalculator() {
     });
     setIsCalculated(true);
     setNotification(null);
+    hapticLight(); // ✅ AÑADIDO: Vibra suave y elegante al mostrar el resultado
   };
 
   // --- 💾 GUARDADO PROFESIONAL ---
   const handleSave = async (forceOverwrite = false) => {
-    if (!user || !result || !date || isSaving) return;
+    if (!user || !result || !date || isSaving) {
+      hapticError(); // ✅ AÑADIDO: Vibra fuerte si faltan datos para guardar
+      return;
+    }
     const baseDocId = `${user.id}_${date}`;
 
     if (!forceOverwrite) {
       const docSnap = await getDoc(doc(db, "shifts", baseDocId));
-      if (docSnap.exists()) return setShowOverwriteConfirm(true);
+      if (docSnap.exists()) {
+        hapticWarning(); // ✅ AÑADIDO: Vibra de alerta pidiendo confirmación de sobreescritura
+        return setShowOverwriteConfirm(true);
+      }
     }
 
     setIsSaving(true);
@@ -206,8 +223,10 @@ export default function ShiftCalculator() {
         await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
       }));
 
+      hapticSuccess(); // ✅ AÑADIDO: Doble vibración de victoria al guardar en la nube
       setNotification({ msg: "Guardado en la Nómina ✅", type: 'success' });
     } catch (e) {
+      hapticError(); // ✅ AÑADIDO: Vibra fuerte si falla la conexión con Firebase
       setNotification({ msg: "Error al guardar", type: 'error' });
     } finally {
       setIsSaving(false);
