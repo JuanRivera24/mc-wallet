@@ -1,12 +1,19 @@
 {
-  "name": "McWallet - Arcos Dorados",
+  "id": "/",
+  "name": "McWallet",
   "short_name": "McWallet",
-  "description": "Calculadora y gestión de nómina exacta.",
+  "description": "Calculadora de nóminas para trabajadores de McDonald's, calcula tus turnos y nómina con precisión.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
-  "orientation": "portrait-primary",
+
+  "categories": ["finance", "productivity", "utilities"],
+
   "icons": [
     {
       "src": "/icon-192x192.png",
@@ -19,6 +26,21 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "Calcular turno",
+      "short_name": "Calcular",
+      "url": "/#calculadora",
+      "description": "Abrir calculadora rápida"
+    },
+    {
+      "name": "Mis nóminas",
+      "short_name": "Nóminas",
+      "url": "/nominas",
+      "description": "Ver historial de turnos"
     }
   ]
 }
