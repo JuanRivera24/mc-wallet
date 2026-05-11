@@ -10,10 +10,12 @@ export const useHaptics = () => {
     }
   }, []);
 
-  // Patrones predefinidos
-  const hapticLight = () => vibrate(10); // Tap muy suave (ideal para abrir tarjetas)
-  const hapticSuccess = () => vibrate([10, 30, 20]); // Doble tap rápido (ideal al guardar nómina)
-  const hapticError = () => vibrate([50, 50, 50]); // 3 pulsos (ideal si falta llenar un campo)
+  // Patrones predefinidos para mantener consistencia en toda la app
+  const hapticLight = () => vibrate(10); // Tap muy suave (para clics rápidos o abrir tarjetas)
+  const hapticSuccess = () => vibrate([10, 30, 20]); // Doble tap rápido (para guardado exitoso)
+  const hapticError = () => vibrate([50, 50, 50]); // 3 pulsos pesados (para errores)
+  const hapticWarning = () => vibrate([30, 40, 30]); // Pulsos medios (para advertencias como "ya existe un turno")
 
-  return { vibrate, hapticLight, hapticSuccess, hapticError };
+  // ASEGÚRATE DE QUE AQUÍ ESTÉ RETORNANDO hapticWarning
+  return { vibrate, hapticLight, hapticSuccess, hapticError, hapticWarning };
 };
