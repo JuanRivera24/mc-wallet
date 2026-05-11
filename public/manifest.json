@@ -1,6 +1,6 @@
 {
-  "name": "MCWallet - Arcos Dorados",
-  "short_name": "MCWallet",
+  "name": "McWallet - Arcos Dorados",
+  "short_name": "McWallet",
   "description": "Calculadora y gestión de nómina exacta.",
   "start_url": "/",
   "display": "standalone",
