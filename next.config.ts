@@ -3,17 +3,20 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
+  register: true, 
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development", // No cachea en local para que puedas ver tus cambios al programar
+  disable: process.env.NODE_ENV === "development", 
   workboxOptions: {
     disableDevLogs: true,
+    skipWaiting: true, 
+    clientsClaim: true,
   },
 });
 
 const nextConfig: NextConfig = {
-  turbopack: {}, // Silencia la advertencia de compatibilidad de Next 16
+  turbopack: {}, 
 };
 
 export default withPWA(nextConfig);
