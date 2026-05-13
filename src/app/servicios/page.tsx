@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import ShiftCalculator from "@/components/ShiftCalculator";
 import Calculator4x1000 from "@/components/Calculator4x1000";
+import ContactForm from "@/components/ContactForm"; // ✅ Importamos el nuevo formulario
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { useHaptics } from "@/hooks/useHaptics";
@@ -46,7 +47,8 @@ const services: ServiceCategory[] = [
     category: "Ajustes & Soporte",
     items: [
       { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
-      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", href: "/servicios/contacto", requiresAuth: false },
+      // ✅ Cambiamos href por action para que sea acordeón
+      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
     ]
   }
 ];
@@ -76,7 +78,8 @@ export default function ServiciosPage() {
       return;
     }
     
-    if (item.action === "open_calc" || item.action === "open_4x1000") {
+    // ✅ Agregamos open_contacto a la validación
+    if (item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto") {
       e.preventDefault();
       hapticLight();
       setExpandedId(expandedId === item.id ? null : item.id);
@@ -119,7 +122,8 @@ export default function ServiciosPage() {
                 {section.items.map((item) => {
                   const isLocked = isLoaded && item.requiresAuth && !isSignedIn;
                   const isExpanded = expandedId === item.id;
-                  const isAccordion = item.action === "open_calc" || item.action === "open_4x1000";
+                  // ✅ Actualizamos isAccordion
+                  const isAccordion = item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto";
                   
                   const content = (
                     <div className="flex items-center p-4 sm:p-5 w-full text-left relative">
@@ -201,6 +205,11 @@ export default function ServiciosPage() {
 
                               {item.action === "open_4x1000" && (
                                 <Calculator4x1000 />
+                              )}
+
+                              {/* ✅ AQUÍ SE RENDERIZA EL BUZÓN CREW */}
+                              {item.action === "open_contacto" && (
+                                <ContactForm />
                               )}
                             </div>
                           </motion.div>
