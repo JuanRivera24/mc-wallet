@@ -33,9 +33,11 @@ export default function Navbar() {
         <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-8 text-[11px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
           <Link href="/#nosotros" onClick={(e) => handleScroll(e, 'nosotros')} className="hover:text-black dark:hover:text-white transition-colors py-2">Nosotros</Link>
           <Link href="/#tarifas" onClick={(e) => handleScroll(e, 'tarifas')} className="hover:text-black dark:hover:text-white transition-colors py-2">Tarifas</Link>
-          <Link href="/#calculadora" onClick={(e) => handleScroll(e, 'calculadora')} className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
+          <Link href="/servicios?calc=true" className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
+          <Link href="/servicios" className={`hover:text-black dark:hover:text-white transition-colors py-2 ${pathname === '/servicios' ? activeText : ''}`}>Servicios</Link>
+          
           <SignedIn>
-            <Link href="/nominas" className={`hover:brightness-110 transition-colors py-2 ${activeText}`}>📂 Mis Nóminas</Link>
+            <Link href="/nominas" className={`hover:brightness-110 transition-colors py-2 ${pathname.startsWith('/nominas') ? activeText : ''}`}>📂 Mis Nóminas</Link>
           </SignedIn>
         </div>
 

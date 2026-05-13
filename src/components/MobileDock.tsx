@@ -13,7 +13,6 @@ export default function MobileDock() {
   const isActive = (path: string) => pathname === path;
   const activeColor = themeColor === 'blue' ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400';
 
-  // Navegación inteligente para evitar errores con los anclajes (#)
   const handleHashNavigation = (e: React.MouseEvent<HTMLAnchorElement>, hash: string) => {
     if (pathname === '/') {
       e.preventDefault();
@@ -21,15 +20,12 @@ export default function MobileDock() {
     }
   };
 
-  // --- Lógica del botón Nóminas ---
   const isNominasActive = isActive('/nominas');
   
-  // Clases dinámicas para la iluminación (Glow) dependiendo del rol/color
   const nominasGlowEffect = themeColor === 'blue'
     ? 'text-blue-500 drop-shadow-[0_0_6px_rgba(59,130,246,0.8)]'
     : 'text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]';
 
-  // Si está activo toma su color normal, si no, toma la luz neón
   const nominasColorClass = isNominasActive ? activeColor : nominasGlowEffect;
 
   return (
@@ -46,43 +42,25 @@ export default function MobileDock() {
           </motion.div>
         </Link>
 
-        {/* 2. BOTÓN TARIFAS */}
-        <Link href="/#tarifas" onClick={(e) => handleHashNavigation(e, 'tarifas')} className="flex-1 flex justify-center">
-          <motion.div whileTap={{ scale: 0.85 }} className="flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors hover:bg-gray-50 dark:hover:bg-gray-900">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 text-gray-500">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {/* 2. ✅ BOTÓN SERVICIOS (Reemplaza a Tarifas) */}
+        <Link href="/servicios" className="flex-1 flex justify-center">
+          <motion.div whileTap={{ scale: 0.85 }} className={`flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors ${isActive('/servicios') ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
+            {/* Ícono de cuadrícula/aplicaciones */}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isActive('/servicios') ? 2.5 : 1.5} stroke="currentColor" className={`w-6 h-6 ${isActive('/servicios') ? activeColor : 'text-gray-500'}`}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
             </svg>
-            <span className="text-[10px] font-black mt-0.5 text-gray-500">Tarifas</span>
+            <span className={`text-[10px] font-black mt-0.5 ${isActive('/servicios') ? activeColor : 'text-gray-500'}`}>Servicios</span>
           </motion.div>
         </Link>
 
-        {/* 3. BOTÓN NÓMINAS CON GLOW ANIMADO Y RESET */}
+        {/* 3. BOTÓN NÓMINAS */}
         <SignedIn>
-          <Link 
-            href="/nominas" 
-            onClick={(e) => {
-              if (isNominasActive) {
-                e.preventDefault();
-                // Si ya estás en nóminas, forzamos la recarga limpia para volver al inicio del selector de mes
-                window.location.href = '/nominas';
-              }
-            }}
-            className="flex-1 flex justify-center"
-          >
+          <Link href="/nominas" onClick={(e) => { if (isNominasActive) { e.preventDefault(); window.location.href = '/nominas'; } }} className="flex-1 flex justify-center">
             <motion.div whileTap={{ scale: 0.85 }} className={`flex flex-col items-center justify-center w-full max-w-[4rem] h-14 rounded-2xl transition-colors ${isNominasActive ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
-              
-              {/* Contenedor animado para el efecto de luz intermitente */}
-              <motion.div 
-                animate={!isNominasActive ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className={`flex flex-col items-center justify-center transition-all duration-500 ${nominasColorClass}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isNominasActive ? 2.5 : 2} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                </svg>
+              <motion.div animate={!isNominasActive ? { opacity: [0.5, 1, 0.5] } : { opacity: 1 }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }} className={`flex flex-col items-center justify-center transition-all duration-500 ${nominasColorClass}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={isNominasActive ? 2.5 : 2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" /></svg>
                 <span className="text-[10px] font-black mt-0.5">Nóminas</span>
               </motion.div>
-
             </motion.div>
           </Link>
         </SignedIn>
