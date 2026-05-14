@@ -39,15 +39,13 @@ const services: ServiceCategory[] = [
   {
     category: "Finanzas",
     items: [
-      { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },
-      { id: "metas", title: "Mis Metas", icon: "🏍️", desc: "Proyecta tus ahorros (ej. Moto) sumando la Prima", href: "/servicios/metas", comingSoon: true, requiresAuth: true },
-    ]
+      { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", requiresAuth: true },
+      { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },]
   },
   {
     category: "Ajustes & Soporte",
     items: [
       { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
-      // ✅ Cambiamos href por action para que sea acordeón
       { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
     ]
   }
@@ -57,9 +55,9 @@ export default function ServiciosPage() {
   const { themeColor } = useTheme();
   const { isSignedIn, isLoaded } = useUser();
   const { hapticLight, hapticWarning } = useHaptics();
-  
+
   const activeBg = themeColor === 'blue' ? 'bg-blue-500' : 'bg-red-500';
-  
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,7 +75,7 @@ export default function ServiciosPage() {
       alert("🔒 Necesitas iniciar sesión para usar esta función.");
       return;
     }
-    
+
     // ✅ Agregamos open_contacto a la validación
     if (item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto") {
       e.preventDefault();
@@ -91,16 +89,16 @@ export default function ServiciosPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] transition-colors pb-24">
       <Navbar />
-      
+
       <div className="pt-6 px-4 md:px-6 max-w-3xl mx-auto selection:bg-yellow-500 selection:text-black">
         <header className="mb-8 pl-1">
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white"
           >
             Servicios
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
             className="text-gray-500 dark:text-gray-400 text-sm font-medium mt-1"
           >
@@ -110,21 +108,21 @@ export default function ServiciosPage() {
 
         <div className="space-y-10">
           {services.map((section, sectionIndex) => (
-            <motion.section 
+            <motion.section
               key={section.category}
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: sectionIndex * 0.1 }}
             >
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3 pl-2">
                 {section.category}
               </h2>
-              
+
               <div className="grid grid-cols-1 gap-3">
                 {section.items.map((item) => {
                   const isLocked = isLoaded && item.requiresAuth && !isSignedIn;
                   const isExpanded = expandedId === item.id;
                   // ✅ Actualizamos isAccordion
                   const isAccordion = item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto";
-                  
+
                   const content = (
                     <div className="flex items-center p-4 sm:p-5 w-full text-left relative">
                       {isLocked ? (
@@ -138,7 +136,7 @@ export default function ServiciosPage() {
                       <div className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm transition-colors ${item.comingSoon || isLocked ? 'bg-gray-100 dark:bg-gray-800 grayscale' : `${activeBg} text-white`}`}>
                         {item.icon}
                       </div>
-                      
+
                       <div className="ml-4 flex-1 pr-8">
                         <h3 className={`font-bold text-base sm:text-lg mb-0.5 ${item.comingSoon || isLocked ? 'text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                           {item.title}
@@ -155,13 +153,13 @@ export default function ServiciosPage() {
                       )}
                     </div>
                   );
-                  
+
                   return (
-                    <motion.div 
+                    <motion.div
                       key={item.id}
                       className={`relative flex flex-col rounded-3xl border transition-all overflow-hidden
-                        ${isLocked 
-                          ? 'bg-gray-100/50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800 opacity-60' 
+                        ${isLocked
+                          ? 'bg-gray-100/50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800 opacity-60'
                           : 'bg-white dark:bg-gray-900/50 border-gray-100 dark:border-gray-800 shadow-sm'
                         }`}
                     >
@@ -177,7 +175,7 @@ export default function ServiciosPage() {
 
                       <AnimatePresence initial={false}>
                         {isExpanded && isAccordion && (
-                          <motion.div 
+                          <motion.div
                             key="content"
                             initial="collapsed"
                             animate="open"
