@@ -9,7 +9,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
 
-// Importamos tu lógica exacta de la calculadora (Mantiene los turnos split nocturnos)
+// Importamos tu lógica exacta de la calculadora
 import { calculateShift } from "@/lib/calculator";
 
 import {
@@ -168,22 +168,64 @@ export default function OrquestReader() {
         }
       }
 
-      setNewShiftsToSave(finalExtractedShifts);
-
       setOcrStatus("Verificando calendario...");
       const q = query(collection(db, "shifts"), where("userId", "==", user.id));
       const snap = await getDocs(q);
 
       const allShifts = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 
-      const conflicts = allShifts.filter((oldShift) => {
-        return oldShift.date && finalExtractedShifts.some((newShift: any) => newShift.date === oldShift.date);
-      });
+      const strictlyNewShifts: any[] = [];
+      const actualConflicts: any[] = [];
+      let exactMatchesCount = 0;
 
-      conflicts.sort((a, b) => a.date.localeCompare(b.date));
+      // LÓGICA MEJORADA: Comparar si ya existe exactamente igual
+      for (const newShift of finalExtractedShifts) {
+        const oldShiftsOnDate = allShifts.filter(old => old.date === newShift.date);
 
-      if (conflicts.length > 0) {
-        setConflictingShifts(conflicts);
+        if (oldShiftsOnDate.length > 0) {
+          // Buscamos el turno principal (el que no es split) para la comparación base
+          const oldMainShift = oldShiftsOnDate.find(old => !String(old.id).includes("_split")) || oldShiftsOnDate[0];
+
+          const isExactMatch =
+            oldMainShift.startTime === newShift.startTime &&
+            oldMainShift.endTime === newShift.endTime &&
+            Boolean(oldMainShift.isOff) === Boolean(newShift.isOff);
+
+          if (isExactMatch) {
+            // Ya existe y es idéntico. Lo omitimos sin generar conflicto.
+            exactMatchesCount++;
+          } else {
+            // Existe pero cambió (horario distinto), es un conflicto real a reemplazar
+            oldShiftsOnDate.forEach(old => {
+              if (!actualConflicts.some(c => c.id === old.id)) {
+                actualConflicts.push(old);
+              }
+            });
+            strictlyNewShifts.push(newShift);
+          }
+        } else {
+          // No existe registro en esa fecha, es totalmente nuevo
+          strictlyNewShifts.push(newShift);
+        }
+      }
+
+      // Si todos los turnos leídos ya estaban exactos en la base de datos
+      if (strictlyNewShifts.length === 0 && exactMatchesCount > 0) {
+        hapticSuccess();
+        alert(`✨ Todo al día. Se omitieron ${exactMatchesCount} turnos de la imagen porque ya estaban guardados exactamente igual en tu calendario.`);
+        setFileName(null);
+        setFileObj(null);
+        setIsProcessing(false);
+        setOcrStatus("");
+        return;
+      }
+
+      actualConflicts.sort((a, b) => a.date.localeCompare(b.date));
+
+      setNewShiftsToSave(strictlyNewShifts);
+      setConflictingShifts(actualConflicts);
+
+      if (actualConflicts.length > 0) {
         setShowReplaceModal(true);
         hapticWarning();
       } else {
@@ -305,10 +347,10 @@ export default function OrquestReader() {
 
   return (
     <div className="relative w-full text-zinc-800 dark:text-zinc-100 space-y-5">
-      {/* BOTÓN INFO */}
+      {/* Botón INFO MEJORADO: Agregado animate-pulse */}
       <button
         onClick={handleInfoClick}
-        className={`absolute top-0 right-0 w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed outline-none transition-colors ${
+        className={`absolute z-20 top-0 right-0 w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed outline-none transition-colors cursor-pointer hover:scale-110 active:scale-95 animate-pulse ${
           themeColor === "blue" 
             ? "border-blue-300 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-zinc-900" 
             : "border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-zinc-900"
@@ -317,7 +359,6 @@ export default function OrquestReader() {
         <span className={`font-black text-lg ${activeColor}`}>i</span>
       </button>
 
-      {/* CONTENEDOR PRINCIPAL */}
       <div className="space-y-4 text-center">
         <header>
           <h4 className="text-sm font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
@@ -328,7 +369,6 @@ export default function OrquestReader() {
           </p>
         </header>
 
-        {/* SELECTOR DE MES */}
         <div className="text-left max-w-xs mx-auto">
           <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest ml-2 italic">
             Mes del primer turno de la imagen
@@ -348,7 +388,6 @@ export default function OrquestReader() {
           </div>
         </div>
 
-        {/* INPUT DE ARCHIVO */}
         <div
           className={`relative border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer group max-w-xs mx-auto ${
             fileName
@@ -395,7 +434,47 @@ export default function OrquestReader() {
         </button>
       </div>
 
-      {/* MODAL REEMPLAZO */}
+      {/* 1. MODAL INSTRUCCIONES MEJORADO */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: 20, scale: 0.95 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 20, scale: 0.95 }}
+              className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] shadow-2xl relative flex flex-col overflow-hidden border border-zinc-100 dark:border-zinc-800"
+            >
+              <button onClick={handleCloseModal} className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-md transition-colors">✕</button>
+              
+              {/* Banner Imagen - Ajustado a h-64 / sm:h-72 y quitamos el p-4 a la imagen para que crezca */}
+              <div className="w-full h-64 sm:h-72 bg-zinc-100/50 dark:bg-zinc-950/50 relative flex items-center justify-center p-2 border-b border-zinc-200 dark:border-zinc-800">
+                <Image src="/orquest_example.png" alt="Ejemplo Orquest" fill className="object-contain drop-shadow-xl" priority />
+              </div>
+
+              {/* Contenido Texto */}
+              <div className="p-6 flex flex-col gap-4">
+                <header><h3 className="font-black text-xl flex items-center gap-2 text-zinc-900 dark:text-zinc-100"><span className={activeColor}>i</span> ¿Cómo funciona?</h3></header>
+                <div className="space-y-2 text-xs text-zinc-600 dark:text-zinc-400 font-medium">
+                  <p>La IA extraerá las 7 tarjetas y hará un cálculo automático:</p>
+                  <ul className="list-disc pl-5 space-y-1 text-zinc-700 dark:text-zinc-300 font-bold">
+                    <li>Sincroniza recargos (Dominicales y Nocturnos).</li>
+                    <li>Asigna el turno al calendario del mes actual.</li>
+                    <li>Guarda los Días Libres automáticamente.</li>
+                  </ul>
+                </div>
+                <button onClick={handleCloseModal} className={`w-full mt-2 py-3.5 rounded-2xl font-black text-xs uppercase text-white ${activeBg}`}>Entendido</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. MODAL REEMPLAZO (Comparador "Nuevos vs Viejos") */}
       <AnimatePresence>
         {showReplaceModal && (
           <motion.div
@@ -408,31 +487,63 @@ export default function OrquestReader() {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
-              className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] p-6 text-center shadow-2xl border border-zinc-100 dark:border-zinc-800 space-y-5"
+              className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] p-6 text-center shadow-2xl border border-zinc-100 dark:border-zinc-800 space-y-4"
             >
-              <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-950/30 text-yellow-600 dark:text-yellow-400 rounded-full flex items-center justify-center text-3xl mx-auto">⚠️</div>
+              <div className="w-14 h-14 bg-yellow-100 dark:bg-yellow-950/30 text-yellow-600 dark:text-yellow-400 rounded-full flex items-center justify-center text-2xl mx-auto">⚠️</div>
+              
               <div>
-                <h3 className="font-black text-xl leading-tight text-zinc-900 dark:text-zinc-100">Días ya Registrados</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 font-medium">Se encontraron <span className="font-bold text-zinc-800 dark:text-zinc-200">{conflictingShifts.length} turnos guardados</span> en estas fechas.</p>
-                <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 p-2 rounded-xl mt-3 max-h-24 overflow-y-auto text-[10px] font-bold text-zinc-500 dark:text-zinc-400 text-left px-3 space-y-1">
-                  {conflictingShifts.map((s) => (
-                    <div key={s.id}>• {s.date.split("-").reverse().join("/")} {s.isOff ? "(Día Libre)" : `(${s.startTime} - ${s.endTime})`}</div>
-                  ))}
+                <h3 className="font-black text-xl leading-tight text-zinc-900 dark:text-zinc-100">Conflicto de Fechas</h3>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 font-medium">Revisa lo que vas a guardar vs lo que se borrará.</p>
+                
+                {/* Contenedor Dividido (IA vs Firebase) */}
+                <div className="flex gap-2 mt-4 h-36">
+                  {/* Columna Izquierda: Los que leyó la IA */}
+                  <div className="flex-1 bg-green-50/50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/50 rounded-xl p-2 flex flex-col">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-500 mb-2 border-b border-green-200 dark:border-green-900/50 pb-1">Nuevos (IA)</span>
+                    <div className="overflow-y-auto pr-1 flex-1 space-y-1.5 text-left">
+                      {newShiftsToSave.map((s, idx) => (
+                        <div key={idx} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
+                           <span className="text-zinc-400 dark:text-zinc-500 mr-1">{s.date.split("-")[2]}/{s.date.split("-")[1]}</span>
+                           {s.isOff ? <span className="italic text-green-600/70 dark:text-green-400/70">Libre</span> : `${s.startTime}-${s.endTime}`}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Columna Derecha: Los que se van a eliminar */}
+                  <div className="flex-1 bg-red-50/50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 rounded-xl p-2 flex flex-col">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-red-500 dark:text-red-500 mb-2 border-b border-red-200 dark:border-red-900/50 pb-1">A Reemplazar</span>
+                    <div className="overflow-y-auto pr-1 flex-1 space-y-1.5 text-left">
+                      {conflictingShifts.map((s) => {
+                        let tag = "";
+                        if (s.type && s.type !== "SHIFT") tag = `(${s.type})`;
+                        else if (s.isOff) tag = "Libre";
+                        else tag = `${s.startTime}-${s.endTime}`;
+                        
+                        return (
+                          <div key={s.id} className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 line-through decoration-red-300 dark:decoration-red-800">
+                             <span className="mr-1">{s.date.split("-")[2]}/{s.date.split("-")[1]}</span>
+                             {tag}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-4">¿Deseas eliminarlos de la nómina y <span className="font-bold text-red-500">reemplazarlos</span>?</p>
               </div>
+
               <div className="flex flex-col gap-2 pt-2">
                 <button onClick={handleReplaceShifts} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-red-500 text-white font-black text-xs uppercase transition-all hover:bg-red-600">
-                  {isProcessing ? "Procesando..." : "Confirmar y Reemplazar"}
+                  {isProcessing ? "Reemplazando..." : "Confirmar y Reemplazar"}
                 </button>
-                <button onClick={() => { hapticLight(); setShowReplaceModal(false); }} disabled={isProcessing} className="w-full py-4 font-black text-xs uppercase text-zinc-400 dark:text-zinc-500 hover:text-zinc-500">Cancelar</button>
+                <button onClick={() => { hapticLight(); setShowReplaceModal(false); }} disabled={isProcessing} className="w-full py-3 font-black text-xs uppercase text-zinc-400 dark:text-zinc-500 hover:text-zinc-500">Cancelar</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* MODAL VERIFICACIÓN PREVIA */}
+      {/* 3. MODAL VERIFICACIÓN PREVIA (Lista Limpia) */}
       <AnimatePresence>
         {showVerifyModal && (
           <motion.div
@@ -447,21 +558,26 @@ export default function OrquestReader() {
               exit={{ scale: 0.9 }}
               className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] p-6 text-center shadow-2xl border border-zinc-100 dark:border-zinc-800 space-y-5"
             >
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl mx-auto">🔍</div>
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-3xl mx-auto">✨</div>
               <div>
                 <h3 className="font-black text-xl leading-tight text-zinc-900 dark:text-zinc-100">Revisar Carga</h3>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 font-medium">La IA detectó estos <span className="font-bold text-zinc-800 dark:text-zinc-200">{newShiftsToSave.length} días</span>. Confirma antes de guardar:</p>
-                <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 p-2 rounded-xl mt-3 max-h-36 overflow-y-auto text-[10px] font-bold text-zinc-500 dark:text-zinc-400 text-left px-3 space-y-1">
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-2 font-medium">La IA extrajo <span className="font-bold text-zinc-800 dark:text-zinc-200">{newShiftsToSave.length} turnos</span> nuevos. Confirma para guardarlos:</p>
+                
+                <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 p-3 rounded-xl mt-4 max-h-40 overflow-y-auto text-[11px] font-bold text-zinc-600 dark:text-zinc-300 text-left space-y-2">
                   {newShiftsToSave.map((s, idx) => (
-                    <div key={idx}>• {s.date.split("-").reverse().join("/")} {s.isOff ? <span className="text-gray-400 font-normal italic">(Día Libre)</span> : <span className="text-zinc-700 dark:text-zinc-300">({s.startTime} - {s.endTime})</span>}</div>
+                    <div key={idx} className="flex justify-between items-center border-b border-zinc-200/50 dark:border-zinc-800/50 pb-1.5 last:border-0 last:pb-0">
+                      <span className="text-zinc-500 dark:text-zinc-400">{s.date.split("-").reverse().join("/")}</span>
+                      <span>{s.isOff ? <span className="text-zinc-400 dark:text-zinc-600 font-normal italic">Día Libre</span> : <span className={`${activeColor} bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-md`}>{s.startTime} - {s.endTime}</span>}</span>
+                    </div>
                   ))}
                 </div>
               </div>
+              
               <div className="flex flex-col gap-2 pt-2">
                 <button onClick={() => saveNewShiftsToFirebase(newShiftsToSave)} disabled={isProcessing} className="w-full py-4 rounded-2xl bg-green-500 text-white font-black text-xs uppercase hover:bg-green-600">
                   {isProcessing ? "Guardando..." : "Confirmar y Guardar"}
                 </button>
-                <button onClick={() => { hapticLight(); setShowVerifyModal(false); }} disabled={isProcessing} className="w-full py-4 font-black text-xs uppercase text-zinc-400 dark:text-zinc-500 hover:text-zinc-500">Cancelar</button>
+                <button onClick={() => { hapticLight(); setShowVerifyModal(false); }} disabled={isProcessing} className="w-full py-3 font-black text-xs uppercase text-zinc-400 dark:text-zinc-500 hover:text-zinc-500">Cancelar</button>
               </div>
             </motion.div>
           </motion.div>
