@@ -5,12 +5,11 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import ShiftCalculator from "@/components/ShiftCalculator";
 import Calculator4x1000 from "@/components/Calculator4x1000";
-import ContactForm from "@/components/ContactForm"; // ✅ Importamos el nuevo formulario
+import OrquestReader from "@/components/OrquestReader";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { useHaptics } from "@/hooks/useHaptics";
 
-// ✅ 1. LE ENSEÑAMOS A TYPESCRIPT LA ESTRUCTURA EXACTA (Hacemos action y href opcionales con "?")
 type ServiceItem = {
   id: string;
   title: string;
@@ -27,26 +26,26 @@ type ServiceCategory = {
   items: ServiceItem[];
 };
 
-// ✅ 2. APLICAMOS EL TIPO AL ARREGLO
 const services: ServiceCategory[] = [
   {
     category: "Productividad",
     items: [
       { id: "calc-rapida", title: "Calculadora Rápida", icon: "⚡", desc: "Calcula un turno rápido sin guardarlo en el historial", action: "open_calc", requiresAuth: false },
-      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", href: "/servicios/orquest", comingSoon: true, requiresAuth: true },
+      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", requiresAuth: true },
     ]
   },
   {
     category: "Finanzas",
     items: [
       { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", requiresAuth: true },
-      { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },]
+      { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },
+    ]
   },
   {
     category: "Ajustes & Soporte",
     items: [
       { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
-      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
+      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", href: "/servicios/contacto", requiresAuth: false },
     ]
   }
 ];
@@ -76,8 +75,8 @@ export default function ServiciosPage() {
       return;
     }
 
-    // ✅ Agregamos open_contacto a la validación
-    if (item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto") {
+    // ✅ CAMBIO: Incluimos open_orquest en la lista de acordeones
+    if (item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_orquest") {
       e.preventDefault();
       hapticLight();
       setExpandedId(expandedId === item.id ? null : item.id);
@@ -120,8 +119,7 @@ export default function ServiciosPage() {
                 {section.items.map((item) => {
                   const isLocked = isLoaded && item.requiresAuth && !isSignedIn;
                   const isExpanded = expandedId === item.id;
-                  // ✅ Actualizamos isAccordion
-                  const isAccordion = item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_contacto";
+                  const isAccordion = item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_orquest";
 
                   const content = (
                     <div className="flex items-center p-4 sm:p-5 w-full text-left relative">
@@ -188,6 +186,7 @@ export default function ServiciosPage() {
                             className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0a0a0a]/50 overflow-hidden"
                           >
                             <div className="p-4 sm:p-6 pb-6 origin-top">
+                              {/* RENDERIZA CALCULADORA RAPIDA */}
                               {item.action === "open_calc" && (
                                 <>
                                   <ShiftCalculator />
@@ -201,13 +200,13 @@ export default function ServiciosPage() {
                                 </>
                               )}
 
+                              {/* RENDERIZA CALCULADORA 4x1000 */}
                               {item.action === "open_4x1000" && (
                                 <Calculator4x1000 />
                               )}
 
-                              {/* ✅ AQUÍ SE RENDERIZA EL BUZÓN CREW */}
-                              {item.action === "open_contacto" && (
-                                <ContactForm />
+                              {item.action === "open_orquest" && (
+                                <OrquestReader />
                               )}
                             </div>
                           </motion.div>
