@@ -1,11 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import ShiftCalculator from "@/components/ShiftCalculator";
 import Calculator4x1000 from "@/components/Calculator4x1000";
 import OrquestReader from "@/components/OrquestReader";
+import ContactForm from "@/components/ContactForm"; // ✅ Importamos el formulario
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { useHaptics } from "@/hooks/useHaptics";
@@ -18,6 +19,7 @@ type ServiceItem = {
   action?: string;
   href?: string;
   comingSoon?: boolean;
+  isBeta?: boolean; // ✅ Propiedad para la etiqueta BETA
   requiresAuth: boolean;
 };
 
@@ -30,14 +32,14 @@ const services: ServiceCategory[] = [
   {
     category: "Productividad",
     items: [
-      { id: "calc-rapida", title: "Calculadora Rápida", icon: "⚡", desc: "Calcula un turno rápido sin guardarlo en el historial", action: "open_calc", requiresAuth: false },
-      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", requiresAuth: true },
+      { id: "calc-rapida", title: "Calculadora Rápida", icon: "⚡", desc: "Sin necesidad de guardar, se recomienda iniciar sesion para guardar los turnos", action: "open_calc", requiresAuth: false },
+      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", isBeta: true, requiresAuth: true }, // ✅ Agregado isBeta
     ]
   },
   {
     category: "Finanzas",
     items: [
-      { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", requiresAuth: true },
+      { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", isBeta: true, requiresAuth: true }, // ✅ Agregado isBeta
       { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },
     ]
   },
@@ -45,7 +47,7 @@ const services: ServiceCategory[] = [
     category: "Ajustes & Soporte",
     items: [
       { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
-      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", href: "/servicios/contacto", requiresAuth: false },
+      { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
     ]
   }
 ];
@@ -67,6 +69,8 @@ export default function ServiciosPage() {
     }
   }, []);
 
+  const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_contacto"];
+
   const handleServiceClick = (e: React.MouseEvent, item: ServiceItem) => {
     if (item.requiresAuth && !isSignedIn) {
       e.preventDefault();
@@ -75,8 +79,7 @@ export default function ServiciosPage() {
       return;
     }
 
-    // ✅ CAMBIO: Incluimos open_orquest en la lista de acordeones
-    if (item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_orquest") {
+    if (accordionActions.includes(item.action || "")) {
       e.preventDefault();
       hapticLight();
       setExpandedId(expandedId === item.id ? null : item.id);
@@ -119,15 +122,20 @@ export default function ServiciosPage() {
                 {section.items.map((item) => {
                   const isLocked = isLoaded && item.requiresAuth && !isSignedIn;
                   const isExpanded = expandedId === item.id;
-                  const isAccordion = item.action === "open_calc" || item.action === "open_4x1000" || item.action === "open_orquest";
+                  const isAccordion = accordionActions.includes(item.action || "");
 
                   const content = (
                     <div className="flex items-center p-4 sm:p-5 w-full text-left relative">
+                      {/* ✅ Etiquetas de estado (Pronto, Beta, Candado) posicionadas "arribita" */}
                       {isLocked ? (
                         <span className="absolute top-4 right-4 text-sm opacity-70">🔒</span>
                       ) : item.comingSoon ? (
                         <span className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-1 rounded-full">
                           Pronto
+                        </span>
+                      ) : item.isBeta ? (
+                        <span className="absolute top-3 sm:top-4 right-4 text-[8px] sm:text-[9px] font-black uppercase tracking-wider bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                          BETA
                         </span>
                       ) : null}
 
@@ -136,14 +144,17 @@ export default function ServiciosPage() {
                       </div>
 
                       <div className="ml-4 flex-1 pr-8">
-                        <h3 className={`font-bold text-base sm:text-lg mb-0.5 ${item.comingSoon || isLocked ? 'text-gray-400' : 'text-gray-900 dark:text-white'}`}>
-                          {item.title}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <h3 className={`font-bold text-base sm:text-lg ${item.comingSoon || isLocked ? 'text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                            {item.title}
+                          </h3>
+                        </div>
                         <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 leading-snug">
                           {item.desc}
                         </p>
                       </div>
 
+                      {/* Flecha del acordeón sin la etiqueta aquí */}
                       {isAccordion && !isLocked && (
                         <div className="absolute right-4 text-gray-400 transition-transform duration-300" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>
@@ -153,9 +164,9 @@ export default function ServiciosPage() {
                   );
 
                   return (
-                    <motion.div
+                    <div
                       key={item.id}
-                      className={`relative flex flex-col rounded-3xl border transition-all overflow-hidden
+                      className={`relative flex flex-col rounded-3xl border transition-colors overflow-hidden
                         ${isLocked
                           ? 'bg-gray-100/50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800 opacity-60'
                           : 'bg-white dark:bg-gray-900/50 border-gray-100 dark:border-gray-800 shadow-sm'
@@ -171,49 +182,47 @@ export default function ServiciosPage() {
                         </Link>
                       )}
 
-                      <AnimatePresence initial={false}>
-                        {isExpanded && isAccordion && (
-                          <motion.div
-                            key="content"
-                            initial="collapsed"
-                            animate="open"
-                            exit="collapsed"
-                            variants={{
-                              open: { opacity: 1, height: "auto" },
-                              collapsed: { opacity: 0, height: 0 }
-                            }}
-                            transition={{ duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] }}
-                            className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0a0a0a]/50 overflow-hidden"
-                          >
-                            <div className="p-4 sm:p-6 pb-6 origin-top">
-                              {/* RENDERIZA CALCULADORA RAPIDA */}
-                              {item.action === "open_calc" && (
-                                <>
-                                  <ShiftCalculator />
-                                  {!isSignedIn && (
-                                    <div className="mt-4 text-center">
-                                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                                        Inicia sesión para guardar en tu nómina.
-                                      </p>
-                                    </div>
-                                  )}
-                                </>
-                              )}
+                      {/* ✅ Entrada suave, rápida, animando solo opacidad y deslizamiento, no la altura. */}
+                      {isExpanded && isAccordion && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-[#0a0a0a]/50"
+                        >
+                          <div className="p-4 sm:p-6 pb-6">
+                            {/* RENDERIZA CALCULADORA RAPIDA */}
+                            {item.action === "open_calc" && (
+                              <>
+                                <ShiftCalculator />
+                                {!isSignedIn && (
+                                  <div className="mt-4 text-center">
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                      Inicia sesión para guardar en tu nómina.
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            )}
 
-                              {/* RENDERIZA CALCULADORA 4x1000 */}
-                              {item.action === "open_4x1000" && (
-                                <Calculator4x1000 />
-                              )}
+                            {/* RENDERIZA CALCULADORA 4x1000 */}
+                            {item.action === "open_4x1000" && (
+                              <Calculator4x1000 />
+                            )}
 
-                              {item.action === "open_orquest" && (
-                                <OrquestReader />
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                            {/* RENDERIZA LECTOR ORQUEST */}
+                            {item.action === "open_orquest" && (
+                              <OrquestReader />
+                            )}
 
-                    </motion.div>
+                            {/* ✅ RENDERIZA BUZÓN CREW */}
+                            {item.action === "open_contacto" && (
+                              <ContactForm />
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
