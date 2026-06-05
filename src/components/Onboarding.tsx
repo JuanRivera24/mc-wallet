@@ -19,9 +19,17 @@ export default function Onboarding() {
 
     const storageKey = user ? `mcwallet_onboarding_${user.id}` : 'mcwallet_onboarding_guest';
     const hasSeenOnboarding = localStorage.getItem(storageKey);
+    
+    const hasSeenAsGuest = localStorage.getItem('mcwallet_onboarding_guest');
 
     if (!hasSeenOnboarding) {
-      setIsVisible(true);
+      if (user && hasSeenAsGuest) {
+        // Si ya lo vio como invitado y ahora inició sesión, guardamos el estado para su usuario sin mostrar el modal
+        localStorage.setItem(storageKey, 'true');
+      } else {
+        // Si no lo ha visto de ninguna forma, lo mostramos
+        setIsVisible(true);
+      }
     }
   }, [isLoaded, user]);
 
