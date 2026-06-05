@@ -19,6 +19,9 @@ import ShiftList from "./ShiftList";
 import QuincenaSummary, { QuincenaTotals } from "./QuincenaSummary";
 import { NormalShiftModal, SpecialShiftModal } from "./ShiftModals";
 
+// ✅ 1. Importamos el Tutorial
+import NominasTutorial from "@/components/NominasTutorial"; 
+
 const toMinutes = (t?: string) => {
   if (!t) return 0;
   const [h, m] = t.split(":").map(Number);
@@ -121,6 +124,9 @@ export default function NominasPage() {
   const currentMonthName = mesesFull[today.getMonth()];
   const currentYear = today.getFullYear();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // ✅ 2. Identificamos la quincena actual en vivo para el tutorial
+  const currentQuincenaActual = today.getDate() <= 15 ? 1 : 2;
 
   const goToStep = (newStep: number) => {
     hapticLight();
@@ -821,7 +827,8 @@ export default function NominasPage() {
 
             {step === 1 && (
               <div className="animate-in fade-in duration-500 space-y-10">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* ✅ ID DEL PASO 1 */}
+                <div id="step-1-months" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {mesesFull.map((m, i) => {
                     const isCurrentMonth = m === currentMonthName && selectedYear === currentYear;
 
@@ -856,7 +863,8 @@ export default function NominasPage() {
 
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
-                <div className="grid md:grid-cols-2 gap-6 md:gap-8">
+                {/* ✅ ID DEL PASO 2 */}
+                <div id="step-2-quincenas" className="grid md:grid-cols-2 gap-6 md:gap-8">
                   <motion.div
                     initial={{ opacity: 0, y: 30, scale: 0.96 }}
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -962,67 +970,71 @@ export default function NominasPage() {
                     </div>
                   </div>
 
-                  <Calendar
-                    showNavigation={false}
-                    onChange={handleCalendarChange}
-                    value={selectedDate}
-                    activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)}
-                    tileDisabled={isDateDisabled}
-                    tileClassName={({ date }) => {
-                      const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-                      const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
+                  {/* ✅ ID DEL PASO 3 (Calendario) */}
+                  <div id="step-3-calendar" className="relative">
+                    <Calendar
+                      showNavigation={false}
+                      onChange={handleCalendarChange}
+                      value={selectedDate}
+                      activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)}
+                      tileDisabled={isDateDisabled}
+                      tileClassName={({ date }) => {
+                        const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                        const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
 
-                      const realDayEvents = dayEvents.filter(e => !e.id.includes('_split'));
+                        const realDayEvents = dayEvents.filter(e => !e.id.includes('_split'));
 
-                      const isDisabled = isDateDisabled({ date });
-                      const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
+                        const isDisabled = isDateDisabled({ date });
+                        const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
 
-                      const hasOff = realDayEvents.some(e => e.isOff);
-                      const hasIncapacidad = realDayEvents.some(e => e.type === 'INCAPACIDAD');
-                      const hasShift = realDayEvents.some(e => e.type === 'SHIFT' || !e.type);
-                      const hasReunion = realDayEvents.some(e => e.type === 'REUNION');
-                      const hasCompensatorio = realDayEvents.some(e => e.type === 'COMPENSATORIO');
+                        const hasOff = realDayEvents.some(e => e.isOff);
+                        const hasIncapacidad = realDayEvents.some(e => e.type === 'INCAPACIDAD');
+                        const hasShift = realDayEvents.some(e => e.type === 'SHIFT' || !e.type);
+                        const hasReunion = realDayEvents.some(e => e.type === 'REUNION');
+                        const hasCompensatorio = realDayEvents.some(e => e.type === 'COMPENSATORIO');
 
-                      let classes = 'font-bold rounded-2xl transition-all relative ';
+                        let classes = 'font-bold rounded-2xl transition-all relative ';
 
-                      if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed ';
-                      else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
+                        if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed ';
+                        else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
 
-                      if (hasIncapacidad) classes += '!bg-white !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
-                      else if (hasShift && hasReunion) classes += '!bg-green-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasOff && hasReunion) classes += '!bg-red-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasReunion) classes += '!bg-orange-500 !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
-                      else if (hasCompensatorio) classes += '!bg-yellow-400 shadow-sm ';
-                      else if (hasOff) classes += '!bg-red-500 shadow-sm ';
-                      else if (hasShift) classes += '!bg-green-500 shadow-sm ';
+                        if (hasIncapacidad) classes += '!bg-white !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
+                        else if (hasShift && hasReunion) classes += '!bg-green-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
+                        else if (hasOff && hasReunion) classes += '!bg-red-500 !ring-[4px] !ring-inset !ring-orange-400 shadow-sm ';
+                        else if (hasReunion) classes += '!bg-orange-500 !ring-2 !ring-inset !ring-orange-400 shadow-sm ';
+                        else if (hasCompensatorio) classes += '!bg-yellow-400 shadow-sm ';
+                        else if (hasOff) classes += '!bg-red-500 shadow-sm ';
+                        else if (hasShift) classes += '!bg-green-500 shadow-sm ';
 
-                      if (isFestivoArr) {
-                        if (hasOff) classes += 'festivo-off-outline ';
-                        else classes += 'festivo-outline ';
-                      } else {
-                        if (hasIncapacidad) classes += '!text-red-600 ';
-                        else if (hasCompensatorio) classes += '!text-black ';
-                        else if (hasShift || hasOff || hasReunion) classes += '!text-white ';
-                        else classes += 'text-gray-700 dark:text-gray-300 ';
-                      }
-
-                      if (selectedDate && date.getTime() === selectedDate.getTime()) {
-                        classes += '!ring-4 !ring-blue-400 ';
-                      } else if (date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()) {
-                        if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) {
-                          classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
-                          classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
-                          if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
+                        if (isFestivoArr) {
+                          if (hasOff) classes += 'festivo-off-outline ';
+                          else classes += 'festivo-outline ';
                         } else {
-                          classes += '!ring-4 !ring-yellow-400 ';
+                          if (hasIncapacidad) classes += '!text-red-600 ';
+                          else if (hasCompensatorio) classes += '!text-black ';
+                          else if (hasShift || hasOff || hasReunion) classes += '!text-white ';
+                          else classes += 'text-gray-700 dark:text-gray-300 ';
                         }
-                      }
 
-                      return classes;
-                    }}
-                  />
+                        if (selectedDate && date.getTime() === selectedDate.getTime()) {
+                          classes += '!ring-4 !ring-blue-400 ';
+                        } else if (date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()) {
+                          if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) {
+                            classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
+                            classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
+                            if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
+                          } else {
+                            classes += '!ring-4 !ring-yellow-400 ';
+                          }
+                        }
 
-                  <div className="mt-8 flex gap-3 transition-all duration-300">
+                        return classes;
+                      }}
+                    />
+                  </div>
+
+                  {/* ✅ ID DEL PASO 4 (Acciones) */}
+                  <div id="step-3-actions" className="mt-8 flex gap-3 transition-all duration-300">
                     <button disabled={!selectedDate} onClick={(e) => { if (isEditingRealShift) handleOpenEdit(e, existingMainShift); else { setSelectedDate(selectedDate); handleOpenNew(); } }} className={`flex-[4] py-4 rounded-2xl font-black shadow-lg uppercase text-[10px] md:text-xs tracking-widest transition-all ${selectedDate ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` : 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed shadow-none'}`}>{isEditingRealShift ? "✏️ Editar Turno" : "+ Agregar Turno"}</button>
                     <button disabled={!selectedDate} onClick={() => handleSaveShift(true)} className={`flex-[4] py-4 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest transition-all border border-transparent ${selectedDate ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 cursor-pointer' : 'bg-gray-100/50 dark:bg-gray-800/50 text-gray-300 dark:text-gray-600 cursor-not-allowed'}`}>Marcar OFF</button>
                     <button disabled={!selectedDate} onClick={handleOpenSpecial} title="Eventos Especiales" className={`flex-[1] py-4 rounded-2xl font-black shadow-lg transition-all text-xl ${selectedDate ? `bg-gray-900 dark:bg-white text-white dark:text-black hover:scale-105 active:scale-95 cursor-pointer` : 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed shadow-none'}`}>...</button>
@@ -1041,14 +1053,20 @@ export default function NominasPage() {
                     </div>
                   </div>
 
-                  <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
+                  {/* ✅ ID DEL PASO 5 (Lista) */}
+                  <div id="step-3-list">
+                    <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
+                  </div>
 
                   {(turnosLista.length > 0 || hasPrima || isPrimaSeason) && (
-                    <QuincenaSummary
-                      totals={totalsData} getDineroColor={getDineroColor}
-                      currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
-                      isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
-                    />
+                    /* ✅ ID DEL PASO 6 (Resumen) */
+                    <div id="step-3-summary">
+                      <QuincenaSummary
+                        totals={totalsData} getDineroColor={getDineroColor}
+                        currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
+                        isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -1104,6 +1122,15 @@ export default function NominasPage() {
           <div className="h-16 md:h-20"></div>
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
           <PayrollFeedback />
+
+          {/* ✅ 3. El Componente del Tutorial al final */}
+          <NominasTutorial 
+            goToStep={goToStep}
+            setSelectedMonth={setSelectedMonth}
+            setSelectedQuincena={setSelectedQuincena}
+            currentMonthName={currentMonthName}
+            currentQuincena={currentQuincenaActual}
+          />
         </main>
       </SignedIn>
     </>

@@ -5,12 +5,16 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import ShiftCalculator from "@/components/ShiftCalculator";
 import Calculator4x1000 from "@/components/Calculator4x1000";
-import PrimaCalculator from "@/components/PrimaCalculator"; // ✅ Importamos la Calculadora de Prima
+import PrimaCalculator from "@/components/PrimaCalculator"; 
+import PrestacionesCalculator from "@/components/PrestacionesCalculator"; // ✅ IMPORTAMOS EL NUEVO COMPONENTE
 import OrquestReader from "@/components/OrquestReader";
 import ContactForm from "@/components/ContactForm";
+import ServicesTutorial from "@/components/ServicesTutorial";
 import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { useHaptics } from "@/hooks/useHaptics";
+import Footer from "@/components/Footer";
+
 
 type ServiceItem = {
   id: string;
@@ -43,6 +47,8 @@ const services: ServiceCategory[] = [
       { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", isBeta: true, requiresAuth: true },
       { id: "prima-calc", title: "Calculadora de Prima", icon: "🌟", desc: "Proyecta tu prima semestral y expórtala a tu nómina oficial", action: "open_prima", requiresAuth: true },
       { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },
+      // ✅ AÑADIMOS LA CALCULADORA DE PRESTACIONES AQUÍ
+      { id: "prestaciones-calc", title: "Liquidación & Prestaciones", icon: "⚖️", desc: "Calcula vacaciones, cesantías y liquidaciones", action: "open_prestaciones", isBeta: true, requiresAuth: true },
     ]
   },
   {
@@ -60,7 +66,6 @@ export default function ServiciosPage() {
   const { hapticLight, hapticWarning } = useHaptics();
 
   const activeBg = themeColor === 'blue' ? 'bg-blue-500' : 'bg-red-500';
-
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,7 +80,8 @@ export default function ServiciosPage() {
     }
   }, []);
 
-  const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_contacto", "open_prima"];
+  // ✅ AGREGAMOS EL "open_prestaciones" AL ACORDEÓN
+  const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_contacto", "open_prima", "open_prestaciones"];
 
   const handleServiceClick = (e: React.MouseEvent, item: ServiceItem) => {
     if (item.requiresAuth && !isSignedIn) {
@@ -99,7 +105,7 @@ export default function ServiciosPage() {
       <Navbar />
 
       <div className="pt-6 px-4 md:px-6 max-w-3xl mx-auto selection:bg-yellow-500 selection:text-black">
-        <header className="mb-8 pl-1">
+        <header id="header-servicios" className="mb-8 pl-1 rounded-3xl p-2 -ml-2 transition-colors">
           <motion.h1
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             className="text-3xl font-black tracking-tighter text-gray-900 dark:text-white"
@@ -166,6 +172,7 @@ export default function ServiciosPage() {
                   return (
                     <div
                       key={item.id}
+                      id={`item-${item.id}`}
                       className={`relative flex flex-col rounded-3xl border transition-colors overflow-hidden ${isLocked ? 'bg-gray-100/50 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800 opacity-60' : 'bg-white dark:bg-gray-900/50 border-gray-100 dark:border-gray-800 shadow-sm'}`}
                     >
                       {isAccordion ? (
@@ -198,9 +205,9 @@ export default function ServiciosPage() {
                             {item.action === "open_4x1000" && <Calculator4x1000 />}
                             {item.action === "open_orquest" && <OrquestReader />}
                             {item.action === "open_contacto" && <ContactForm />}
-                            
-                            {/* ✅ RENDERIZA LA CALCULADORA DE PRIMA */}
                             {item.action === "open_prima" && <PrimaCalculator />}
+                            {/* ✅ RENDERIZAMOS EL NUEVO COMPONENTE */}
+                            {item.action === "open_prestaciones" && <PrestacionesCalculator />}
                           </div>
                         </motion.div>
                       )}
@@ -212,6 +219,10 @@ export default function ServiciosPage() {
           ))}
         </div>
       </div>
+      
+      <ServicesTutorial />
+      <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
     </main>
+    
   );
 }

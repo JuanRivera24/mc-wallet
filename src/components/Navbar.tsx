@@ -43,7 +43,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2 sm:gap-4 z-50">
 
-          <button onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
+          <button id="nav-role-toggle" onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
             <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
             <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
           </button>

@@ -33,7 +33,7 @@ export default function Footer() {
             </div>
 
             {/* INTERRUPTOR PEQUEÑITO */}
-            <button 
+            <button id="footer-theme-toggle"
               onClick={toggleDarkMode}
               className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
             >

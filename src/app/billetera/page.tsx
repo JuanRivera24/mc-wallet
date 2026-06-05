@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import { useTheme } from "@/context/ThemeContext";
 import { useHaptics } from "@/hooks/useHaptics";
+import Footer from "@/components/Footer";
+
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
 import { 
@@ -889,6 +891,7 @@ export default function BilleteraPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
     </main>
   );
 }

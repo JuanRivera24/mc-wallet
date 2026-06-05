@@ -1,6 +1,6 @@
 "use client";
 import Navbar from "@/components/Navbar";
-import Onboarding from "@/components/Onboarding";
+import InicioTutorial from "@/components/InicioTutorial";
 import RatesSection from "@/components/RatesSection";
 import Footer from "@/components/Footer";
 import { useTheme } from "@/context/ThemeContext";
@@ -41,7 +41,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
-      <Onboarding />
+      <InicioTutorial />
 
       {/* HERO SECTION CON ANIMACIONES */}
       <section id="nosotros" className={`relative flex flex-col items-center justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center overflow-hidden transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
@@ -129,7 +129,7 @@ export default function Home() {
             </SignedOut>
 
             <SignedIn>
-              <Link
+              <Link id="hero-nominas-btn"
                 href="/nominas"
                 className="relative hidden lg:flex items-center justify-center px-7 py-4 rounded-2xl font-black text-sm lg:text-base text-gray-900 dark:text-white bg-white dark:bg-[#0a0a0a] overflow-hidden"
               >
