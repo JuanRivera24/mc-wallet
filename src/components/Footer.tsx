@@ -28,8 +28,8 @@ export default function Footer() {
             <div className="flex gap-6 md:gap-10">
               {/* Agregamos la / antes del # para que funcionen desde cualquier página */}
               <Link href="/#nosotros" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Inicio</Link>
-              <Link href="/#tarifas" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Tarifas</Link>
-              <Link href="/#calculadora" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Calc</Link>
+              <Link href="/servicios" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Servicios</Link>
+              <Link href="/servicios?calc=true" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Calculadora</Link>
             </div>
 
             {/* INTERRUPTOR PEQUEÑITO */}

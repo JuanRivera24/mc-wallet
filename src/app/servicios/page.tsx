@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import ShiftCalculator from "@/components/ShiftCalculator";
 import Calculator4x1000 from "@/components/Calculator4x1000";
 import PrimaCalculator from "@/components/PrimaCalculator"; 
-import PrestacionesCalculator from "@/components/PrestacionesCalculator"; // ✅ IMPORTAMOS EL NUEVO COMPONENTE
+import PrestacionesCalculator from "@/components/PrestacionesCalculator";
 import OrquestReader from "@/components/OrquestReader";
 import ContactForm from "@/components/ContactForm";
 import ServicesTutorial from "@/components/ServicesTutorial";
@@ -14,7 +14,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { useHaptics } from "@/hooks/useHaptics";
 import Footer from "@/components/Footer";
-
 
 type ServiceItem = {
   id: string;
@@ -47,7 +46,6 @@ const services: ServiceCategory[] = [
       { id: "billetera", title: "Mi Billetera", icon: "👛", desc: "Control de gastos, deudas y metas de ahorro", href: "/billetera", isBeta: true, requiresAuth: true },
       { id: "prima-calc", title: "Calculadora de Prima", icon: "🌟", desc: "Proyecta tu prima semestral y expórtala a tu nómina oficial", action: "open_prima", requiresAuth: true },
       { id: "4x1000", title: "Calculadora 4x1000", icon: "🏦", desc: "Conoce el impuesto antes de mover tu quincena", action: "open_4x1000", requiresAuth: false },
-      // ✅ AÑADIMOS LA CALCULADORA DE PRESTACIONES AQUÍ
       { id: "prestaciones-calc", title: "Liquidación & Prestaciones", icon: "⚖️", desc: "Calcula vacaciones, cesantías y liquidaciones", action: "open_prestaciones", isBeta: true, requiresAuth: true },
     ]
   },
@@ -80,7 +78,6 @@ export default function ServiciosPage() {
     }
   }, []);
 
-  // ✅ AGREGAMOS EL "open_prestaciones" AL ACORDEÓN
   const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_contacto", "open_prima", "open_prestaciones"];
 
   const handleServiceClick = (e: React.MouseEvent, item: ServiceItem) => {
@@ -101,10 +98,10 @@ export default function ServiciosPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] transition-colors pb-24">
+    <main className="min-h-screen flex flex-col bg-gray-50 dark:bg-[#0a0a0a] transition-colors">
       <Navbar />
 
-      <div className="pt-6 px-4 md:px-6 max-w-3xl mx-auto selection:bg-yellow-500 selection:text-black">
+      <div className="flex-1 pt-6 px-4 md:px-6 max-w-3xl w-full mx-auto selection:bg-yellow-500 selection:text-black pb-12">
         <header id="header-servicios" className="mb-8 pl-1 rounded-3xl p-2 -ml-2 transition-colors">
           <motion.h1
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
@@ -206,7 +203,6 @@ export default function ServiciosPage() {
                             {item.action === "open_orquest" && <OrquestReader />}
                             {item.action === "open_contacto" && <ContactForm />}
                             {item.action === "open_prima" && <PrimaCalculator />}
-                            {/* ✅ RENDERIZAMOS EL NUEVO COMPONENTE */}
                             {item.action === "open_prestaciones" && <PrestacionesCalculator />}
                           </div>
                         </motion.div>
@@ -221,8 +217,8 @@ export default function ServiciosPage() {
       </div>
       
       <ServicesTutorial />
-      <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
+      
+      <div className="w-full border-t border-gray-200 dark:border-gray-800 pt-8 mt-auto"><Footer /></div>
     </main>
-    
   );
 }

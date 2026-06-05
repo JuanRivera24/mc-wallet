@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import { useTheme } from "@/context/ThemeContext";
 import { useHaptics } from "@/hooks/useHaptics";
 import Footer from "@/components/Footer";
+import Link from "next/link"; // ✅ AÑADIDO
 
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
@@ -54,15 +55,15 @@ export default function BilleteraPage() {
   // ==========================================
   // 🎮 ESTADOS DE INTERFAZ (UI & Modales)
   // ==========================================
-  const [showBalances, setShowBalances] = useState(true); // 🔥 Ocultar saldos tipo Nequi
-  const [historyFilter, setHistoryFilter] = useState<"ALL" | "INCOME" | "EXPENSE" | "INTERNAL">("ALL"); // 🔥 Filtros Historial
-  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | null>(null); // 🔥 Separación Semántica
+  const [showBalances, setShowBalances] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState<"ALL" | "INCOME" | "EXPENSE" | "INTERNAL">("ALL");
+  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHistoryLimit, setShowHistoryLimit] = useState(5);
   const [activeTarget, setActiveTarget] = useState<any | null>(null);
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
-  const [payrollPreview, setPayrollPreview] = useState<number | null>(null); // 🔥 Previsualización de nómina
+  const [payrollPreview, setPayrollPreview] = useState<number | null>(null);
 
   // ==========================================
   // 📝 ESTADOS DE FORMULARIOS
@@ -138,12 +139,11 @@ export default function BilleteraPage() {
       const txDate = tx.timestamp ? tx.timestamp.toDate() : new Date();
       const isThisMonth = txDate.getMonth() === currentMonthNum && txDate.getFullYear() === currentYearNum;
 
-      // 🔥 Lógica Contable Fuerte
       if (tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION') {
-        cash += Number(tx.amount); // Entra dinero (o vuelve de una meta)
+        cash += Number(tx.amount); 
         if (isThisMonth && tx.type === 'INCOME') incomeMonth += Number(tx.amount);
       } else if (tx.type === 'EXPENSE') {
-        cash -= Number(tx.amount); // Gasto real
+        cash -= Number(tx.amount); 
         if (isThisMonth) {
           expenseMonth += Number(tx.amount);
           if (!expensesByCategory[tx.category]) {
@@ -152,7 +152,7 @@ export default function BilleteraPage() {
           expensesByCategory[tx.category].amount += Number(tx.amount);
         }
       } else if (tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT') {
-        cash -= Number(tx.amount); // El dinero sale del Disponible hacia el bolsillo o a pagar deuda
+        cash -= Number(tx.amount); 
       }
     });
 
@@ -184,53 +184,39 @@ export default function BilleteraPage() {
     return [...base, ...custom];
   }, [txModalType, customCategories]);
 
-  // 🔥 Filtro de Historial
   const filteredTransactions = useMemo(() => {
     if (historyFilter === "ALL") return transactions;
     if (historyFilter === "INTERNAL") return transactions.filter(t => t.type === 'SAVE_GOAL' || t.type === 'PAY_DEBT' || t.type === 'GOAL_REDEMPTION');
     return transactions.filter(t => t.type === historyFilter);
   }, [transactions, historyFilter]);
 
-  // 🔥 SOLUCIÓN: Agregadas las listas filtradas de metas y deudas que faltaban
   const goalsList = metas.filter(m => m.type === "GOAL");
   const debtsList = metas.filter(m => m.type === "DEBT");
 
-  // Funciones Helpers
   const formatCurrency = (val: number) => showBalances ? `$${val.toLocaleString('es-CO')}` : '••••••';
 
   // ==========================================
-  // ⚡ ACCIONES CORE DE ESCRITURA (BATCHES & SEGURIDAD)
+  // ⚡ ACCIONES CORE DE ESCRITURA
   // ==========================================
-  
-  // 1. Guardar Categoría (Bug Fix Identidad)
   const handleSaveCustomCategory = async () => {
     if (!newCatName || !user || !txModalType) return hapticError();
     try {
-      // 🔥 Creación segura: doc() genera el ID, setDoc lo escribe atómicamente.
       const newCatRef = doc(collection(db, "wallet_categories"));
       await setDoc(newCatRef, {
-        userId: user.id, 
-        id: newCatRef.id, 
-        type: txModalType, 
-        icon: newCatIcon || "📌", 
-        label: newCatName.trim(), 
-        timestamp: serverTimestamp()
+        userId: user.id, id: newCatRef.id, type: txModalType, icon: newCatIcon || "📌", 
+        label: newCatName.trim(), timestamp: serverTimestamp()
       });
       hapticSuccess();
       setNewCatName(""); setNewCatIcon("📌"); setShowAddCategory(false); setSelectedCategory(newCatRef.id);
     } catch (e) { hapticError(); }
   };
 
-  // 2. Guardar Movimiento (Escritura Atómica & Validación Dura)
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     const numAmount = parseFloat(amount);
     
-    // 🔥 Validación Dura
     if (isNaN(numAmount) || numAmount <= 0 || !user) {
-      hapticError();
-      alert("Por favor ingresa un monto válido mayor a cero.");
-      return;
+      hapticError(); alert("Por favor ingresa un monto válido mayor a cero."); return;
     }
     
     setIsSaving(true);
@@ -247,22 +233,16 @@ export default function BilleteraPage() {
       }
     }
 
-    // 🔥 Batch Write Contable
     const batch = writeBatch(db);
     const txRef = doc(collection(db, "wallet_transactions"));
 
     try {
       batch.set(txRef, {
-        userId: user.id,
-        type: txModalType,
-        amount: numAmount,
+        userId: user.id, type: txModalType, amount: numAmount,
         category: isPaymentOrSave ? (txModalType === 'SAVE_GOAL' ? `Ahorro: ${activeTarget.title}` : `Abono: ${activeTarget.title}`) : (categoryData?.label || "Otros"),
         icon: isPaymentOrSave ? activeTarget.icon : (categoryData?.icon || "💵"),
-        description: desc.trim(),
-        isRecurring: isRecurring, 
-        timestamp: serverTimestamp(),
-        targetId: isPaymentOrSave ? activeTarget.id : null,
-        deleted: false
+        description: desc.trim(), isRecurring: isRecurring, timestamp: serverTimestamp(),
+        targetId: isPaymentOrSave ? activeTarget.id : null, deleted: false
       });
 
       if (isPaymentOrSave && activeTarget) {
@@ -270,13 +250,11 @@ export default function BilleteraPage() {
         batch.update(goalRef, { currentAmount: increment(numAmount) });
       }
       
-      await batch.commit(); // Si algo falla, se revierte todo
-      hapticSuccess();
-      closeTxModal();
+      await batch.commit(); 
+      hapticSuccess(); closeTxModal();
     } catch (e) { hapticError(); alert("Error contable de red."); } finally { setIsSaving(false); }
   };
 
-  // 3. Crear Nueva Meta/Deuda
   const handleSaveMeta = async (e: React.FormEvent) => {
     e.preventDefault();
     const numTarget = parseFloat(metaTarget);
@@ -291,12 +269,10 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); } finally { setIsSaving(false); }
   };
 
-  // 🔥 4. Liquidar / Eliminar Meta o Deuda (Flujo del Dinero)
   const handleLiquidateGoal = async (goal: any) => {
     if (!user) return;
     const isGoal = goal.type === "GOAL";
     
-    // Mensaje Dinámico
     let confirmMsg = isGoal 
       ? `¿Liquidar meta? Los ahorros ($${goal.currentAmount.toLocaleString('es-CO')}) se devolverán a tu Saldo Disponible.`
       : `¿Eliminar registro de esta Deuda permanentemente?`;
@@ -306,7 +282,6 @@ export default function BilleteraPage() {
 
     const batch = writeBatch(db);
     try {
-      // Si es una META (Ahorro) con dinero, lo devolvemos al Disponible
       if (isGoal && goal.currentAmount > 0) {
         const txRef = doc(collection(db, "wallet_transactions"));
         batch.set(txRef, {
@@ -316,7 +291,6 @@ export default function BilleteraPage() {
         });
       }
       
-      // Destruimos el objetivo
       const goalRef = doc(db, "wallet_goals", goal.id);
       batch.delete(goalRef);
       
@@ -328,18 +302,14 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); alert("Fallo al procesar la liquidación."); }
   };
 
-  // 5. Soft Delete de Transacciones (Regla 24h & Reversiones)
   const deleteTransaction = async (tx: any) => {
     if (!user || !tx.id) return;
     
-    // 🔥 Seguridad 24 Horas
     const txTime = tx.timestamp ? tx.timestamp.toMillis() : Date.now();
     const hoursSinceCreation = (Date.now() - txTime) / (1000 * 60 * 60);
     
     if (hoursSinceCreation > 24) {
-      hapticError();
-      alert("Operación denegada. Registros mayores a 24 horas están sellados por seguridad contable.");
-      return;
+      hapticError(); alert("Operación denegada. Registros mayores a 24 horas están sellados por seguridad contable."); return;
     }
 
     if (!confirm("¿Cancelar movimiento? El impacto en tus saldos se revertirá.")) return;
@@ -347,7 +317,6 @@ export default function BilleteraPage() {
 
     const batch = writeBatch(db);
     try {
-      // Reversión atómica si era un abono
       if ((tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT') && tx.targetId) {
         const targetGoal = metas.find(m => m.id === tx.targetId);
         if(targetGoal) {
@@ -356,7 +325,6 @@ export default function BilleteraPage() {
         }
       }
       
-      // Auditoría: Soft Delete
       const txRef = doc(db, "wallet_transactions", tx.id);
       batch.update(txRef, { deleted: true, deletedAt: serverTimestamp(), deleteReason: "Reversión de usuario" });
       
@@ -365,7 +333,6 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); alert("No se pudo revertir."); }
   };
 
-  // 🔥 6. Motor Importador de Nómina (Con Preview)
   const previewPayroll = async () => {
     if (!user) return;
     const qShifts = query(collection(db, "shifts"), where("userId", "==", user.id), where("month", "==", importMonth));
@@ -384,8 +351,7 @@ export default function BilleteraPage() {
 
   const importFromPayroll = async () => {
     if (!user || payrollPreview === null || payrollPreview <= 0) return hapticError();
-    setIsSaving(true);
-    hapticLight();
+    setIsSaving(true); hapticLight();
 
     const uniqueRef = `payroll_${currentYearNum}_${importMonth}_Q${importQuincena}`;
     const importDescription = `Liquidación Nómina ${importMonth.toUpperCase()} Q${importQuincena}`;
@@ -413,13 +379,29 @@ export default function BilleteraPage() {
   const closeTxModal = () => { setTxModalType(null); setAmount(""); setDesc(""); setActiveTarget(null); setShowAddCategory(false); setIsRecurring(false); };
 
   return (
-    <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950 pb-24 transition-colors text-zinc-900 dark:text-zinc-100 font-sans">
+    // ✅ FIX FOOTER FLOTANTE: flex flex-col en el padre
+    <main className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 transition-colors text-zinc-900 dark:text-zinc-100 font-sans">
       <Navbar />
       
-      <div className="pt-6 px-4 max-w-2xl mx-auto space-y-6">
+      {/* ✅ FIX FOOTER FLOTANTE: flex-1 en el contenedor para que empuje lo demás */}
+      <div className="flex-1 pt-6 px-4 max-w-2xl w-full mx-auto space-y-6 pb-12">
         
+        {/* ✅ BOTÓN VOLVER (FLECHA) */}
+        <div className="flex items-center -mb-2">
+          <Link 
+            href="/servicios" 
+            onClick={() => hapticLight()} 
+            className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white bg-zinc-200/50 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-xl transition-all active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-3 h-3">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+            Servicios
+          </Link>
+        </div>
+
         {/* ========================================================= */}
-        {/* 1. DASHBOARD ESTRATÉGICO (4 CAPAS DE SALDO) */}
+        {/* 1. DASHBOARD ESTRATÉGICO */}
         {/* ========================================================= */}
         <div className="space-y-3">
           <div className={`p-6 rounded-[2rem] bg-gradient-to-br ${themeColor === 'blue' ? 'from-blue-600 to-blue-500' : 'from-red-600 to-red-500'} text-white shadow-xl relative overflow-hidden`}>
@@ -462,7 +444,7 @@ export default function BilleteraPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* 2. CEREBRO FINANCIERO & GRÁFICAS */}
+        {/* 2. CEREBRO FINANCIERO */}
         {/* ========================================================= */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-3xl p-5 shadow-sm space-y-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500 opacity-5 blur-3xl rounded-full pointer-events-none"></div>
@@ -628,7 +610,7 @@ export default function BilleteraPage() {
         </section>
 
         {/* ========================================================= */}
-        {/* 5. HISTORIAL BLINDADO (FILTROS Y REGLA DE 24H) */}
+        {/* 5. HISTORIAL BLINDADO */}
         {/* ========================================================= */}
         <section className="space-y-3 pb-8 pt-4">
           <div className="flex justify-between items-center px-2">
@@ -648,7 +630,6 @@ export default function BilleteraPage() {
           <div className="space-y-2">
             {filteredTransactions.slice(0, showHistoryLimit).map(tx => {
               const isExpanded = expandedTxId === tx.id;
-              
               const txTime = tx.timestamp ? tx.timestamp.toMillis() : Date.now();
               const hoursSinceCreation = (Date.now() - txTime) / (1000 * 60 * 60);
               const isDeletable = hoursSinceCreation <= 24;
@@ -692,7 +673,7 @@ export default function BilleteraPage() {
                           </button>
                         ) : (
                           <div className="w-full py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 cursor-not-allowed border border-dashed border-zinc-300 dark:border-zinc-700">
-                            🔒 Registro Sellado Contablemente (+24h)
+                            🔒 Registro Sellado (+24h)
                           </div>
                         )}
                       </motion.div>
@@ -718,7 +699,7 @@ export default function BilleteraPage() {
       </div>
 
       {/* ============================================================== */}
-      {/* 🟢 MODAL: NUEVA TRANSACCIÓN Y CREACIÓN DE CATEGORÍAS */}
+      {/* 🟢 MODAL: NUEVA TRANSACCIÓN */}
       {/* ============================================================== */}
       <AnimatePresence>
         {txModalType && (
@@ -733,14 +714,11 @@ export default function BilleteraPage() {
               </div>
 
               <form onSubmit={handleSaveTransaction} className="space-y-6">
-                
-                {/* Input de Monto */}
                 <div className="relative flex items-center justify-center">
                   <span className="absolute left-4 text-3xl font-black text-zinc-300 dark:text-zinc-700">$</span>
                   <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="w-full text-5xl font-black text-center bg-transparent outline-none py-4 text-zinc-900 dark:text-white" autoFocus />
                 </div>
 
-                {/* Categorías (Solo para Gastos e Ingresos, no transferencias/abonos) */}
                 {txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1 flex justify-between">
@@ -753,7 +731,6 @@ export default function BilleteraPage() {
                         </button>
                       ))}
                       
-                      {/* Botón de Agregar Personalizada */}
                       <button type="button" onClick={() => setShowAddCategory(!showAddCategory)} className={`px-3 py-2.5 rounded-xl text-[10px] font-black uppercase border border-dashed transition-colors flex items-center gap-1 ${showAddCategory ? 'bg-zinc-100 dark:bg-zinc-800 border-transparent text-zinc-800 dark:text-zinc-200' : 'border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:border-zinc-400'}`}>
                         {showAddCategory ? '✕ Cancelar' : '+ Nueva Categoría'}
                       </button>
@@ -761,7 +738,6 @@ export default function BilleteraPage() {
                   </div>
                 )}
 
-                {/* Mini Formulario de Categoría Customizada */}
                 <AnimatePresence>
                   {showAddCategory && txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex gap-2 overflow-hidden bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded-2xl border border-zinc-100 dark:border-zinc-800">
@@ -772,14 +748,12 @@ export default function BilleteraPage() {
                   )}
                 </AnimatePresence>
 
-                {/* Nota Extra y Toggle Recurrente */}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">Detalles Adicionales</label>
                     <input type="text" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Opcional: Detalles del movimiento..." className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 py-3.5 px-4 rounded-2xl text-xs font-bold outline-none text-zinc-900 dark:text-white" />
                   </div>
                   
-                  {/* Opción de Gasto/Ingreso Fijo */}
                   {txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
                     <label className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl cursor-pointer">
                       <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className={`w-5 h-5 rounded-md border-zinc-300 text-blue-600 focus:ring-blue-500`} />
@@ -818,7 +792,7 @@ export default function BilleteraPage() {
               <form onSubmit={handleSaveMeta} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">Título del Objetivo</label>
-                  <input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder={metaType === "GOAL" ? "Ej: Enganche Honda Hornet 125..." : "Ej: Préstamo familiar..."} className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-bold outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
+                  <input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder={metaType === "GOAL" ? "Ej: Enganche moto..." : "Ej: Préstamo familiar..."} className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-bold outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
                 </div>
                 
                 <div className="space-y-1.5">
@@ -891,7 +865,8 @@ export default function BilleteraPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
+      
+      <div className="w-full border-t border-zinc-200 dark:border-zinc-800 pt-8 mt-auto"><Footer /></div>
     </main>
   );
 }
