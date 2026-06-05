@@ -12,7 +12,7 @@ import { calculateShift } from "@/lib/calculator";
 import { RATES_BY_YEAR, TRANSPORT_AUX_BY_YEAR, HOLIDAYS_COLOMBIA } from "@/constants/rates";
 import PayrollFeedback from "@/components/PayrollFeedback";
 import { motion } from "framer-motion";
-import { useHaptics } from "@/hooks/useHaptics"; // ✅ AÑADIDO: Hook de vibración
+import { useHaptics } from "@/hooks/useHaptics";
 
 import { AnnualChart, QuincenaCharts } from "@/components/DashboardCharts";
 import ShiftList from "./ShiftList";
@@ -28,8 +28,7 @@ const toMinutes = (t?: string) => {
 export default function NominasPage() {
   const { user } = useUser();
   const { colors, role, isDarkMode } = useTheme();
-  
-  // ✅ AÑADIDO: Inicializamos las funciones de vibración
+
   const { hapticLight, hapticSuccess, hapticError, hapticWarning } = useHaptics();
 
   const [isMounted, setIsMounted] = useState(false);
@@ -84,11 +83,16 @@ export default function NominasPage() {
 
   const [shifts, setShifts] = useState<any[]>([]);
   const [bigVentas, setBigVentas] = useState<any[]>([]);
-  
+
+  // ESTADOS PARA PRIMA
+  const [primas, setPrimas] = useState<any[]>([]);
+  const [hasPrima, setHasPrima] = useState(false);
+  const [isEditingPrima, setIsEditingPrima] = useState(false);
+  const [primaValue, setPrimaValue] = useState<number | "">("");
+
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  // ESTADO PARA RASTREAR EL DOBLE CLIC/TOQUE
   const [lastClick, setLastClick] = useState<{ date: Date | null; time: number }>({ date: null, time: 0 });
-  
+
   const [showModal, setShowModal] = useState(false);
   const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
   const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null);
@@ -119,7 +123,7 @@ export default function NominasPage() {
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const goToStep = (newStep: number) => {
-    hapticLight(); // ✅ AÑADIDO: Tap ligero al cambiar de pantalla
+    hapticLight();
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
     setStep(newStep);
   };
@@ -136,6 +140,13 @@ export default function NominasPage() {
     const qBV = query(collection(db, "bigVentas"), where("userId", "==", user.id), where("year", "==", selectedYear));
     const unsubBV = onSnapshot(qBV, (snap) => setBigVentas(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubBV();
+  }, [user, selectedYear]);
+
+  useEffect(() => {
+    if (!user) return;
+    const qPrima = query(collection(db, "primas"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const unsubPrima = onSnapshot(qPrima, (snap) => setPrimas(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => unsubPrima();
   }, [user, selectedYear]);
 
   const autoCalculateBreak = (start: string, end: string) => {
@@ -184,9 +195,11 @@ export default function NominasPage() {
         return shiftM === m;
       }).reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
-      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto };
+      const pNeto = primas.filter(p => p.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto };
     });
-  }, [shiftsDelAno, bigVentas, selectedYear]);
+  }, [shiftsDelAno, bigVentas, primas, selectedYear]);
 
   const statsQuincenas = useMemo(() => {
     const calcQ = (isQ1: boolean) => {
@@ -204,8 +217,11 @@ export default function NominasPage() {
       const filteredBV = bigVentas.find(b => b.month === selectedMonth && b.quincena === currentQ);
       const bvNeto = filteredBV ? (Number(filteredBV.value) || 0) * 0.92 : 0;
 
+      const filteredPrima = primas.find(p => p.month === selectedMonth && p.quincena === currentQ);
+      const pNeto = filteredPrima ? Number(filteredPrima.value) || 0 : 0;
+
       return {
-        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto,
+        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto,
         horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
         diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT') && !s.id.includes('_split')).length,
         diasOff: filteredShifts.filter(s => s.isOff && !s.id.includes('_split')).length
@@ -217,7 +233,7 @@ export default function NominasPage() {
       moneyData: [{ name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero }],
       hoursData: [{ name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas }]
     };
-  }, [shiftsDelAno, bigVentas, selectedMonth]);
+  }, [shiftsDelAno, bigVentas, primas, selectedMonth]);
 
   const turnosLista = useMemo(() => {
     return shiftsDelAno.filter(s => {
@@ -250,6 +266,73 @@ export default function NominasPage() {
   const bigVentaNeto = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.92 : 0;
   const bigVentaDeduccion = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.08 : 0;
 
+  // ==========================================
+  // 💰 CÁLCULO DE PRIMA LEGAL (GRADO BANCARIO)
+  // ==========================================
+  const isPrimaSeason = (selectedMonth === "junio" || selectedMonth === "diciembre") && selectedQuincena === 1;
+  const currentPrima = primas.find(p => p.month === selectedMonth && p.quincena === selectedQuincena);
+  const primaNeto = currentPrima ? (Number(currentPrima.value) || 0) : 0;
+
+  const suggestedPrima = useMemo(() => {
+    if (!isPrimaSeason) return 0;
+
+    const isJunio = selectedMonth === "junio";
+    const semesterMonths = isJunio ? mesesFull.slice(0, 6) : mesesFull.slice(6, 12);
+    
+    const semesterShifts = shiftsDelAno.filter(s => semesterMonths.includes(s.month) && !s.isOff);
+    const semesterBigVentas = bigVentas.filter(b => semesterMonths.includes(b.month));
+
+    // 1. Reconstrucción del "Total Devengado" Legal mes a mes
+    const monthData = semesterMonths.map(month => {
+      const monthShifts = semesterShifts.filter(s => s.month === month);
+      let grossIncome = 0;
+      let daysWorked = 0;
+
+      // El Total Devengado en Colombia es el Neto pagado + Deducciones de Ley (Salud/Pensión)
+      // Esto matemáticamente agrupa las horas, TODOS los recargos y el auxilio de transporte.
+      monthShifts.forEach(s => {
+        const net = Number(s.netPay) || 0;
+        const ded = Number(s.deductions) || 0;
+        grossIncome += (net + ded);
+        daysWorked++;
+      });
+
+      // Sumar comisiones de ventas (constituyen salario en promedio)
+      semesterBigVentas.filter(b => b.month === month).forEach(b => {
+        grossIncome += (Number(b.value) || 0);
+      });
+
+      return { month, grossIncome, daysWorked };
+    });
+
+    // 2. Filtro de Inteligencia: Excluir "Meses Fantasma"
+    // Un tripulante promedia 15-24 turnos al mes. Si un mes tiene menos de 5 turnos o menos de $250.000, 
+    // asumimos que no registró todo en la app para no dañar el promedio.
+    const validMonths = monthData.filter(m => m.daysWorked >= 5 || m.grossIncome > 250000);
+
+    // 3. Fallback de Tripulante (Si no hay datos registrados en todo el semestre)
+    if (validMonths.length === 0) {
+      const rateTable = RATES_BY_YEAR[selectedYear]?.[role] || RATES_BY_YEAR[2026]?.["CREW"] || { ORDINARY: 6000 };
+      const baseTransport = TRANSPORT_AUX_BY_YEAR[selectedYear] || 162000;
+      
+      // Asumimos un tripulante part-time estándar (120 horas al mes promedio)
+      const estimatedMonthlyGross = (rateTable.ORDINARY * 120) + baseTransport;
+      // La fórmula legal de prima para 180 días es simplemente el Salario Promedio Mensual dividido en 2.
+      return Math.floor(estimatedMonthlyGross / 2);
+    }
+
+    // 4. Calcular el Promedio Mensual Real de los meses registrados
+    const totalValidGross = validMonths.reduce((sum, m) => sum + m.grossIncome, 0);
+    const averageMonthlyGross = totalValidGross / validMonths.length;
+
+    // 5. Proyectar y aplicar la fórmula legal
+    // Promedio Mensual / 2 = Equivalente a (Promedio * 180 días) / 360
+    const primaEstimada = Math.floor(averageMonthlyGross / 2);
+
+    return primaEstimada;
+
+  }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
+
   const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
 
   let tTransportBase = 0; let tTransportExtra = 0;
@@ -268,7 +351,7 @@ export default function NominasPage() {
 
   const totalsData: QuincenaTotals = {
     totalListaHoras: turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0),
-    totalListaDinero: baseDineroTurnos + bigVentaNeto,
+    totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto,
     tOrdD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdD) || 0), 0), tOrdD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdD) || 0), 0),
     tOrdN_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdN) || 0), 0), tOrdN_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdN) || 0), 0),
     tDomD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hDomD) || 0), 0), tDomD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pDomD) || 0), 0),
@@ -282,7 +365,7 @@ export default function NominasPage() {
     tIncapacidad_h: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.totalHours) || 0), 0), tIncapacidad_p: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0),
     tTransportBase, tTransportExtra,
     tDeductionsFinal: turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0) + bigVentaDeduccion,
-    
+
     tInherited_h: inheritedShifts.reduce((a, c) => a + (Number(c.totalHours) || 0), 0),
     tInherited_p: inheritedShifts.reduce((a, c) => a + (Number(c.netPay) || 0), 0),
     inheritedDetails: inheritedShifts.map(s => ({
@@ -304,58 +387,58 @@ export default function NominasPage() {
   };
 
   const handlePrevMonth = () => {
-    hapticLight(); // ✅ AÑADIDO
+    hapticLight();
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 0) { setSelectedMonth("diciembre"); setSelectedYear(prev => prev - 1); }
     else setSelectedMonth(mesesFull[currentIndex - 1]);
   };
   const handleNextMonth = () => {
-    hapticLight(); // ✅ AÑADIDO
+    hapticLight();
     const currentIndex = mesesFull.indexOf(selectedMonth);
     if (currentIndex === 11) { setSelectedMonth("enero"); setSelectedYear(prev => prev + 1); }
     else setSelectedMonth(mesesFull[currentIndex + 1]);
   };
   const handlePrevQuincena = () => {
-    hapticLight(); // ✅ AÑADIDO
+    hapticLight();
     selectedQuincena === 2 ? setSelectedQuincena(1) : (handlePrevMonth(), setSelectedQuincena(2));
   };
   const handleNextQuincena = () => {
-    hapticLight(); // ✅ AÑADIDO
+    hapticLight();
     selectedQuincena === 1 ? setSelectedQuincena(2) : (handleNextMonth(), setSelectedQuincena(1));
   };
 
   const handleOpenNew = () => {
-    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal de nuevo turno
+    hapticLight();
     setEditingShiftId(null); setStartTime("13:00"); setEndTime("20:00");
     setHasBreak(true); setIsManualBreak(false); setBreakStart("16:30"); setBreakEnd("17:00");
     setShowModal(true);
   };
 
   const handleOpenSpecial = () => {
-    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal especial
+    hapticLight();
     setEditingShiftId(null); setSpecialHours(""); setSpecialRateType("ORDINARY");
     setSpecialTransport(false); setIncapacidadType('HORAS'); setSpecialTab('REUNION');
     setShowSpecialModal(true);
   };
 
   const handleQuickAddToday = () => {
-    hapticLight(); // ✅ AÑADIDO: Tap del FAB Button
-    setSelectedYear(today.getFullYear()); 
+    hapticLight();
+    setSelectedYear(today.getFullYear());
     setSelectedMonth(mesesFull[today.getMonth()]);
     setSelectedQuincena(today.getDate() <= 15 ? 1 : 2);
-    setSelectedDate(today); 
+    setSelectedDate(today);
     handleOpenNew();
   };
 
   const handleOpenEdit = (e: React.MouseEvent | null, shift: any) => {
-    if (e) e.stopPropagation(); 
-    hapticLight(); // ✅ AÑADIDO: Tap al abrir modal de edición
-    
+    if (e) e.stopPropagation();
+    hapticLight();
+
     const isSplit = shift.id.includes('_split');
     const targetShift = isSplit ? (shifts.find(s => s.id === shift.id.replace('_split', '')) || shift) : shift;
 
     setEditingShiftId(targetShift.id);
-    
+
     const dToUse = targetShift.originalDate || targetShift.date;
     const [year, month, day] = dToUse.split('-');
     setSelectedDate(new Date(Number(year), Number(month) - 1, Number(day)));
@@ -363,8 +446,8 @@ export default function NominasPage() {
     if (targetShift.type === 'REUNION' || targetShift.type === 'COMPENSATORIO' || targetShift.type === 'INCAPACIDAD') {
       setSpecialTab(targetShift.type);
       if (targetShift.type === 'INCAPACIDAD' && (targetShift.originalStartTime || targetShift.startTime)) {
-        setIncapacidadType('TURNO'); 
-        setStartTime(targetShift.originalStartTime || targetShift.startTime); 
+        setIncapacidadType('TURNO');
+        setStartTime(targetShift.originalStartTime || targetShift.startTime);
         setEndTime(targetShift.originalEndTime || targetShift.endTime);
         const shiftHasBreak = targetShift.hasBreak !== undefined ? targetShift.hasBreak : true;
         setHasBreak(shiftHasBreak);
@@ -380,7 +463,7 @@ export default function NominasPage() {
       setSpecialTransport(targetShift.transportAux > 0); setShowSpecialModal(true); return;
     }
 
-    const sTime = targetShift.originalStartTime || targetShift.startTime || "14:00"; 
+    const sTime = targetShift.originalStartTime || targetShift.startTime || "14:00";
     const eTime = targetShift.originalEndTime || targetShift.endTime || "22:00";
     setStartTime(sTime); setEndTime(eTime);
     const shiftHasBreak = targetShift.hasBreak !== undefined ? targetShift.hasBreak : true;
@@ -396,28 +479,28 @@ export default function NominasPage() {
 
   const handleModalNavigate = (direction: number) => {
     if (!selectedDate) return;
-    hapticLight(); // ✅ AÑADIDO: Navegación dentro del modal
-    
+    hapticLight();
+
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + direction);
-    
+
     setSelectedDate(newDate);
     setSelectedYear(newDate.getFullYear());
     setSelectedMonth(mesesFull[newDate.getMonth()]);
     setSelectedQuincena(newDate.getDate() <= 15 ? 1 : 2);
 
     const dStr = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
-    
-    const existingShift = shifts.find(s => 
-      ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) && 
-      (!s.type || s.type === 'SHIFT') && 
-      !s.isOff && 
+
+    const existingShift = shifts.find(s =>
+      ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) &&
+      (!s.type || s.type === 'SHIFT') &&
+      !s.isOff &&
       !s.id.includes('_split')
     );
 
     if (existingShift) {
       setEditingShiftId(existingShift.id);
-      const sTime = existingShift.originalStartTime || existingShift.startTime || "14:00"; 
+      const sTime = existingShift.originalStartTime || existingShift.startTime || "14:00";
       const eTime = existingShift.originalEndTime || existingShift.endTime || "22:00";
       setStartTime(sTime); setEndTime(eTime);
       const shiftHasBreak = existingShift.hasBreak !== undefined ? existingShift.hasBreak : true;
@@ -437,14 +520,14 @@ export default function NominasPage() {
   };
 
   const handleDelete = (e: React.MouseEvent | null, shift: any) => {
-    if (e) e.stopPropagation(); 
-    hapticWarning(); // ✅ AÑADIDO: Pulso de advertencia antes de borrar
+    if (e) e.stopPropagation();
+    hapticWarning();
     if (confirm("¿Eliminar turno?")) {
       const baseId = shift.id.replace('_split', '');
       deleteDoc(doc(db, "shifts", baseId));
-      deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
-      hapticSuccess(); // ✅ AÑADIDO: Doble pulso al borrar con éxito
-      
+      deleteDoc(doc(db, "shifts", `${baseId}_split`));
+      hapticSuccess();
+
       if (editingShiftId === shift.id || editingShiftId === baseId) {
         setShowModal(false);
         setEditingShiftId(null);
@@ -458,7 +541,7 @@ export default function NominasPage() {
     const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
     let exactSavedBreak = undefined;
     if (shiftHasBreak && shift.breakStart && shift.breakEnd) exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
-    
+
     const targetDate = shift.originalDate || shift.date;
     const startT = shift.originalStartTime || shift.startTime;
     const endT = shift.originalEndTime || shift.endTime;
@@ -467,21 +550,21 @@ export default function NominasPage() {
     const baseDocId = shift.id.replace('_split', '');
 
     await Promise.all(calcs.map(async (calc, i) => {
-        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
-        const payload = { ...shift, ...calc, timestamp: serverTimestamp() }; 
-        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+      const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+      const payload = { ...shift, ...calc, timestamp: serverTimestamp() };
+      await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
     }));
-    hapticSuccess(); // ✅ AÑADIDO: Feedback al recalcular desde la lista
+    hapticSuccess();
   };
 
   const handleToggleExpand = (id: string) => {
-    hapticLight(); // ✅ AÑADIDO: Tap al expandir información en la lista
+    hapticLight();
     setExpandedShiftId(expandedShiftId === id ? null : id);
   };
 
   const handleSaveShift = async (isOff: boolean = false) => {
     if (!user || breakError) {
-      if (breakError) hapticError(); // ✅ AÑADIDO: Vibra fuerte si falla la validación
+      if (breakError) hapticError();
       return;
     }
     let targetDateStr = "";
@@ -494,7 +577,7 @@ export default function NominasPage() {
         baseDocId = editingShiftId.replace('_split', '');
       }
     }
-    
+
     if (!targetDateStr) {
       if (!selectedDate) return alert("Error de fecha");
       targetDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
@@ -506,7 +589,7 @@ export default function NominasPage() {
     await Promise.all(toDelete.map(sp => deleteDoc(doc(db, "shifts", sp.id))));
 
     if (editingShiftId) {
-       await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
+      await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
     }
 
     if (isOff) {
@@ -525,20 +608,20 @@ export default function NominasPage() {
       const calcs = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
 
       await Promise.all(calcs.map(async (calc, i) => {
-          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
-          const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
-          
-          const payload = {
-              userId: user.id, type: 'SHIFT',
-              startTime: startTime, endTime: endTime, 
-              hasBreak, isManualBreak, breakStart, breakEnd,
-              ...calc,
-              isOff: false, month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
-          };
-          await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
+
+        const payload = {
+          userId: user.id, type: 'SHIFT',
+          startTime: startTime, endTime: endTime,
+          hasBreak, isManualBreak, breakStart, breakEnd,
+          ...calc,
+          isOff: false, month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
+        };
+        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
       }));
     }
-    hapticSuccess(); // ✅ AÑADIDO: Éxito total
+    hapticSuccess();
     setShowModal(false); setEditingShiftId(null);
   };
 
@@ -573,36 +656,36 @@ export default function NominasPage() {
 
     if (specialTab === 'INCAPACIDAD' && incapacidadType === 'TURNO') {
       if (breakError) {
-        hapticError(); // ✅ AÑADIDO: Fallo validación
+        hapticError();
         return alert("Corrige el break primero");
       }
       const finalBreak = hasBreak ? { start: breakStart, end: breakEnd } : undefined;
       const calcs = calculateShift(targetDateStr, startTime, endTime, finalBreak, role, hasBreak);
-      
+
       await Promise.all(calcs.map(async (calc, i) => {
-          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
-          const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
-          const transportToApply = specialTransport ? calc.transportAux : 0;
-          
-          const payload = {
-              userId: user.id, type: specialTab, isOff: false, 
-              startTime: startTime, endTime: endTime, hasBreak, isManualBreak, breakStart, breakEnd,
-              ...calc, 
-              transportAux: transportToApply, netPay: calc.salaryBase + transportToApply - calc.deductions,
-              month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
-          };
-          await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const shiftMonthVal = mesesFull[new Date(Number(calc.date.split('-')[0]), Number(calc.date.split('-')[1]) - 1, Number(calc.date.split('-')[2])).getMonth()];
+        const transportToApply = specialTransport ? calc.transportAux : 0;
+
+        const payload = {
+          userId: user.id, type: specialTab, isOff: false,
+          startTime: startTime, endTime: endTime, hasBreak, isManualBreak, breakStart, breakEnd,
+          ...calc,
+          transportAux: transportToApply, netPay: calc.salaryBase + transportToApply - calc.deductions,
+          month: shiftMonthVal, year: Number(calc.date.split('-')[0]), timestamp: serverTimestamp()
+        };
+        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
       }));
     } else {
       if (!specialHours || Number(specialHours) <= 0) {
-        hapticError(); // ✅ AÑADIDO: Fallo validación
+        hapticError();
         return alert("Ingresa horas válidas");
       }
       const rate = rateTable[specialRateType as keyof typeof rateTable] || rateTable.ORDINARY;
       const hrs = Number(specialHours); const moneyBase = hrs * rate;
       const healthPension = Math.round(moneyBase * 0.08); const transport = specialTransport ? baseTransport : 0;
       const shiftMonthVal = selectedMonth || mesesFull[selectedDate.getMonth()];
-      
+
       const payload = {
         userId: user.id, date: targetDateStr, type: specialTab, isOff: false, month: shiftMonthVal, year: selectedDate.getFullYear(),
         startTime: "", endTime: "", hasBreak: false, totalHours: hrs, salaryBase: Math.round(moneyBase),
@@ -613,29 +696,50 @@ export default function NominasPage() {
       }
       await setDoc(doc(db, "shifts", baseDocId), payload, { merge: true });
     }
-    
-    hapticSuccess(); // ✅ AÑADIDO: Éxito total en turnos especiales
+
+    hapticSuccess();
     setShowSpecialModal(false); setEditingShiftId(null);
   }
 
   const saveBigVenta = async () => {
     if (!user || !bigVentaValue || Number(bigVentaValue) <= 0) {
-      hapticError(); // ✅ AÑADIDO
+      hapticError();
       return;
     }
     const docId = `${user.id}_BV_${selectedYear}_${selectedMonth}_${selectedQuincena}`;
     await setDoc(doc(db, "bigVentas", docId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(bigVentaValue), timestamp: serverTimestamp() });
-    hapticSuccess(); // ✅ AÑADIDO
+    hapticSuccess();
     setHasBigVenta(false); setIsEditingBigVenta(false); setBigVentaValue("");
   };
-  
+
   const deleteBigVenta = async (id: string) => {
-    hapticWarning(); // ✅ AÑADIDO
-    if (confirm("¿Eliminar Big Venta?")) { 
-      await deleteDoc(doc(db, "bigVentas", id)); 
-      hapticSuccess(); // ✅ AÑADIDO
-      setIsEditingBigVenta(false); 
-      setHasBigVenta(false); 
+    hapticWarning();
+    if (confirm("¿Eliminar Big Venta?")) {
+      await deleteDoc(doc(db, "bigVentas", id));
+      hapticSuccess();
+      setIsEditingBigVenta(false);
+      setHasBigVenta(false);
+    }
+  };
+
+  const savePrima = async () => {
+    if (!user || !primaValue || Number(primaValue) <= 0) {
+      hapticError();
+      return;
+    }
+    const docId = `${user.id}_PRIMA_${selectedYear}_${selectedMonth}_${selectedQuincena}`;
+    await setDoc(doc(db, "primas", docId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(primaValue), timestamp: serverTimestamp() });
+    hapticSuccess();
+    setHasPrima(false); setIsEditingPrima(false); setPrimaValue("");
+  };
+
+  const deletePrima = async (id: string) => {
+    hapticWarning();
+    if (confirm("¿Eliminar Prima?")) {
+      await deleteDoc(doc(db, "primas", id));
+      hapticSuccess();
+      setIsEditingPrima(false);
+      setHasPrima(false);
     }
   };
 
@@ -644,7 +748,6 @@ export default function NominasPage() {
     return selectedQuincena === 1 ? date.getDate() > 15 : date.getDate() <= 15;
   };
 
-  // LOGICA DEL DOBLE CLIC EN EL CALENDARIO
   const handleCalendarChange = (val: any) => {
     const clickedDate = val as Date;
     setSelectedDate(clickedDate);
@@ -652,13 +755,12 @@ export default function NominasPage() {
     const currentTime = new Date().getTime();
     const isSameDate = lastClick.date && clickedDate.getTime() === lastClick.date.getTime();
 
-    // Si hace doble toque en la misma fecha en menos de 800ms
     if (isSameDate && currentTime - lastClick.time < 800) {
       const dStr = `${clickedDate.getFullYear()}-${String(clickedDate.getMonth() + 1).padStart(2, '0')}-${String(clickedDate.getDate()).padStart(2, '0')}`;
-      
-      const existingMainShift = shiftsDelAno.find(s => 
-        ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) && 
-        (!s.type || s.type === 'SHIFT') && 
+
+      const existingMainShift = shiftsDelAno.find(s =>
+        ((s.originalDate && s.originalDate === dStr) || (!s.originalDate && s.date === dStr)) &&
+        (!s.type || s.type === 'SHIFT') &&
         !s.id.includes('_split')
       );
 
@@ -668,25 +770,25 @@ export default function NominasPage() {
         handleOpenNew();
       }
     }
-    
+
     setLastClick({ date: clickedDate, time: currentTime });
   };
 
   const dStrForModal = selectedDate ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}` : "";
-  
-  const existingMainShift = shiftsDelAno.find(s => 
-    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) && 
-    (!s.type || s.type === 'SHIFT') && 
+
+  const existingMainShift = shiftsDelAno.find(s =>
+    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) &&
+    (!s.type || s.type === 'SHIFT') &&
     !s.id.includes('_split')
   );
-  
-  const hasNormalShiftForModal = shifts.some(s => 
-    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) && 
-    (!s.type || s.type === 'SHIFT') && 
-    !s.isOff && 
+
+  const hasNormalShiftForModal = shifts.some(s =>
+    ((s.originalDate && s.originalDate === dStrForModal) || (!s.originalDate && s.date === dStrForModal)) &&
+    (!s.type || s.type === 'SHIFT') &&
+    !s.isOff &&
     !s.id.includes('_split')
   );
-  
+
   const isEditingRealShift = existingMainShift && !existingMainShift.isOff;
 
   if (!isMounted) return <main className={`min-h-screen flex items-center justify-center font-sans ${isDarkMode ? 'bg-[#0a0a0a]' : (role === 'CREW' ? 'bg-blue-50/60' : 'bg-red-50/60')}`}><p className="text-gray-400 font-bold animate-pulse uppercase tracking-widest">Cargando datos...</p></main>;
@@ -861,29 +963,29 @@ export default function NominasPage() {
                   </div>
 
                   <Calendar
-                    showNavigation={false} 
-                    onChange={handleCalendarChange} 
-                    value={selectedDate} 
-                    activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)} 
+                    showNavigation={false}
+                    onChange={handleCalendarChange}
+                    value={selectedDate}
+                    activeStartDate={new Date(selectedYear, mesesFull.indexOf(selectedMonth), 1)}
                     tileDisabled={isDateDisabled}
                     tileClassName={({ date }) => {
                       const dStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       const dayEvents = shiftsDelAno.filter(shift => shift.date === dStr);
-                      
+
                       const realDayEvents = dayEvents.filter(e => !e.id.includes('_split'));
-                      
+
                       const isDisabled = isDateDisabled({ date });
                       const isFestivoArr = HOLIDAYS_COLOMBIA.includes(dStr) || date.getDay() === 0;
 
-                      const hasOff = realDayEvents.some(e => e.isOff); 
+                      const hasOff = realDayEvents.some(e => e.isOff);
                       const hasIncapacidad = realDayEvents.some(e => e.type === 'INCAPACIDAD');
-                      const hasShift = realDayEvents.some(e => e.type === 'SHIFT' || !e.type); 
-                      const hasReunion = realDayEvents.some(e => e.type === 'REUNION'); 
+                      const hasShift = realDayEvents.some(e => e.type === 'SHIFT' || !e.type);
+                      const hasReunion = realDayEvents.some(e => e.type === 'REUNION');
                       const hasCompensatorio = realDayEvents.some(e => e.type === 'COMPENSATORIO');
-                      
-                      let classes = 'font-bold rounded-2xl transition-all relative '; 
-                      
-                      if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed '; 
+
+                      let classes = 'font-bold rounded-2xl transition-all relative ';
+
+                      if (isDisabled) classes += 'opacity-20 saturate-50 cursor-not-allowed ';
                       else classes += 'hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer ';
 
                       if (hasIncapacidad) classes += '!bg-white !ring-2 !ring-inset !ring-red-500 shadow-md is-incapacidad ';
@@ -908,14 +1010,14 @@ export default function NominasPage() {
                         classes += '!ring-4 !ring-blue-400 ';
                       } else if (date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear()) {
                         if (!hasShift && !hasOff && !hasIncapacidad && !hasReunion && !hasCompensatorio) {
-                           classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
-                           classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
-                           if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
+                          classes = classes.replace('text-gray-700 dark:text-gray-300 ', '');
+                          classes += '!bg-yellow-100 dark:!bg-yellow-900/40 !ring-2 !ring-inset !ring-yellow-400 ';
+                          if (!isFestivoArr) classes += 'text-yellow-800 dark:!text-yellow-500 font-black ';
                         } else {
-                           classes += '!ring-4 !ring-yellow-400 ';
+                          classes += '!ring-4 !ring-yellow-400 ';
                         }
                       }
-                      
+
                       return classes;
                     }}
                   />
@@ -927,8 +1029,8 @@ export default function NominasPage() {
                   </div>
                 </div>
 
-                <div 
-                  key={`lista-quincena-${selectedYear}-${selectedMonth}-${selectedQuincena}`} 
+                <div
+                  key={`lista-quincena-${selectedYear}-${selectedMonth}-${selectedQuincena}`}
                   className="bg-white dark:bg-gray-900 rounded-[3rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden transition-colors"
                 >
                   <div className="p-8 pb-4 border-b border-gray-100 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -940,37 +1042,41 @@ export default function NominasPage() {
                   </div>
 
                   <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
-                  
-                  {turnosLista.length > 0 && (
-                    <QuincenaSummary totals={totalsData} getDineroColor={getDineroColor} currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta} />
+
+                  {(turnosLista.length > 0 || hasPrima || isPrimaSeason) && (
+                    <QuincenaSummary
+                      totals={totalsData} getDineroColor={getDineroColor}
+                      currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
+                      isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
+                    />
                   )}
                 </div>
               </div>
             )}
           </div>
 
-          <NormalShiftModal 
-            showModal={showModal} setShowModal={setShowModal} editingShiftId={editingShiftId} 
-            selectedDate={selectedDate} startTime={startTime} setStartTime={setStartTime} 
-            endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak} 
-            isManualBreak={isManualBreak} setIsManualBreak={setIsManualBreak} breakStart={breakStart} 
-            setBreakStart={setBreakStart} breakEnd={breakEnd} setBreakEnd={setBreakEnd} 
-            breakError={breakError} autoCalculateBreak={autoCalculateBreak} handleSaveShift={handleSaveShift} 
+          <NormalShiftModal
+            showModal={showModal} setShowModal={setShowModal} editingShiftId={editingShiftId}
+            selectedDate={selectedDate} startTime={startTime} setStartTime={setStartTime}
+            endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak}
+            isManualBreak={isManualBreak} setIsManualBreak={setIsManualBreak} breakStart={breakStart}
+            setBreakStart={setBreakStart} breakEnd={breakEnd} setBreakEnd={setBreakEnd}
+            breakError={breakError} autoCalculateBreak={autoCalculateBreak} handleSaveShift={handleSaveShift}
             handleNavigateDay={handleModalNavigate}
             handleDeleteShift={() => {
               if (!editingShiftId) return;
-              hapticWarning(); // ✅ AÑADIDO
+              hapticWarning();
               if (confirm("¿Eliminar turno?")) {
                 const baseId = editingShiftId.replace('_split', '');
                 deleteDoc(doc(db, "shifts", baseId));
-                deleteDoc(doc(db, "shifts", `${baseId}_split`)); 
-                hapticSuccess(); // ✅ AÑADIDO
+                deleteDoc(doc(db, "shifts", `${baseId}_split`));
+                hapticSuccess();
                 setShowModal(false);
                 setEditingShiftId(null);
               }
             }}
           />
-          
+
           <SpecialShiftModal showSpecialModal={showSpecialModal} setShowSpecialModal={setShowSpecialModal} editingShiftId={editingShiftId} selectedDate={selectedDate} hasNormalShiftForModal={hasNormalShiftForModal} specialTab={specialTab} setSpecialTab={setSpecialTab} incapacidadType={incapacidadType} setIncapacidadType={setIncapacidadType} specialHours={specialHours} setSpecialHours={setSpecialHours} specialRateType={specialRateType} setSpecialRateType={setSpecialRateType} startTime={startTime} setStartTime={setStartTime} endTime={endTime} setEndTime={setEndTime} hasBreak={hasBreak} setHasBreak={setHasBreak} isManualBreak={isManualBreak} autoCalculateBreak={autoCalculateBreak} specialTransport={specialTransport} setSpecialTransport={setSpecialTransport} handleSaveSpecial={handleSaveSpecial} />
 
           <style jsx global>{`

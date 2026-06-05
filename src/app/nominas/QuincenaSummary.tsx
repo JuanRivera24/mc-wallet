@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-
+import Link from "next/link";
 export interface QuincenaTotals {
   totalListaHoras: number;
   totalListaDinero: number;
@@ -20,13 +20,14 @@ export interface QuincenaTotals {
   tDeductionsFinal: number;
   tInherited_h?: number;
   tInherited_p?: number;
-  // Detalle exacto para saber de qué turno vienen las horas
   inheritedDetails?: { originalDate: string, currentDate: string, hours: number, pay: number }[];
 }
 
 interface QuincenaSummaryProps {
   totals: QuincenaTotals;
   getDineroColor: (dinero: number) => string;
+
+  // Big Venta Props
   currentBigVenta: any;
   isEditingBigVenta: boolean;
   setIsEditingBigVenta: (v: boolean) => void;
@@ -36,20 +37,25 @@ interface QuincenaSummaryProps {
   setBigVentaValue: (v: number | "") => void;
   saveBigVenta: () => void;
   deleteBigVenta: (id: string) => void;
+
+  isPrimaSeason: boolean;
+  currentPrima: any;
+  isEditingPrima: boolean;
+  setIsEditingPrima: (v: boolean) => void;
+  hasPrima: boolean;
+  setHasPrima: (v: boolean) => void;
+  primaValue: number | "";
+  setPrimaValue: (v: number | "") => void;
+  savePrima: () => void;
+  deletePrima: (id: string) => void;
+  suggestedPrima: number;
 }
 
 export default function QuincenaSummary({
   totals,
   getDineroColor,
-  currentBigVenta,
-  isEditingBigVenta,
-  setIsEditingBigVenta,
-  hasBigVenta,
-  setHasBigVenta,
-  bigVentaValue,
-  setBigVentaValue,
-  saveBigVenta,
-  deleteBigVenta
+  currentBigVenta, isEditingBigVenta, setIsEditingBigVenta, hasBigVenta, setHasBigVenta, bigVentaValue, setBigVentaValue, saveBigVenta, deleteBigVenta,
+  isPrimaSeason, currentPrima, isEditingPrima, setIsEditingPrima, hasPrima, setHasPrima, primaValue, setPrimaValue, savePrima, deletePrima, suggestedPrima
 }: QuincenaSummaryProps) {
 
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
@@ -157,7 +163,70 @@ export default function QuincenaSummary({
             </div>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-300 dark:border-gray-800/50 flex flex-col w-full">
+          <div className="mt-8 pt-8 border-t border-gray-300 dark:border-gray-800/50 flex flex-col w-full gap-4">
+
+            {/* ✅ SECCIÓN PRIMA (SOLO EN JUNIO Y DICIEMBRE Q1) */}
+            {isPrimaSeason && (
+              <>
+                {currentPrima && !isEditingPrima ? (
+                  <div className="flex justify-between items-center bg-white dark:bg-gray-800/40 p-6 rounded-3xl border-2 border-emerald-500/30 shadow-md">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl">🌟</span>
+                        <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Prima de Servicios</p>
+                      </div>
+                      <p className="font-black text-3xl text-black dark:text-white">${Math.floor(currentPrima.value).toLocaleString()}</p>
+                      <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter mt-1">
+                        100% Exenta de deducciones
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setIsEditingPrima(true); setHasPrima(true); setPrimaValue(currentPrima.value); }} className="p-3 bg-gray-100 dark:bg-gray-700/80 rounded-xl hover:bg-emerald-500 hover:text-white transition-colors shadow-sm" title="Editar">✏️</button>
+                      <button onClick={() => deletePrima(currentPrima.id)} className="p-3 bg-gray-100 dark:bg-gray-700/80 rounded-xl hover:bg-red-500 hover:text-white transition-colors shadow-sm" title="Eliminar">🗑️</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center w-full bg-emerald-50/50 dark:bg-emerald-900/10 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
+                    <div className="flex items-center justify-between mb-4 w-full max-w-md">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest italic flex items-center gap-1">
+                          {isEditingPrima ? "Editando Prima 🌟" : "¿Agregar Prima? 🌟"}
+                        </span>
+                      </div>
+                      <button onClick={() => {
+                        if (isEditingPrima) {
+                          setIsEditingPrima(false);
+                          setHasPrima(false);
+                        } else {
+                          setHasPrima(!hasPrima);
+                        }
+                      }} className={`w-12 h-6 rounded-full transition-all relative ${(hasPrima || isEditingPrima) ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${(hasPrima || isEditingPrima) ? 'left-7' : 'left-1'}`} />
+                      </button>
+                    </div>
+
+                    {(hasPrima || isEditingPrima) && (
+                      <div className="animate-in slide-in-from-top-2 duration-300 flex flex-col gap-3 w-full max-w-md mt-2">
+                        <div className="flex flex-col md:flex-row items-center gap-3 w-full">
+                          <input type="number" placeholder="Ej. 750000" className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-transparent rounded-xl p-4 text-center text-black dark:text-white font-black text-lg w-full focus:ring-2 ring-emerald-500 outline-none transition-all shadow-sm" value={primaValue} onChange={(e) => setPrimaValue(e.target.value ? Number(e.target.value) : "")} />
+                          <button onClick={savePrima} className="bg-emerald-500 text-white font-black uppercase tracking-widest text-xs px-6 py-4 rounded-xl hover:bg-emerald-600 active:scale-95 transition-all w-full md:w-auto shadow-sm">Guardar</button>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 w-full">
+                          <button onClick={() => setPrimaValue(suggestedPrima)} className="flex-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/30 py-2.5 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-800/50 transition-colors">
+                            Sugerir base 180 días (${suggestedPrima.toLocaleString()})
+                          </button>
+                          <Link href="/servicios?calc=prima" className="flex-1 text-center flex items-center justify-center gap-1 text-[10px] font-black uppercase text-white bg-gray-900 dark:bg-white dark:text-black py-2.5 rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-sm">
+                            Calculadora Avanzada 🚀
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* BIG VENTA */}
             {currentBigVenta && !isEditingBigVenta ? (
               <div className="flex justify-between items-center bg-white dark:bg-gray-800/40 p-6 rounded-3xl border-2 border-yellow-500/30 shadow-md">
                 <div>
