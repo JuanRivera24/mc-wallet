@@ -22,13 +22,18 @@ const TUTORIAL_STEPS = [
   },
   {
     target: "item-orquest",
-    title: "Lector Orquest IA",
-    text: "Sube un pantallazo de tu horario. Nuestra IA extraerá tus turnos, recargos y descansos, sincronizándolos automáticamente.",
+    title: "Lector Orquest IA 💎",
+    text: "¡Una chimba! Sube un pantallazo de tu horario. Nuestra IA extraerá tus turnos, recargos y descansos, sincronizándolos automáticamente en segundos.",
+  },
+  {
+    target: "item-marcaciones",
+    title: "Auditoría Marcaciones 💎",
+    text: "La nueva joya, Cruza tus turnos guardados con el reporte oficial de gerencia. Detecta descuadres, tiempos faltantes y asegura que te paguen cada minuto trabajado.",
   },
   {
     target: "item-billetera",
-    title: "Mi Billetera",
-    text: "Toma el control de tus finanzas. Crea bolsillos de ahorro, registra obligaciones y visualiza el flujo real de tu dinero.",
+    title: "Mi Billetera 👑",
+    text: "Lo que nadie pidió. Toma el control absoluto de tus finanzas. Importa tu nómina con un clic, crea bolsillos de ahorro, paga deudas y domina el flujo real de tu dinero.",
   },
   {
     target: "item-prima-calc",
@@ -183,8 +188,7 @@ export default function ServicesTutorial() {
             <div className="flex items-center gap-4 mb-5">
               {/* Contenedor del Avatar más grande (w-14 h-14) */}
               <div className="relative w-14 h-14 rounded-full bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-100 dark:border-blue-800/50 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                {/* 
-                  El Truco del Avatar: 
+                {/* El Truco del Avatar: 
                   scale-[1.3] y translate-y-2 hacen zoom a la cara/pecho de la imagen 
                 */}
                 <Image 
@@ -213,12 +217,12 @@ export default function ServicesTutorial() {
             {/* Controles de Navegación */}
             <div className="flex items-center justify-between pt-2">
               {/* Barra de progreso ajustada a la cantidad de pasos */}
-              <div className="flex gap-1.5 flex-1 mr-4">
+              <div className="flex gap-1.5 flex-1 mr-4 overflow-hidden">
                 {TUTORIAL_STEPS.map((_, i) => (
                   <div
                     key={i}
                     className={`h-1.5 rounded-full transition-all duration-300 ${
-                      i === step ? `w-6 ${activeBg}` : "flex-1 max-w-[12px] bg-gray-200 dark:bg-gray-800"
+                      i === step ? `w-6 ${activeBg}` : "flex-1 min-w-[4px] max-w-[12px] bg-gray-200 dark:bg-gray-800"
                     }`}
                   />
                 ))}
