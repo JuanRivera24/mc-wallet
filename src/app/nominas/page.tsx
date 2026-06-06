@@ -19,7 +19,6 @@ import ShiftList from "./ShiftList";
 import QuincenaSummary, { QuincenaTotals } from "./QuincenaSummary";
 import { NormalShiftModal, SpecialShiftModal } from "./ShiftModals";
 
-// ✅ 1. Importamos el Tutorial
 import NominasTutorial from "@/components/NominasTutorial"; 
 
 const toMinutes = (t?: string) => {
@@ -87,13 +86,11 @@ export default function NominasPage() {
   const [shifts, setShifts] = useState<any[]>([]);
   const [bigVentas, setBigVentas] = useState<any[]>([]);
 
-  // ESTADOS PARA PRIMA
   const [primas, setPrimas] = useState<any[]>([]);
   const [hasPrima, setHasPrima] = useState(false);
   const [isEditingPrima, setIsEditingPrima] = useState(false);
   const [primaValue, setPrimaValue] = useState<number | "">("");
 
-  // ESTADOS PARA DEDUCCIONES EXTRAS
   const [extraDeductions, setExtraDeductions] = useState<any[]>([]);
   const [isEditingExtraDeduction, setIsEditingExtraDeduction] = useState(false);
   const [hasExtraDeduction, setHasExtraDeduction] = useState(false);
@@ -101,7 +98,6 @@ export default function NominasPage() {
   const [extraDeductionDesc, setExtraDeductionDesc] = useState("");
   const [editingExtraDeductionId, setEditingExtraDeductionId] = useState<string | null>(null);
 
-  // ✅ ESTADOS PARA INGRESOS EXTRAS (Bonos, premios)
   const [extraIncomes, setExtraIncomes] = useState<any[]>([]);
   const [isEditingExtraIncome, setIsEditingExtraIncome] = useState(false);
   const [hasExtraIncome, setHasExtraIncome] = useState(false);
@@ -149,7 +145,6 @@ export default function NominasPage() {
     setStep(newStep);
   };
 
-  // FETCHS FIREBASE
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "shifts"), where("userId", "==", user.id), where("year", "==", selectedYear));
@@ -178,7 +173,6 @@ export default function NominasPage() {
     return () => unsubED();
   }, [user, selectedYear]);
 
-  // ✅ FETCH INGRESOS EXTRAS
   useEffect(() => {
     if (!user) return;
     const qEI = query(collection(db, "extraIncomes"), where("userId", "==", user.id), where("year", "==", selectedYear));
@@ -236,7 +230,6 @@ export default function NominasPage() {
       const edNeto = extraDeductions.filter(ed => ed.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
       const eiNeto = extraIncomes.filter(ei => ei.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
-      // ✅ Sumamos Ingresos Extras aquí
       return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto + eiNeto - edNeto };
     });
   }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedYear]);
@@ -267,7 +260,6 @@ export default function NominasPage() {
       const eiNeto = filteredEI.reduce((a, b) => a + (Number(b.value) || 0), 0);
 
       return {
-        // ✅ Sumamos Ingresos Extras aquí
         dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto + eiNeto - edNeto,
         horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
         diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT') && !s.id.includes('_split')).length,
@@ -363,7 +355,6 @@ export default function NominasPage() {
 
   }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
 
-  // TOTALES DE EXTRAS
   const currentExtraDeductions = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === selectedQuincena);
   const extraDeductionsTotal = currentExtraDeductions.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
@@ -388,7 +379,6 @@ export default function NominasPage() {
 
   const totalsData: QuincenaTotals = {
     totalListaHoras: turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0),
-    // ✅ Sumamos Ingresos Extras al total general
     totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto + extraIncomesTotal - extraDeductionsTotal,
     tOrdD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdD) || 0), 0), tOrdD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdD) || 0), 0),
     tOrdN_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdN) || 0), 0), tOrdN_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdN) || 0), 0),
@@ -403,7 +393,6 @@ export default function NominasPage() {
     tIncapacidad_h: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.totalHours) || 0), 0), tIncapacidad_p: turnosCalculo.filter(s => s.type === 'INCAPACIDAD').reduce((a, c) => a + (Number(c.salaryBase) || 0), 0),
     tTransportBase, tTransportExtra,
     tDeductionsFinal: turnosCalculo.reduce((a, c) => a + (Number(c.deductions) || 0), 0) + bigVentaDeduccion,
-
     tInherited_h: inheritedShifts.reduce((a, c) => a + (Number(c.totalHours) || 0), 0),
     tInherited_p: inheritedShifts.reduce((a, c) => a + (Number(c.netPay) || 0), 0),
     inheritedDetails: inheritedShifts.map(s => ({
@@ -555,6 +544,48 @@ export default function NominasPage() {
       setHasBreak(true); setIsManualBreak(false); setBreakStart("16:30"); setBreakEnd("17:00");
     }
     setBreakError(null);
+  };
+
+  const handleMultiDelete = async (selectedShifts: any[]): Promise<boolean> => {
+    hapticWarning();
+    if (confirm(`¿Estás seguro de eliminar los ${selectedShifts.length} turnos seleccionados?`)) {
+      await Promise.all(selectedShifts.map(async (shift) => {
+        const baseId = shift.id.replace('_split', '');
+        await deleteDoc(doc(db, "shifts", baseId));
+        await deleteDoc(doc(db, "shifts", `${baseId}_split`));
+      }));
+      hapticSuccess();
+      return true;
+    }
+    return false;
+  };
+
+  const handleMultiRecalculate = async (selectedShifts: any[]): Promise<boolean> => {
+    if (!user) return false;
+    hapticLight();
+    if (!confirm(`¿Recalcular de forma rápida los ${selectedShifts.length} turnos seleccionados?`)) return false;
+
+    await Promise.all(selectedShifts.map(async (shift) => {
+      if (shift.isOff || shift.type === 'REUNION' || shift.type === 'COMPENSATORIO') return;
+      const shiftHasBreak = shift.hasBreak !== undefined ? shift.hasBreak : true;
+      let exactSavedBreak = undefined;
+      if (shiftHasBreak && shift.breakStart && shift.breakEnd) exactSavedBreak = { start: shift.breakStart, end: shift.breakEnd };
+
+      const targetDate = shift.originalDate || shift.date;
+      const startT = shift.originalStartTime || shift.startTime;
+      const endT = shift.originalEndTime || shift.endTime;
+
+      const calcs = calculateShift(targetDate, startT, endT, exactSavedBreak, role, shiftHasBreak);
+      const baseDocId = shift.id.replace('_split', '');
+
+      await Promise.all(calcs.map(async (calc, i) => {
+        const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const payload = { ...shift, ...calc, timestamp: serverTimestamp() };
+        await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
+      }));
+    }));
+    hapticSuccess();
+    return true;
   };
 
   const handleDelete = (e: React.MouseEvent | null, shift: any) => {
@@ -805,7 +836,6 @@ export default function NominasPage() {
     }
   };
 
-  // ✅ FUNCIONES PARA GUARDAR INGRESOS EXTRAS
   const saveExtraIncome = async () => {
     if (!user || !extraIncomeValue || Number(extraIncomeValue) <= 0 || !extraIncomeDesc.trim()) {
       hapticError();
@@ -1131,7 +1161,17 @@ export default function NominasPage() {
                   </div>
 
                   <div id="step-3-list">
-                    <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
+                    <ShiftList 
+                      turnosLista={turnosLista} 
+                      expandedShiftId={expandedShiftId} 
+                      incapacidadType={incapacidadType} 
+                      handleToggleExpand={handleToggleExpand} 
+                      handleOpenEdit={handleOpenEdit} 
+                      handleRecalculate={handleRecalculate} 
+                      handleDelete={handleDelete} 
+                      handleMultiRecalculate={handleMultiRecalculate}
+                      handleMultiDelete={handleMultiDelete}
+                    />
                   </div>
 
                   {(turnosLista.length > 0 || hasPrima || isPrimaSeason) && (
