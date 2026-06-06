@@ -101,6 +101,14 @@ export default function NominasPage() {
   const [extraDeductionDesc, setExtraDeductionDesc] = useState("");
   const [editingExtraDeductionId, setEditingExtraDeductionId] = useState<string | null>(null);
 
+  // ✅ ESTADOS PARA INGRESOS EXTRAS (Bonos, premios)
+  const [extraIncomes, setExtraIncomes] = useState<any[]>([]);
+  const [isEditingExtraIncome, setIsEditingExtraIncome] = useState(false);
+  const [hasExtraIncome, setHasExtraIncome] = useState(false);
+  const [extraIncomeValue, setExtraIncomeValue] = useState<number | "">("");
+  const [extraIncomeDesc, setExtraIncomeDesc] = useState("");
+  const [editingExtraIncomeId, setEditingExtraIncomeId] = useState<string | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [lastClick, setLastClick] = useState<{ date: Date | null; time: number }>({ date: null, time: 0 });
 
@@ -133,7 +141,6 @@ export default function NominasPage() {
   const currentYear = today.getFullYear();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  // ✅ 2. Identificamos la quincena actual en vivo para el tutorial
   const currentQuincenaActual = today.getDate() <= 15 ? 1 : 2;
 
   const goToStep = (newStep: number) => {
@@ -142,6 +149,7 @@ export default function NominasPage() {
     setStep(newStep);
   };
 
+  // FETCHS FIREBASE
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "shifts"), where("userId", "==", user.id), where("year", "==", selectedYear));
@@ -168,6 +176,14 @@ export default function NominasPage() {
     const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id), where("year", "==", selectedYear));
     const unsubED = onSnapshot(qED, (snap) => setExtraDeductions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubED();
+  }, [user, selectedYear]);
+
+  // ✅ FETCH INGRESOS EXTRAS
+  useEffect(() => {
+    if (!user) return;
+    const qEI = query(collection(db, "extraIncomes"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const unsubEI = onSnapshot(qEI, (snap) => setExtraIncomes(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => unsubEI();
   }, [user, selectedYear]);
 
   const autoCalculateBreak = (start: string, end: string) => {
@@ -218,10 +234,12 @@ export default function NominasPage() {
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
       const pNeto = primas.filter(p => p.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
       const edNeto = extraDeductions.filter(ed => ed.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+      const eiNeto = extraIncomes.filter(ei => ei.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
-      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto - edNeto };
+      // ✅ Sumamos Ingresos Extras aquí
+      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto + eiNeto - edNeto };
     });
-  }, [shiftsDelAno, bigVentas, primas, extraDeductions, selectedYear]);
+  }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedYear]);
 
   const statsQuincenas = useMemo(() => {
     const calcQ = (isQ1: boolean) => {
@@ -245,8 +263,12 @@ export default function NominasPage() {
       const filteredED = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === currentQ);
       const edNeto = filteredED.reduce((a, b) => a + (Number(b.value) || 0), 0);
 
+      const filteredEI = extraIncomes.filter(ei => ei.month === selectedMonth && ei.quincena === currentQ);
+      const eiNeto = filteredEI.reduce((a, b) => a + (Number(b.value) || 0), 0);
+
       return {
-        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto - edNeto,
+        // ✅ Sumamos Ingresos Extras aquí
+        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto + eiNeto - edNeto,
         horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
         diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT') && !s.id.includes('_split')).length,
         diasOff: filteredShifts.filter(s => s.isOff && !s.id.includes('_split')).length
@@ -258,7 +280,7 @@ export default function NominasPage() {
       moneyData: [{ name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero }],
       hoursData: [{ name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas }]
     };
-  }, [shiftsDelAno, bigVentas, primas, extraDeductions, selectedMonth]);
+  }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedMonth]);
 
   const turnosLista = useMemo(() => {
     return shiftsDelAno.filter(s => {
@@ -291,9 +313,6 @@ export default function NominasPage() {
   const bigVentaNeto = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.92 : 0;
   const bigVentaDeduccion = currentBigVenta ? (Number(currentBigVenta.value) || 0) * 0.08 : 0;
 
-  // ==========================================
-  // 💰 CÁLCULO DE PRIMA LEGAL (GRADO BANCARIO)
-  // ==========================================
   const isPrimaSeason = (selectedMonth === "junio" || selectedMonth === "diciembre") && selectedQuincena === 1;
   const currentPrima = primas.find(p => p.month === selectedMonth && p.quincena === selectedQuincena);
   const primaNeto = currentPrima ? (Number(currentPrima.value) || 0) : 0;
@@ -344,11 +363,12 @@ export default function NominasPage() {
 
   }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
 
-  // ==========================================
-  // DEDUCCIONES EXTRAS QUINCENALES
-  // ==========================================
+  // TOTALES DE EXTRAS
   const currentExtraDeductions = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === selectedQuincena);
   const extraDeductionsTotal = currentExtraDeductions.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+  const currentExtraIncomes = extraIncomes.filter(ei => ei.month === selectedMonth && ei.quincena === selectedQuincena);
+  const extraIncomesTotal = currentExtraIncomes.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
   const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
 
@@ -368,7 +388,8 @@ export default function NominasPage() {
 
   const totalsData: QuincenaTotals = {
     totalListaHoras: turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0),
-    totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto - extraDeductionsTotal,
+    // ✅ Sumamos Ingresos Extras al total general
+    totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto + extraIncomesTotal - extraDeductionsTotal,
     tOrdD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdD) || 0), 0), tOrdD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdD) || 0), 0),
     tOrdN_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdN) || 0), 0), tOrdN_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdN) || 0), 0),
     tDomD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hDomD) || 0), 0), tDomD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pDomD) || 0), 0),
@@ -784,6 +805,31 @@ export default function NominasPage() {
     }
   };
 
+  // ✅ FUNCIONES PARA GUARDAR INGRESOS EXTRAS
+  const saveExtraIncome = async () => {
+    if (!user || !extraIncomeValue || Number(extraIncomeValue) <= 0 || !extraIncomeDesc.trim()) {
+      hapticError();
+      return;
+    }
+    if (editingExtraIncomeId) {
+      await setDoc(doc(db, "extraIncomes", editingExtraIncomeId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraIncomeValue), desc: extraIncomeDesc, timestamp: serverTimestamp() }, { merge: true });
+    } else {
+      const newRef = doc(collection(db, "extraIncomes"));
+      await setDoc(newRef, { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraIncomeValue), desc: extraIncomeDesc, timestamp: serverTimestamp() });
+    }
+    hapticSuccess();
+    setHasExtraIncome(false); setIsEditingExtraIncome(false); setExtraIncomeValue(""); setExtraIncomeDesc(""); setEditingExtraIncomeId(null);
+  };
+
+  const deleteExtraIncome = async (id: string) => {
+    hapticWarning();
+    if (confirm("¿Eliminar ingreso extra?")) {
+      await deleteDoc(doc(db, "extraIncomes", id));
+      hapticSuccess();
+      setIsEditingExtraIncome(false); setHasExtraIncome(false); setEditingExtraIncomeId(null);
+    }
+  };
+
   const isDateDisabled = ({ date }: { date: Date }) => {
     if (date.getFullYear() !== selectedYear || date.getMonth() !== mesesFull.indexOf(selectedMonth)) return true;
     return selectedQuincena === 1 ? date.getDate() > 15 : date.getDate() <= 15;
@@ -862,7 +908,6 @@ export default function NominasPage() {
 
             {step === 1 && (
               <div className="animate-in fade-in duration-500 space-y-10">
-                {/* ✅ ID DEL PASO 1 */}
                 <div id="step-1-months" className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {mesesFull.map((m, i) => {
                     const isCurrentMonth = m === currentMonthName && selectedYear === currentYear;
@@ -898,7 +943,6 @@ export default function NominasPage() {
 
             {step === 2 && (
               <div className="animate-in slide-in-from-right-8 duration-500 space-y-8">
-                {/* ✅ ID DEL PASO 2 */}
                 <div id="step-2-quincenas" className="grid md:grid-cols-2 gap-6 md:gap-8">
                   <motion.div
                     initial={{ opacity: 0, y: 30, scale: 0.96 }}
@@ -1005,7 +1049,6 @@ export default function NominasPage() {
                     </div>
                   </div>
 
-                  {/* ✅ ID DEL PASO 3 (Calendario) */}
                   <div id="step-3-calendar" className="relative">
                     <Calendar
                       showNavigation={false}
@@ -1068,7 +1111,6 @@ export default function NominasPage() {
                     />
                   </div>
 
-                  {/* ✅ ID DEL PASO 4 (Acciones) */}
                   <div id="step-3-actions" className="mt-8 flex gap-3 transition-all duration-300">
                     <button disabled={!selectedDate} onClick={(e) => { if (isEditingRealShift) handleOpenEdit(e, existingMainShift); else { setSelectedDate(selectedDate); handleOpenNew(); } }} className={`flex-[4] py-4 rounded-2xl font-black shadow-lg uppercase text-[10px] md:text-xs tracking-widest transition-all ${selectedDate ? `${colors.secondary} text-white hover:brightness-110 active:scale-95 cursor-pointer` : 'bg-gray-200 dark:bg-gray-800 text-gray-400 cursor-not-allowed shadow-none'}`}>{isEditingRealShift ? "✏️ Editar Turno" : "+ Agregar Turno"}</button>
                     <button disabled={!selectedDate} onClick={() => handleSaveShift(true)} className={`flex-[4] py-4 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest transition-all border border-transparent ${selectedDate ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 cursor-pointer' : 'bg-gray-100/50 dark:bg-gray-800/50 text-gray-300 dark:text-gray-600 cursor-not-allowed'}`}>Marcar OFF</button>
@@ -1088,24 +1130,30 @@ export default function NominasPage() {
                     </div>
                   </div>
 
-                  {/* ✅ ID DEL PASO 5 (Lista) */}
                   <div id="step-3-list">
                     <ShiftList turnosLista={turnosLista} expandedShiftId={expandedShiftId} incapacidadType={incapacidadType} handleToggleExpand={handleToggleExpand} handleOpenEdit={handleOpenEdit} handleRecalculate={handleRecalculate} handleDelete={handleDelete} />
                   </div>
 
                   {(turnosLista.length > 0 || hasPrima || isPrimaSeason) && (
-                    /* ✅ ID DEL PASO 6 (Resumen) */
                     <div id="step-3-summary">
                       <QuincenaSummary
                         totals={totalsData} getDineroColor={getDineroColor}
                         currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
                         isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
+                        
                         currentExtraDeductions={currentExtraDeductions}
                         isEditingExtraDeduction={isEditingExtraDeduction} setIsEditingExtraDeduction={setIsEditingExtraDeduction}
                         hasExtraDeduction={hasExtraDeduction} setHasExtraDeduction={setHasExtraDeduction}
                         extraDeductionValue={extraDeductionValue} setExtraDeductionValue={setExtraDeductionValue}
                         extraDeductionDesc={extraDeductionDesc} setExtraDeductionDesc={setExtraDeductionDesc}
                         saveExtraDeduction={saveExtraDeduction} deleteExtraDeduction={deleteExtraDeduction} setEditingExtraDeductionId={setEditingExtraDeductionId}
+                        
+                        currentExtraIncomes={currentExtraIncomes}
+                        isEditingExtraIncome={isEditingExtraIncome} setIsEditingExtraIncome={setIsEditingExtraIncome}
+                        hasExtraIncome={hasExtraIncome} setHasExtraIncome={setHasExtraIncome}
+                        extraIncomeValue={extraIncomeValue} setExtraIncomeValue={setExtraIncomeValue}
+                        extraIncomeDesc={extraIncomeDesc} setExtraIncomeDesc={setExtraIncomeDesc}
+                        saveExtraIncome={saveExtraIncome} deleteExtraIncome={deleteExtraIncome} setEditingExtraIncomeId={setEditingExtraIncomeId}
                       />
                     </div>
                   )}
@@ -1164,7 +1212,6 @@ export default function NominasPage() {
           <div className="w-full border-t border-gray-100 dark:border-gray-900/50 pt-8"><Footer /></div>
           <PayrollFeedback />
 
-          {/* ✅ 3. El Componente del Tutorial al final */}
           <NominasTutorial 
             goToStep={goToStep}
             setSelectedMonth={setSelectedMonth}
