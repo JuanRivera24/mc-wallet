@@ -333,20 +333,47 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); alert("No se pudo revertir."); }
   };
 
+  // ✅ AQUÍ INTEGRAMOS TODOS LOS CÁLCULOS (BigVenta, Primas y Deducciones Extra)
   const previewPayroll = async () => {
     if (!user) return;
-    const qShifts = query(collection(db, "shifts"), where("userId", "==", user.id), where("month", "==", importMonth));
-    const snap = await getDocs(qShifts);
-    let total = 0;
     
-    snap.forEach(doc => {
+    let grandTotal = 0;
+
+    // 1. Horas / Turnos
+    const qShifts = query(collection(db, "shifts"), where("userId", "==", user.id), where("month", "==", importMonth), where("year", "==", currentYearNum));
+    const snapShifts = await getDocs(qShifts);
+    snapShifts.forEach(doc => {
       const data = doc.data();
       if(!data.date) return;
       const dayNumber = parseInt(data.date.split('-')[2], 10);
       const shiftQ = dayNumber <= 15 ? 1 : 2;
-      if (shiftQ === importQuincena) total += (Number(data.netPay) || 0);
+      if (shiftQ === importQuincena) {
+        grandTotal += (Number(data.netPay) || 0);
+      }
     });
-    setPayrollPreview(total);
+
+    // 2. Big Venta (Aplica retención del 8% directo en el cálculo neto)
+    const qBV = query(collection(db, "bigVentas"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
+    const snapBV = await getDocs(qBV);
+    snapBV.forEach(doc => {
+      grandTotal += (Number(doc.data().value) || 0) * 0.92;
+    });
+
+    // 3. Primas
+    const qPrima = query(collection(db, "primas"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
+    const snapPrima = await getDocs(qPrima);
+    snapPrima.forEach(doc => {
+      grandTotal += (Number(doc.data().value) || 0);
+    });
+
+    // 4. Deducciones Extra (Se restan)
+    const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
+    const snapED = await getDocs(qED);
+    snapED.forEach(doc => {
+      grandTotal -= (Number(doc.data().value) || 0);
+    });
+
+    setPayrollPreview(grandTotal > 0 ? grandTotal : 0);
   };
 
   const importFromPayroll = async () => {
@@ -851,7 +878,7 @@ export default function BilleteraPage() {
                     <button onClick={previewPayroll} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 ${activeBg}`}>Analizar Turnos</button>
                   ) : (
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl text-center border border-blue-100 dark:border-blue-900/50">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Monto Encontrado</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Total Neto A Recibir Encontrado</p>
                       <p className="text-2xl font-black text-blue-600 dark:text-blue-400">${payrollPreview.toLocaleString('es-CO')}</p>
                       <button onClick={importFromPayroll} disabled={isSaving || payrollPreview <= 0} className={`mt-3 w-full py-3 rounded-xl text-white font-black uppercase text-[10px] tracking-widest shadow-md disabled:opacity-50 ${activeBg}`}>
                         {isSaving ? 'Sincronizando...' : 'Ingresar a Disponible'}

@@ -93,6 +93,14 @@ export default function NominasPage() {
   const [isEditingPrima, setIsEditingPrima] = useState(false);
   const [primaValue, setPrimaValue] = useState<number | "">("");
 
+  // ESTADOS PARA DEDUCCIONES EXTRAS
+  const [extraDeductions, setExtraDeductions] = useState<any[]>([]);
+  const [isEditingExtraDeduction, setIsEditingExtraDeduction] = useState(false);
+  const [hasExtraDeduction, setHasExtraDeduction] = useState(false);
+  const [extraDeductionValue, setExtraDeductionValue] = useState<number | "">("");
+  const [extraDeductionDesc, setExtraDeductionDesc] = useState("");
+  const [editingExtraDeductionId, setEditingExtraDeductionId] = useState<string | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [lastClick, setLastClick] = useState<{ date: Date | null; time: number }>({ date: null, time: 0 });
 
@@ -155,6 +163,13 @@ export default function NominasPage() {
     return () => unsubPrima();
   }, [user, selectedYear]);
 
+  useEffect(() => {
+    if (!user) return;
+    const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const unsubED = onSnapshot(qED, (snap) => setExtraDeductions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => unsubED();
+  }, [user, selectedYear]);
+
   const autoCalculateBreak = (start: string, end: string) => {
     let startMins = toMinutes(start);
     let endMins = toMinutes(end);
@@ -202,10 +217,11 @@ export default function NominasPage() {
       }).reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
       const pNeto = primas.filter(p => p.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+      const edNeto = extraDeductions.filter(ed => ed.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
-      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto };
+      return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto - edNeto };
     });
-  }, [shiftsDelAno, bigVentas, primas, selectedYear]);
+  }, [shiftsDelAno, bigVentas, primas, extraDeductions, selectedYear]);
 
   const statsQuincenas = useMemo(() => {
     const calcQ = (isQ1: boolean) => {
@@ -226,8 +242,11 @@ export default function NominasPage() {
       const filteredPrima = primas.find(p => p.month === selectedMonth && p.quincena === currentQ);
       const pNeto = filteredPrima ? Number(filteredPrima.value) || 0 : 0;
 
+      const filteredED = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === currentQ);
+      const edNeto = filteredED.reduce((a, b) => a + (Number(b.value) || 0), 0);
+
       return {
-        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto,
+        dinero: filteredShifts.reduce((a, b) => a + (Number(b.netPay) || 0), 0) + bvNeto + pNeto - edNeto,
         horas: filteredShifts.reduce((a, b) => a + (Number(b.totalHours) || 0), 0),
         diasTrabajados: filteredShifts.filter(s => !s.isOff && (!s.type || s.type === 'SHIFT') && !s.id.includes('_split')).length,
         diasOff: filteredShifts.filter(s => s.isOff && !s.id.includes('_split')).length
@@ -239,7 +258,7 @@ export default function NominasPage() {
       moneyData: [{ name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero }],
       hoursData: [{ name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas }]
     };
-  }, [shiftsDelAno, bigVentas, primas, selectedMonth]);
+  }, [shiftsDelAno, bigVentas, primas, extraDeductions, selectedMonth]);
 
   const turnosLista = useMemo(() => {
     return shiftsDelAno.filter(s => {
@@ -288,14 +307,11 @@ export default function NominasPage() {
     const semesterShifts = shiftsDelAno.filter(s => semesterMonths.includes(s.month) && !s.isOff);
     const semesterBigVentas = bigVentas.filter(b => semesterMonths.includes(b.month));
 
-    // 1. Reconstrucción del "Total Devengado" Legal mes a mes
     const monthData = semesterMonths.map(month => {
       const monthShifts = semesterShifts.filter(s => s.month === month);
       let grossIncome = 0;
       let daysWorked = 0;
 
-      // El Total Devengado en Colombia es el Neto pagado + Deducciones de Ley (Salud/Pensión)
-      // Esto matemáticamente agrupa las horas, TODOS los recargos y el auxilio de transporte.
       monthShifts.forEach(s => {
         const net = Number(s.netPay) || 0;
         const ded = Number(s.deductions) || 0;
@@ -303,7 +319,6 @@ export default function NominasPage() {
         daysWorked++;
       });
 
-      // Sumar comisiones de ventas (constituyen salario en promedio)
       semesterBigVentas.filter(b => b.month === month).forEach(b => {
         grossIncome += (Number(b.value) || 0);
       });
@@ -311,33 +326,29 @@ export default function NominasPage() {
       return { month, grossIncome, daysWorked };
     });
 
-    // 2. Filtro de Inteligencia: Excluir "Meses Fantasma"
-    // Un tripulante promedia 15-24 turnos al mes. Si un mes tiene menos de 5 turnos o menos de $250.000, 
-    // asumimos que no registró todo en la app para no dañar el promedio.
     const validMonths = monthData.filter(m => m.daysWorked >= 5 || m.grossIncome > 250000);
 
-    // 3. Fallback de Tripulante (Si no hay datos registrados en todo el semestre)
     if (validMonths.length === 0) {
       const rateTable = RATES_BY_YEAR[selectedYear]?.[role] || RATES_BY_YEAR[2026]?.["CREW"] || { ORDINARY: 6000 };
       const baseTransport = TRANSPORT_AUX_BY_YEAR[selectedYear] || 162000;
-      
-      // Asumimos un tripulante part-time estándar (120 horas al mes promedio)
       const estimatedMonthlyGross = (rateTable.ORDINARY * 120) + baseTransport;
-      // La fórmula legal de prima para 180 días es simplemente el Salario Promedio Mensual dividido en 2.
       return Math.floor(estimatedMonthlyGross / 2);
     }
 
-    // 4. Calcular el Promedio Mensual Real de los meses registrados
     const totalValidGross = validMonths.reduce((sum, m) => sum + m.grossIncome, 0);
     const averageMonthlyGross = totalValidGross / validMonths.length;
 
-    // 5. Proyectar y aplicar la fórmula legal
-    // Promedio Mensual / 2 = Equivalente a (Promedio * 180 días) / 360
     const primaEstimada = Math.floor(averageMonthlyGross / 2);
 
     return primaEstimada;
 
   }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
+
+  // ==========================================
+  // DEDUCCIONES EXTRAS QUINCENALES
+  // ==========================================
+  const currentExtraDeductions = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === selectedQuincena);
+  const extraDeductionsTotal = currentExtraDeductions.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
   const baseDineroTurnos = turnosCalculo.reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
 
@@ -357,7 +368,7 @@ export default function NominasPage() {
 
   const totalsData: QuincenaTotals = {
     totalListaHoras: turnosCalculo.reduce((acc, curr) => acc + (Number(curr.totalHours) || 0), 0),
-    totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto,
+    totalListaDinero: baseDineroTurnos + bigVentaNeto + primaNeto - extraDeductionsTotal,
     tOrdD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdD) || 0), 0), tOrdD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdD) || 0), 0),
     tOrdN_h: turnosCalculo.reduce((a, c) => a + (Number(c.hOrdN) || 0), 0), tOrdN_p: turnosCalculo.reduce((a, c) => a + (Number(c.pOrdN) || 0), 0),
     tDomD_h: turnosCalculo.reduce((a, c) => a + (Number(c.hDomD) || 0), 0), tDomD_p: turnosCalculo.reduce((a, c) => a + (Number(c.pDomD) || 0), 0),
@@ -749,6 +760,30 @@ export default function NominasPage() {
     }
   };
 
+  const saveExtraDeduction = async () => {
+    if (!user || !extraDeductionValue || Number(extraDeductionValue) <= 0 || !extraDeductionDesc.trim()) {
+      hapticError();
+      return;
+    }
+    if (editingExtraDeductionId) {
+      await setDoc(doc(db, "extraDeductions", editingExtraDeductionId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraDeductionValue), desc: extraDeductionDesc, timestamp: serverTimestamp() }, { merge: true });
+    } else {
+      const newRef = doc(collection(db, "extraDeductions"));
+      await setDoc(newRef, { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraDeductionValue), desc: extraDeductionDesc, timestamp: serverTimestamp() });
+    }
+    hapticSuccess();
+    setHasExtraDeduction(false); setIsEditingExtraDeduction(false); setExtraDeductionValue(""); setExtraDeductionDesc(""); setEditingExtraDeductionId(null);
+  };
+
+  const deleteExtraDeduction = async (id: string) => {
+    hapticWarning();
+    if (confirm("¿Eliminar deducción extra?")) {
+      await deleteDoc(doc(db, "extraDeductions", id));
+      hapticSuccess();
+      setIsEditingExtraDeduction(false); setHasExtraDeduction(false); setEditingExtraDeductionId(null);
+    }
+  };
+
   const isDateDisabled = ({ date }: { date: Date }) => {
     if (date.getFullYear() !== selectedYear || date.getMonth() !== mesesFull.indexOf(selectedMonth)) return true;
     return selectedQuincena === 1 ? date.getDate() > 15 : date.getDate() <= 15;
@@ -1065,6 +1100,12 @@ export default function NominasPage() {
                         totals={totalsData} getDineroColor={getDineroColor}
                         currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
                         isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
+                        currentExtraDeductions={currentExtraDeductions}
+                        isEditingExtraDeduction={isEditingExtraDeduction} setIsEditingExtraDeduction={setIsEditingExtraDeduction}
+                        hasExtraDeduction={hasExtraDeduction} setHasExtraDeduction={setHasExtraDeduction}
+                        extraDeductionValue={extraDeductionValue} setExtraDeductionValue={setExtraDeductionValue}
+                        extraDeductionDesc={extraDeductionDesc} setExtraDeductionDesc={setExtraDeductionDesc}
+                        saveExtraDeduction={saveExtraDeduction} deleteExtraDeduction={deleteExtraDeduction} setEditingExtraDeductionId={setEditingExtraDeductionId}
                       />
                     </div>
                   )}

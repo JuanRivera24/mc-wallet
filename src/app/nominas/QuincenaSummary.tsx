@@ -38,6 +38,7 @@ interface QuincenaSummaryProps {
   saveBigVenta: () => void;
   deleteBigVenta: (id: string) => void;
 
+  // Prima Props
   isPrimaSeason: boolean;
   currentPrima: any;
   isEditingPrima: boolean;
@@ -49,16 +50,32 @@ interface QuincenaSummaryProps {
   savePrima: () => void;
   deletePrima: (id: string) => void;
   suggestedPrima: number;
+
+  // Extra Deductions Props
+  currentExtraDeductions: any[];
+  isEditingExtraDeduction: boolean;
+  setIsEditingExtraDeduction: (v: boolean) => void;
+  hasExtraDeduction: boolean;
+  setHasExtraDeduction: (v: boolean) => void;
+  extraDeductionValue: number | "";
+  setExtraDeductionValue: (v: number | "") => void;
+  extraDeductionDesc: string;
+  setExtraDeductionDesc: (v: string) => void;
+  saveExtraDeduction: () => void;
+  deleteExtraDeduction: (id: string) => void;
+  setEditingExtraDeductionId: (id: string | null) => void;
 }
 
 export default function QuincenaSummary({
   totals,
   getDineroColor,
   currentBigVenta, isEditingBigVenta, setIsEditingBigVenta, hasBigVenta, setHasBigVenta, bigVentaValue, setBigVentaValue, saveBigVenta, deleteBigVenta,
-  isPrimaSeason, currentPrima, isEditingPrima, setIsEditingPrima, hasPrima, setHasPrima, primaValue, setPrimaValue, savePrima, deletePrima, suggestedPrima
+  isPrimaSeason, currentPrima, isEditingPrima, setIsEditingPrima, hasPrima, setHasPrima, primaValue, setPrimaValue, savePrima, deletePrima, suggestedPrima,
+  currentExtraDeductions, isEditingExtraDeduction, setIsEditingExtraDeduction, hasExtraDeduction, setHasExtraDeduction, extraDeductionValue, setExtraDeductionValue, extraDeductionDesc, setExtraDeductionDesc, saveExtraDeduction, deleteExtraDeduction, setEditingExtraDeductionId
 }: QuincenaSummaryProps) {
 
   const [isTotalExpanded, setIsTotalExpanded] = useState(false);
+  const [showSplit, setShowSplit] = useState(false);
 
   const {
     totalListaHoras, totalListaDinero,
@@ -157,10 +174,56 @@ export default function QuincenaSummary({
               <p className={`font-black text-2xl ${tTransportExtra > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400 dark:text-gray-600'}`}>+${Math.floor(tTransportExtra).toLocaleString()}</p>
             </div>
 
-            <div className={`col-span-2 md:col-span-4 ${tDeductionsFinal > 0 ? "" : "opacity-30"} pt-4`}>
-              <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Total Deducciones</p>
+            {/* ✅ CORRECCIÓN PARA MÓVILES: CLICK SIMPLE EN VEZ DE DOBLE CLICK */}
+            <div 
+              className={`col-span-2 md:col-span-4 ${tDeductionsFinal > 0 ? "cursor-pointer active:scale-[0.98] transition-transform" : "opacity-30"} pt-4`}
+              onClick={() => tDeductionsFinal > 0 && setShowSplit(!showSplit)}
+            >
+              <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1 flex items-center justify-center gap-1">
+                Total Deducciones {tDeductionsFinal > 0 && <span className="text-[8px] italic lowercase opacity-70 border border-gray-300 dark:border-gray-600 px-1.5 py-0.5 rounded-md">Toca para ver</span>}
+              </p>
               <p className={`font-black text-2xl ${tDeductionsFinal > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-600'}`}>-${Math.floor(tDeductionsFinal).toLocaleString()}</p>
+              {showSplit && tDeductionsFinal > 0 && (
+                <div className="flex justify-center gap-6 mt-3 text-[10px] font-black uppercase text-gray-500 bg-black/5 dark:bg-white/5 py-2 rounded-xl border border-red-500/10">
+                  <p>Salud: <span className="text-red-500 dark:text-red-400">-${Math.floor(tDeductionsFinal / 2).toLocaleString()}</span></p>
+                  <p>Pensión: <span className="text-red-500 dark:text-red-400">-${Math.floor(tDeductionsFinal / 2).toLocaleString()}</span></p>
+                </div>
+              )}
             </div>
+          </div>
+
+          {/* DEDUCCIONES EXTRAS */}
+          <div className="mt-6 flex flex-col gap-3 w-full">
+            {currentExtraDeductions.map(ed => (
+              <div key={ed.id} className="flex justify-between items-center bg-red-50 dark:bg-red-900/10 p-3 md:p-4 rounded-2xl border border-red-100 dark:border-red-900/30">
+                <div>
+                  <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">{ed.desc}</p>
+                  <p className="font-black text-xl text-black dark:text-white">-${Math.floor(ed.value).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setIsEditingExtraDeduction(true); setHasExtraDeduction(true); setExtraDeductionValue(ed.value); setExtraDeductionDesc(ed.desc); setEditingExtraDeductionId(ed.id); }} className="p-2 bg-white dark:bg-gray-800 rounded-xl hover:bg-red-500 hover:text-white transition-colors shadow-sm">✏️</button>
+                  <button onClick={() => deleteExtraDeduction(ed.id)} className="p-2 bg-white dark:bg-gray-800 rounded-xl hover:bg-red-500 hover:text-white transition-colors shadow-sm">🗑️</button>
+                </div>
+              </div>
+            ))}
+
+            {(hasExtraDeduction || isEditingExtraDeduction) ? (
+              <div className="bg-red-50/50 dark:bg-red-900/10 p-4 rounded-2xl border border-red-100 dark:border-red-900/30 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase text-red-600 dark:text-red-400 tracking-widest">{isEditingExtraDeduction ? "Editando Deducción Extra" : "Nueva Deducción Extra"}</span>
+                  <button onClick={() => { setHasExtraDeduction(false); setIsEditingExtraDeduction(false); setEditingExtraDeductionId(null); setExtraDeductionDesc(""); setExtraDeductionValue(""); }} className="text-red-400 text-xs font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded-md">✖</button>
+                </div>
+                <input type="text" placeholder="Descripción (ej. Portanombres)" className="bg-white dark:bg-gray-800 border-none rounded-xl p-3 text-sm font-bold w-full outline-none text-black dark:text-white shadow-sm" value={extraDeductionDesc} onChange={e => setExtraDeductionDesc(e.target.value)} />
+                <div className="flex gap-2">
+                  <input type="number" placeholder="Monto (ej. 15000)" className="flex-1 bg-white dark:bg-gray-800 border-none rounded-xl p-3 text-sm font-bold w-full outline-none text-black dark:text-white shadow-sm" value={extraDeductionValue} onChange={e => setExtraDeductionValue(e.target.value ? Number(e.target.value) : "")} />
+                  <button onClick={saveExtraDeduction} className="bg-red-500 text-white font-black px-4 rounded-xl uppercase text-[10px] tracking-widest hover:bg-red-600 shadow-sm active:scale-95 transition-all">Guardar</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setHasExtraDeduction(true)} className="flex items-center justify-center gap-2 border-2 border-dashed border-red-200 dark:border-red-900/50 rounded-2xl p-3 text-red-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-800 transition-colors text-[10px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/10 w-full md:max-w-xs mx-auto mt-2">
+                <span>➕</span> Agregar Deducción Extra
+              </button>
+            )}
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-300 dark:border-gray-800/50 flex flex-col w-full gap-4">
