@@ -8,7 +8,8 @@ import Calculator4x1000 from "@/components/Calculator4x1000";
 import PrimaCalculator from "@/components/PrimaCalculator"; 
 import PrestacionesCalculator from "@/components/PrestacionesCalculator";
 import OrquestReader from "@/components/OrquestReader";
-import MarcacionesReader from "@/components/MarcacionesReader"; // ✅ IMPORTAMOS EL NUEVO COMPONENTE
+import MarcacionesReader from "@/components/MarcacionesReader";
+import AlertSettings from "@/components/AlertSettings";
 import ContactForm from "@/components/ContactForm";
 import ServicesTutorial from "@/components/ServicesTutorial";
 import { useTheme } from "@/context/ThemeContext";
@@ -39,7 +40,6 @@ const services: ServiceCategory[] = [
     items: [
       { id: "calc-rapida", title: "Calculadora Rápida", icon: "⚡", desc: "Sin necesidad de guardar, se recomienda iniciar sesion para guardar los turnos", action: "open_calc", requiresAuth: false },
       { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", isBeta: true, requiresAuth: true },
-      // ✅ AÑADIMOS AUDITORÍA DE MARCACIONES AQUÍ
       { id: "marcaciones", title: "Auditoría Marcaciones", icon: "📑", desc: "Cruza y sincroniza tus turnos con las marcaciones del Excel ", action: "open_marcaciones", isBeta: true, requiresAuth: true },
     ]
   },
@@ -55,7 +55,7 @@ const services: ServiceCategory[] = [
   {
     category: "Ajustes & Soporte",
     items: [
-      { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
+      { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas, permisos y sonidos", action: "open_notificaciones", requiresAuth: true },
       { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
     ]
   }
@@ -81,8 +81,8 @@ export default function ServiciosPage() {
     }
   }, []);
 
-  // ✅ AGREGAMOS "open_marcaciones" A LAS ACCIONES DEL ACORDEÓN
-  const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_marcaciones", "open_contacto", "open_prima", "open_prestaciones"];
+  // ✅ AGREGAMOS open_notificaciones AL ARRAY
+  const accordionActions = ["open_calc", "open_4x1000", "open_orquest", "open_marcaciones", "open_contacto", "open_prima", "open_prestaciones", "open_notificaciones"];
 
   const handleServiceClick = (e: React.MouseEvent, item: ServiceItem) => {
     if (item.requiresAuth && !isSignedIn) {
@@ -205,11 +205,12 @@ export default function ServiciosPage() {
 
                             {item.action === "open_4x1000" && <Calculator4x1000 />}
                             {item.action === "open_orquest" && <OrquestReader />}
-                            {/* ✅ RENDERIZAMOS EL NUEVO COMPONENTE AQUÍ */}
                             {item.action === "open_marcaciones" && <MarcacionesReader />}
                             {item.action === "open_contacto" && <ContactForm />}
                             {item.action === "open_prima" && <PrimaCalculator />}
                             {item.action === "open_prestaciones" && <PrestacionesCalculator />}
+                            {/* ✅ COMPONENTE RENDERIZADO */}
+                            {item.action === "open_notificaciones" && <AlertSettings />}
                           </div>
                         </motion.div>
                       )}
