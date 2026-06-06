@@ -1,7 +1,6 @@
 "use client";
 import Navbar from "@/components/Navbar";
-import Onboarding from "@/components/Onboarding";
-import ShiftCalculator from "@/components/ShiftCalculator";
+import InicioTutorial from "@/components/InicioTutorial";
 import RatesSection from "@/components/RatesSection";
 import Footer from "@/components/Footer";
 import { useTheme } from "@/context/ThemeContext";
@@ -42,7 +41,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white dark:bg-[#0a0a0a] transition-colors duration-500">
       <Navbar />
-      <Onboarding />
+      <InicioTutorial />
 
       {/* HERO SECTION CON ANIMACIONES */}
       <section id="nosotros" className={`relative flex flex-col items-center justify-center px-5 min-h-[calc(100svh-72px)] lg:min-h-[calc(100vh-80px)] text-center overflow-hidden transition-colors duration-700 bg-gradient-to-b ${role === 'CREW' ? 'from-blue-50 from-[70%] to-white' : 'from-red-50 from-[70%] to-white'} dark:from-[#0a0a0a] dark:to-[#0a0a0a]`}>
@@ -104,9 +103,10 @@ export default function Home() {
             {/* 🔥 Glow wrapper para el botón principal */}
             <div className="relative w-full sm:w-auto">
               <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-500 blur-lg opacity-[26%] animate-pulse rounded-2xl" />
-              <a href="#calculadora" className={`${colors.secondary} relative text-white w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base shadow-xl active:scale-95 transition-all flex items-center justify-center`}>
+              {/* ✅ AHORA REDIRIGE A SERVICIOS ABRIENDO LA CALCULADORA */}
+              <Link href="/servicios?calc=true" className={`${colors.secondary} relative text-white w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-sm lg:text-base shadow-xl active:scale-95 transition-all flex items-center justify-center`}>
                 CALCULAR TURNO
-              </a>
+              </Link>
             </div>
 
             {/* 👇 BOTÓN INGRESAR ANIMADO (HERO) 👇 */}
@@ -129,7 +129,7 @@ export default function Home() {
             </SignedOut>
 
             <SignedIn>
-              <Link
+              <Link id="hero-nominas-btn"
                 href="/nominas"
                 className="relative hidden lg:flex items-center justify-center px-7 py-4 rounded-2xl font-black text-sm lg:text-base text-gray-900 dark:text-white bg-white dark:bg-[#0a0a0a] overflow-hidden"
               >
@@ -155,59 +155,6 @@ export default function Home() {
       </section>
 
       <RatesSection />
-
-      {/* CALCULADORA CON REVEAL ANIMADO */}
-      <section id="calculadora" className="py-16 lg:py-24 bg-gray-50 dark:bg-black flex flex-col items-center px-4 transition-colors duration-500">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mb-8 lg:mb-12 text-center max-w-lg mx-auto"
-        >
-          <h2 className="text-3xl lg:text-4xl font-black tracking-tighter mb-2 dark:text-white">Simulador Rápido</h2>
-          <p className="text-gray-400 font-bold text-xs lg:text-sm">
-            Calcula sin necesidad de guardar. - <b className="text-gray-600 dark:text-gray-300">Inicia sesión para guardar tus turnos y estimar tus nóminas</b>
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          className="w-full max-w-lg"
-        >
-          <ShiftCalculator />
-        </motion.div>
-
-        {/* BOTONES INFERIORES RESTAURADOS */}
-        <div className="mt-6 w-full max-w-lg flex flex-col gap-3 relative z-10">
-          
-          {/* 👇 BOTÓN INGRESAR ANIMADO (CALCULADORA) 👇 */}
-          <SignedOut>
-            <SignInButton mode="modal">
-              <motion.button 
-                animate={{ scale: [1, 1.02, 1] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                className="relative overflow-hidden group bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 transition-colors shadow-xl"
-              >
-                <span className="relative z-10">🔐 INGRESAR Y GUARDAR TURNOS</span>
-                {/* Rayo de luz diagonal (Shimmer) adaptado al color invertido */}
-                <motion.div
-                  animate={{ x: ["-150%", "250%"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
-                  className="absolute inset-0 z-0 w-1/3 bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-12"
-                />
-              </motion.button>
-            </SignInButton>
-          </SignedOut>
-
-          <SignedIn>
-            <Link href="/nominas" className="hidden lg:block bg-gray-900 dark:bg-white text-white dark:text-gray-900 w-full px-8 py-4 rounded-2xl font-black text-sm lg:text-lg hover:bg-black dark:hover:bg-gray-200 hover:scale-[1.02] active:scale-95 transition-all shadow-xl text-center">
-              📂 IR A MIS NÓMINAS
-            </Link>
-          </SignedIn>
-        </div>
-      </section>
 
       <Footer />
     </main>

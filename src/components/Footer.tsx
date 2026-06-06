@@ -28,12 +28,12 @@ export default function Footer() {
             <div className="flex gap-6 md:gap-10">
               {/* Agregamos la / antes del # para que funcionen desde cualquier página */}
               <Link href="/#nosotros" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Inicio</Link>
-              <Link href="/#tarifas" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Tarifas</Link>
-              <Link href="/#calculadora" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Calc</Link>
+              <Link href="/servicios" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Servicios</Link>
+              <Link href="/servicios?calc=true" className="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition">Calculadora</Link>
             </div>
 
             {/* INTERRUPTOR PEQUEÑITO */}
-            <button 
+            <button id="footer-theme-toggle"
               onClick={toggleDarkMode}
               className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-[9px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
             >

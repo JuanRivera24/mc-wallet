@@ -33,15 +33,17 @@ export default function Navbar() {
         <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 gap-8 text-[11px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
           <Link href="/#nosotros" onClick={(e) => handleScroll(e, 'nosotros')} className="hover:text-black dark:hover:text-white transition-colors py-2">Nosotros</Link>
           <Link href="/#tarifas" onClick={(e) => handleScroll(e, 'tarifas')} className="hover:text-black dark:hover:text-white transition-colors py-2">Tarifas</Link>
-          <Link href="/#calculadora" onClick={(e) => handleScroll(e, 'calculadora')} className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
+          <Link href="/servicios?calc=true" className="hover:text-black dark:hover:text-white transition-colors py-2">Calculadora</Link>
+          <Link href="/servicios" className={`hover:text-black dark:hover:text-white transition-colors py-2 ${pathname === '/servicios' ? activeText : ''}`}>Servicios</Link>
+          
           <SignedIn>
-            <Link href="/nominas" className={`hover:brightness-110 transition-colors py-2 ${activeText}`}>📂 Mis Nóminas</Link>
+            <Link href="/nominas" className={`hover:brightness-110 transition-colors py-2 ${pathname.startsWith('/nominas') ? activeText : ''}`}>📂 Mis Nóminas</Link>
           </SignedIn>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 z-50">
 
-          <button onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
+          <button id="nav-role-toggle" onClick={toggleRole} className="bg-gray-100 dark:bg-gray-800 rounded-full p-1 shadow-inner flex cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors active:scale-95" aria-label="Cambiar Rol">
             <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'CREW' ? 'bg-white dark:bg-gray-900 shadow-sm text-blue-600 dark:text-blue-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>CREW</span>
             <span className={`px-3.5 py-1.5 lg:px-4 lg:py-2 rounded-full text-[10px] sm:text-[11px] lg:text-xs font-black transition-all duration-300 ${role === 'ENTRENADOR' ? 'bg-white dark:bg-gray-900 shadow-sm text-red-600 dark:text-red-400 scale-100' : 'text-gray-400 dark:text-gray-500 scale-95'}`}>ENTR</span>
           </button>
