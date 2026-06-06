@@ -9,7 +9,6 @@ import { useTheme } from "@/context/ThemeContext";
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
 
-// Importamos tu lógica exacta de la calculadora
 import { calculateShift } from "@/lib/calculator";
 
 import {
@@ -140,6 +139,7 @@ export default function OrquestReader() {
             startTime: "",
             endTime: "",
             isOff: true,
+            hasBreak: false,
             rawFragments: [{
               date: cleanDateStr,
               netPay: 0,
@@ -155,7 +155,15 @@ export default function OrquestReader() {
           continue;
         }
 
-        const calcs = calculateShift(cleanDateStr, shift.startTime, shift.endTime, undefined, role, true);
+        let hasBreak = false;
+        const [sh, sm] = st.split(":").map(Number);
+        const [eh, em] = et.split(":").map(Number);
+        let sMins = sh * 60 + sm;
+        let eMins = eh * 60 + em;
+        if (eMins <= sMins) eMins += 1440;
+        hasBreak = (eMins - sMins) >= 330;
+
+        const calcs = calculateShift(cleanDateStr, shift.startTime, shift.endTime, undefined, role, hasBreak);
         
         if (calcs) {
           finalExtractedShifts.push({
@@ -163,6 +171,7 @@ export default function OrquestReader() {
             startTime: shift.startTime,
             endTime: shift.endTime,
             isOff: false,
+            hasBreak: hasBreak,
             rawFragments: Array.isArray(calcs) ? calcs : [calcs]
           });
         }
@@ -178,12 +187,17 @@ export default function OrquestReader() {
       const actualConflicts: any[] = [];
       let exactMatchesCount = 0;
 
-      // LÓGICA MEJORADA: Comparar si ya existe exactamente igual
       for (const newShift of finalExtractedShifts) {
-        const oldShiftsOnDate = allShifts.filter(old => old.date === newShift.date);
+        // ✅ FIX MAESTRO: Buscamos por la RAÍZ del ID. 
+        // Esto captura los fragmentos `_split` que hayan caído al día siguiente.
+        const baseId = `${user.id}_${newShift.date}`;
+        const oldShiftsOnDate = allShifts.filter(old => 
+          (old.id === baseId || String(old.id).startsWith(`${baseId}_split`)) &&
+          (!old.type || old.type === 'SHIFT')
+        );
 
         if (oldShiftsOnDate.length > 0) {
-          // Buscamos el turno principal (el que no es split) para la comparación base
+          // Tomamos el padre para comparar las horas iniciales
           const oldMainShift = oldShiftsOnDate.find(old => !String(old.id).includes("_split")) || oldShiftsOnDate[0];
 
           const isExactMatch =
@@ -192,10 +206,9 @@ export default function OrquestReader() {
             Boolean(oldMainShift.isOff) === Boolean(newShift.isOff);
 
           if (isExactMatch) {
-            // Ya existe y es idéntico. Lo omitimos sin generar conflicto.
             exactMatchesCount++;
           } else {
-            // Existe pero cambió (horario distinto), es un conflicto real a reemplazar
+            // Si no cuadra, TODOS los fragmentos asociados a ese turno se marcan como conflicto para ser borrados
             oldShiftsOnDate.forEach(old => {
               if (!actualConflicts.some(c => c.id === old.id)) {
                 actualConflicts.push(old);
@@ -204,12 +217,10 @@ export default function OrquestReader() {
             strictlyNewShifts.push(newShift);
           }
         } else {
-          // No existe registro en esa fecha, es totalmente nuevo
           strictlyNewShifts.push(newShift);
         }
       }
 
-      // Si todos los turnos leídos ya estaban exactos en la base de datos
       if (strictlyNewShifts.length === 0 && exactMatchesCount > 0) {
         hapticSuccess();
         alert(`✨ Todo al día. Se omitieron ${exactMatchesCount} turnos de la imagen porque ya estaban guardados exactamente igual en tu calendario.`);
@@ -220,7 +231,8 @@ export default function OrquestReader() {
         return;
       }
 
-      actualConflicts.sort((a, b) => a.date.localeCompare(b.date));
+      // Ordenar conflictos para mostrarlos limpios en la UI
+      actualConflicts.sort((a, b) => (a.originalDate || a.date).localeCompare(b.originalDate || b.date));
 
       setNewShiftsToSave(strictlyNewShifts);
       setConflictingShifts(actualConflicts);
@@ -274,51 +286,52 @@ export default function OrquestReader() {
       for (const extracted of shiftsData) {
         const baseDocId = `${userId}_${extracted.date}`;
         
+        // ✅ FIX: Limpieza defensiva total antes de insertar el nuevo turno IA
+        await deleteDoc(doc(db, "shifts", baseDocId));
         await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
+        await deleteDoc(doc(db, "shifts", `${baseDocId}_split_2`));
 
         let autoBreakStart = "";
         let autoBreakEnd = "";
-        let hasBreak = false;
 
-        if (!extracted.isOff) {
+        if (!extracted.isOff && extracted.hasBreak) {
           const [sh, sm] = extracted.startTime.split(":").map(Number);
           const [eh, em] = extracted.endTime.split(":").map(Number);
           let sMins = sh * 60 + sm;
           let eMins = eh * 60 + em;
           if (eMins <= sMins) eMins += 1440;
 
-          hasBreak = (eMins - sMins) >= 330;
-
-          if (hasBreak) {
-            const mid = Math.floor((sMins + eMins) / 2);
-            const formatMins = (mins: number) => {
-              const h = Math.floor((mins % 1440) / 60).toString().padStart(2, "0");
-              const m = (mins % 60).toString().padStart(2, "0");
-              return `${h}:${m}`;
-            };
-            autoBreakStart = formatMins(mid - 15);
-            autoBreakEnd = formatMins(mid + 15);
-          }
+          const mid = Math.floor((sMins + eMins) / 2);
+          const formatMins = (mins: number) => {
+            const h = Math.floor((mins % 1440) / 60).toString().padStart(2, "0");
+            const m = (mins % 60).toString().padStart(2, "0");
+            return `${h}:${m}`;
+          };
+          autoBreakStart = formatMins(mid - 15);
+          autoBreakEnd = formatMins(mid + 15);
         }
 
         await Promise.all(extracted.rawFragments.map(async (calc: any, i: number) => {
-          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+          const idToSave = i === 0 ? baseDocId : i === 1 ? `${baseDocId}_split` : `${baseDocId}_split_${i}`;
+          
+          // ✅ EXTRACCIÓN DINÁMICA: Aplica mes y año correctos si cruzó la medianoche
           const dateParts = calc.date.split('-');
           const shiftMonthVal = mesesFull[parseInt(dateParts[1], 10) - 1];
+          const shiftYearVal = parseInt(dateParts[0], 10);
 
           const payload = {
             userId: userId,
             type: 'SHIFT',
             startTime: extracted.startTime,
             endTime: extracted.endTime,
-            hasBreak: extracted.isOff ? false : hasBreak,
+            hasBreak: extracted.isOff ? false : extracted.hasBreak,
             isManualBreak: false,
             breakStart: autoBreakStart,
             breakEnd: autoBreakEnd,
             ...calc,
             isOff: extracted.isOff,
             month: shiftMonthVal,
-            year: parseInt(dateParts[0], 10),
+            year: shiftYearVal,
             timestamp: serverTimestamp()
           };
 
@@ -347,7 +360,6 @@ export default function OrquestReader() {
 
   return (
     <div className="relative w-full text-zinc-800 dark:text-zinc-100 space-y-5">
-      {/* Botón INFO MEJORADO: Agregado animate-pulse */}
       <button
         onClick={handleInfoClick}
         className={`absolute z-20 top-0 right-0 w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed outline-none transition-colors cursor-pointer hover:scale-110 active:scale-95 animate-pulse ${
@@ -451,12 +463,10 @@ export default function OrquestReader() {
             >
               <button onClick={handleCloseModal} className="absolute top-4 right-4 z-30 w-8 h-8 flex items-center justify-center rounded-full bg-black/20 hover:bg-black/40 text-white backdrop-blur-md transition-colors">✕</button>
               
-              {/* Banner Imagen - Ajustado a h-64 / sm:h-72 y quitamos el p-4 a la imagen para que crezca */}
               <div className="w-full h-64 sm:h-72 bg-zinc-100/50 dark:bg-zinc-950/50 relative flex items-center justify-center p-2 border-b border-zinc-200 dark:border-zinc-800">
                 <Image src="/orquest_example.png" alt="Ejemplo Orquest" fill className="object-contain drop-shadow-xl" priority />
               </div>
 
-              {/* Contenido Texto */}
               <div className="p-6 flex flex-col gap-4">
                 <header><h3 className="font-black text-xl flex items-center gap-2 text-zinc-900 dark:text-zinc-100"><span className={activeColor}>i</span> ¿Cómo funciona?</h3></header>
                 <div className="space-y-2 text-xs text-zinc-600 dark:text-zinc-400 font-medium">
@@ -495,9 +505,7 @@ export default function OrquestReader() {
                 <h3 className="font-black text-xl leading-tight text-zinc-900 dark:text-zinc-100">Conflicto de Fechas</h3>
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 font-medium">Revisa lo que vas a guardar vs lo que se borrará.</p>
                 
-                {/* Contenedor Dividido (IA vs Firebase) */}
                 <div className="flex gap-2 mt-4 h-36">
-                  {/* Columna Izquierda: Los que leyó la IA */}
                   <div className="flex-1 bg-green-50/50 dark:bg-green-950/20 border border-green-100 dark:border-green-900/50 rounded-xl p-2 flex flex-col">
                     <span className="text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-500 mb-2 border-b border-green-200 dark:border-green-900/50 pb-1">Nuevos (IA)</span>
                     <div className="overflow-y-auto pr-1 flex-1 space-y-1.5 text-left">
@@ -510,7 +518,6 @@ export default function OrquestReader() {
                     </div>
                   </div>
 
-                  {/* Columna Derecha: Los que se van a eliminar */}
                   <div className="flex-1 bg-red-50/50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 rounded-xl p-2 flex flex-col">
                     <span className="text-[9px] font-black uppercase tracking-widest text-red-500 dark:text-red-500 mb-2 border-b border-red-200 dark:border-red-900/50 pb-1">A Reemplazar</span>
                     <div className="overflow-y-auto pr-1 flex-1 space-y-1.5 text-left">
@@ -522,7 +529,7 @@ export default function OrquestReader() {
                         
                         return (
                           <div key={s.id} className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 line-through decoration-red-300 dark:decoration-red-800">
-                             <span className="mr-1">{s.date.split("-")[2]}/{s.date.split("-")[1]}</span>
+                             <span className="mr-1">{(s.originalDate || s.date).split("-")[2]}/{(s.originalDate || s.date).split("-")[1]}</span>
                              {tag}
                           </div>
                         );

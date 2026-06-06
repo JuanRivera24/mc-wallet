@@ -38,13 +38,16 @@ export default function MarcacionesReader() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedQuincena, setSelectedQuincena] = useState<1 | 2>(new Date().getDate() <= 15 ? 1 : 2);
   const [auditMode, setAuditMode] = useState<AuditMode>('COMPLETA');
-  const [docId, setDocId] = useState("");
-
+  
   // Input Data
   const [inputMode, setInputMode] = useState<InputMode>('FILE');
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileObj, setFileObj] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState("");
+  
+  // Búsqueda Inteligente
+  const [searchQuery, setSearchQuery] = useState("");
+  const [candidates, setCandidates] = useState<{id: string, name: string}[]>([]);
 
   // Motor de Auditoría
   const [isProcessing, setIsProcessing] = useState(false);
@@ -107,8 +110,6 @@ export default function MarcacionesReader() {
     let s = toMins(start);
     let e = toMins(end);
     if (e < s) e += 1440; 
-    // Horas nocturnas empiezan a las 21:00 (1260 mins) o terminan a las 06:00 (360 mins)
-    // Para simplificar, revisamos si algún momento del bloque entra en 21:00+ o < 06:00
     for (let i = s; i < e; i++) {
       const minOfDay = i % 1440;
       if (minOfDay >= 1260 || minOfDay < 360) return true;
@@ -118,6 +119,7 @@ export default function MarcacionesReader() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     hapticLight();
+    setCandidates([]);
     if (e.target.files?.[0]) {
       setFileName(e.target.files[0].name);
       setFileObj(e.target.files[0]);
@@ -125,20 +127,20 @@ export default function MarcacionesReader() {
   };
 
   // --- MOTOR DE AUDITORÍA (DIFF) ---
-  const handleAudit = async () => {
+  const processAudit = async (forcedTarget?: {id: string, name: string}) => {
     if (!user) return;
     if (inputMode === 'FILE' && !fileObj) return alert("Sube un archivo primero.");
     if (inputMode === 'TEXT' && !pastedText) return alert("Pega el texto de tus marcaciones.");
-    if (inputMode === 'FILE' && !docId) return alert("La identificación es obligatoria al subir el archivo Excel para filtrar tus datos.");
 
     hapticLight();
     setIsProcessing(true);
-    setStatusMsg("Leyendo marcaciones...");
+    setStatusMsg("Mapeando el archivo...");
     setEmployeeName("");
 
     try {
       let rawRows: any[][] = [];
 
+      // 1. Extraer Datos Crudos
       if (inputMode === 'FILE') {
         const buffer = await fileObj!.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
@@ -149,13 +151,64 @@ export default function MarcacionesReader() {
         rawRows = lines.map(line => line.split('\t').map(c => c.trim()));
       }
 
-      let inputShifts: any[] = [];
-      let detectedName = "";
+      // 2. Escaneo de Candidatos (Detectar quién es quién)
+      let uniqueEmployees = new Map<string, {id: string, name: string}>();
 
+      for (const row of rawRows) {
+        if (!Array.isArray(row) || row.length < 5) continue;
+        let dateIdx = row.findIndex(cell => {
+          const str = String(cell).trim();
+          return /^\d{4}-\d{2}-\d{2}$/.test(str) || /^\d{2}\/\d{2}\/\d{4}$/.test(str) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str);
+        });
+
+        if (dateIdx === -1) continue;
+
+        const cId = dateIdx >= 3 ? String(row[dateIdx - 3]).trim() : "";
+        const cApellido = dateIdx >= 2 ? String(row[dateIdx - 2]).trim() : "";
+        const cNombre = dateIdx >= 1 ? String(row[dateIdx - 1]).trim() : "";
+        const fullName = `${cNombre} ${cApellido}`.trim();
+
+        if (fullName) {
+          const key = `${cId}-${fullName}`;
+          if (!uniqueEmployees.has(key)) uniqueEmployees.set(key, { id: cId, name: fullName });
+        }
+      }
+
+      let target = forcedTarget;
+
+      // Si no viene un objetivo forzado, buscamos coincidencias
+      if (!target) {
+        let matches = Array.from(uniqueEmployees.values());
+        
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          matches = matches.filter(e => e.id.includes(q) || e.name.toLowerCase().includes(q));
+        }
+
+        if (matches.length === 0) {
+          throw new Error("No se encontró a nadie en este archivo con ese nombre o identificación.");
+        }
+        
+        if (matches.length > 1) {
+          setCandidates(matches);
+          setIsProcessing(false);
+          hapticLight();
+          return; // Pausar para que el usuario seleccione
+        }
+        
+        target = matches[0];
+      }
+
+      setCandidates([]); // Limpiar candidatos si ya tenemos uno
+      setEmployeeName(target.name);
+      setStatusMsg(`Analizando turnos de ${target.name}...`);
+
+      let inputShifts: any[] = [];
+
+      // 3. Extracción Definitiva de Turnos
       for (const row of rawRows) {
         if (!Array.isArray(row) || row.length < 5) continue; 
 
-        // 1. Encontrar la Fecha como ancla
         let dateIdx = row.findIndex(cell => {
           const str = String(cell).trim();
           return /^\d{4}-\d{2}-\d{2}$/.test(str) || /^\d{2}\/\d{2}\/\d{4}$/.test(str) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(str);
@@ -163,25 +216,21 @@ export default function MarcacionesReader() {
 
         if (dateIdx === -1) continue; 
 
-        // 2. Extraer Identidad
         const cId = dateIdx >= 3 ? String(row[dateIdx - 3]).trim() : "";
         const cApellido = dateIdx >= 2 ? String(row[dateIdx - 2]).trim() : "";
         const cNombre = dateIdx >= 1 ? String(row[dateIdx - 1]).trim() : "";
+        const fullName = `${cNombre} ${cApellido}`.trim();
 
-        if (inputMode === 'FILE' && docId && cId !== docId.trim()) continue;
-
-        if (!detectedName && cNombre && cApellido) {
-          detectedName = `${cNombre} ${cApellido}`;
-        }
+        // Filtro Estricto
+        if (fullName !== target.name || cId !== target.id) continue;
 
         const cDate = parseDate(row[dateIdx]);
         if (!cDate) continue;
 
-        // 3. Extraer Tiempos (Orden exacto de McDonald's)
-        const cEntrada = parseTime(row[dateIdx + 1]);       // Entrada turno
-        const cSalidaBreak = parseTime(row[dateIdx + 2]);   // Salida a Break (Inicio break)
-        const cEntradaBreak = parseTime(row[dateIdx + 3]);  // Entrada de Break (Fin break)
-        const cSalida = parseTime(row[dateIdx + 5]);        // Salida turno
+        const cEntrada = parseTime(row[dateIdx + 1]);
+        const cSalidaBreak = parseTime(row[dateIdx + 2]);
+        const cEntradaBreak = parseTime(row[dateIdx + 3]);
+        const cSalida = parseTime(row[dateIdx + 5]);
 
         const monthIndex = parseInt(cDate.split("-")[1]) - 1;
         const day = parseInt(cDate.split("-")[2]);
@@ -200,10 +249,8 @@ export default function MarcacionesReader() {
       }
 
       if (inputShifts.length === 0) {
-        throw new Error("No se encontraron marcaciones válidas para el mes, quincena y documento seleccionados.");
+        throw new Error("Se encontró tu usuario, pero no tienes marcaciones válidas para el mes y quincena seleccionados.");
       }
-
-      if (detectedName) setEmployeeName(detectedName);
 
       setStatusMsg("Obteniendo tus turnos guardados...");
       const q = query(collection(db, "shifts"), where("userId", "==", user.id), where("month", "==", mesesFull[selectedMonth]));
@@ -231,13 +278,11 @@ export default function MarcacionesReader() {
           let currentSeverity: MismatchSeverity = 'LEVE';
           const diffs: string[] = [];
 
-          // Evaluación de campos vacíos (Grave)
           if (!input.startTime || !input.endTime) {
             currentSeverity = 'GRAVE';
             diffs.push("Faltan horas de entrada o salida en el reporte oficial.");
           }
 
-          // Diferencias en el turno (Moderado)
           if (saved.startTime !== input.startTime) {
             diffs.push(`Entrada: ${saved.startTime || '--'} ➔ ${input.startTime || '--'}`);
             if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO';
@@ -247,7 +292,6 @@ export default function MarcacionesReader() {
             if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO';
           }
           
-          // Diferencias en el Break
           if (input.breakStart && input.breakEnd && saved.breakStart && saved.breakEnd) {
              if (saved.breakStart !== input.breakStart || saved.breakEnd !== input.breakEnd) {
                  diffs.push(`Break: ${saved.breakStart}-${saved.breakEnd} ➔ ${input.breakStart}-${input.breakEnd}`);
@@ -261,11 +305,10 @@ export default function MarcacionesReader() {
                  const iBreakNight = hasNightHours(input.breakStart, input.breakEnd);
 
                  if (sBreakDur !== iBreakDur) {
-                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; // Distinta duración
+                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; 
                  } else if (sBreakNight !== iBreakNight) {
-                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; // Distinto tipo de hora
+                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; 
                  }
-                 // Si dura lo mismo y cae en el mismo tipo de hora, se mantiene 'LEVE'
              }
           } else if ((input.breakStart && !saved.breakStart) || (!input.breakStart && saved.breakStart)) {
              diffs.push("Diferencia en existencia de Break.");
@@ -309,28 +352,54 @@ export default function MarcacionesReader() {
 
     try {
       const toSync = auditResults.filter(r => r.status === 'MISMATCH' || r.status === 'MISSING_IN_APP');
-      const year = new Date().getFullYear();
 
       for (const res of toSync) {
         const input = res.inputShift;
         const baseDocId = `${user.id}_${input.date}`;
 
-        if (res.status === 'MISMATCH') {
-          await deleteDoc(doc(db, "shifts", res.savedShift.id));
-          await deleteDoc(doc(db, "shifts", `${res.savedShift.id.replace('_split', '')}_split`));
+        // Limpieza Defensiva 1: Si había un error (MISMATCH), borramos el turno anterior desde la raíz.
+        if (res.status === 'MISMATCH' && res.savedShift) {
+          const baseId = res.savedShift.id.replace(/_split.*/, '');
+          await deleteDoc(doc(db, "shifts", baseId));
+          await deleteDoc(doc(db, "shifts", `${baseId}_split`));
+          await deleteDoc(doc(db, "shifts", `${baseId}_split_2`));
         }
+
+        // Limpieza Defensiva 2: Nos aseguramos que el ID de destino esté completamente despejado antes de escribir fragmentos nuevos.
+        await deleteDoc(doc(db, "shifts", baseDocId));
+        await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
+        await deleteDoc(doc(db, "shifts", `${baseDocId}_split_2`));
 
         let hasBreak = !!(input.breakStart && input.breakEnd);
         const calcs = calculateShift(input.date, input.startTime, input.endTime, hasBreak ? { start: input.breakStart, end: input.breakEnd } : undefined, role, hasBreak);
 
-        await Promise.all(calcs.map(async (calc: any, i: number) => {
-          const idToSave = i === 0 ? baseDocId : `${baseDocId}_split`;
+        const calcArray = Array.isArray(calcs) ? calcs : [calcs];
+
+        await Promise.all(calcArray.map(async (calc: any, i: number) => {
+          const idToSave = i === 0 ? baseDocId : i === 1 ? `${baseDocId}_split` : `${baseDocId}_split_${i}`;
+          
+          // ✅ EXTRACCIÓN DINÁMICA: Este paso es crucial para asignar 
+          // el mes y año correcto si el fragmento divido cruza la medianoche.
+          const dateParts = calc.date.split('-');
+          const calcYear = parseInt(dateParts[0], 10);
+          const calcMonthVal = mesesFull[parseInt(dateParts[1], 10) - 1];
+
           const payload = {
-            userId: user.id, type: 'SHIFT',
-            startTime: input.startTime, endTime: input.endTime,
-            hasBreak, isManualBreak: hasBreak, breakStart: input.breakStart || "", breakEnd: input.breakEnd || "",
-            ...calc, isOff: false, month: mesesFull[selectedMonth], year, timestamp: serverTimestamp()
+            userId: user.id, 
+            type: 'SHIFT',
+            startTime: input.startTime, 
+            endTime: input.endTime,
+            hasBreak, 
+            isManualBreak: hasBreak, 
+            breakStart: input.breakStart || "", 
+            breakEnd: input.breakEnd || "",
+            ...calc, 
+            isOff: false, 
+            month: calcMonthVal, // <-- Asignación dinámica del mes
+            year: calcYear,      // <-- Asignación dinámica del año
+            timestamp: serverTimestamp()
           };
+          
           await setDoc(doc(db, "shifts", idToSave), payload, { merge: true });
         }));
       }
@@ -417,13 +486,36 @@ export default function MarcacionesReader() {
 
             <div className="bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
               <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1 flex items-center justify-between">
-                <span>Identificación</span>
-                {inputMode === 'FILE' && <span className="text-[8px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Obligatorio</span>}
+                <span>Buscar Empleado</span>
+                <span className="text-[8px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full">Nombre o CC</span>
               </label>
-              <input type="number" value={docId} onChange={e => setDocId(e.target.value)} placeholder="Ej. 1000123456" className="w-full mt-2 p-3.5 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all" />
+              <input 
+                type="text" 
+                value={searchQuery} 
+                onChange={e => { setSearchQuery(e.target.value); setCandidates([]); }} 
+                placeholder="Ej. Raul o 1000123456" 
+                className="w-full mt-2 p-3.5 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+              />
               <p className="text-[9px] font-bold text-zinc-400 mt-1.5 ml-1">
-                {inputMode === 'FILE' ? "Obligatorio al subir el Excel para ubicar tus datos." : "Opcional. Si pegas múltiples personas, aislará tus turnos."}
+                La IA aislará tus turnos buscando por nombre, apellido o cédula.
               </p>
+
+              {/* Selector si hay múltiples coincidencias */}
+              <AnimatePresence>
+                {candidates.length > 0 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                    <p className="text-[10px] font-black uppercase text-orange-500 mb-2 ml-1">⚠️ Se encontraron varias personas, selecciona la tuya:</p>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {candidates.map((c, i) => (
+                        <button key={i} onClick={() => processAudit(c)} className="w-full flex justify-between items-center p-3 bg-zinc-50 dark:bg-[#0a0a0a] hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-xl transition-all">
+                          <span className="text-xs font-black text-zinc-800 dark:text-zinc-200">{c.name}</span>
+                          {c.id && <span className="text-[10px] font-bold text-zinc-400">CC: {c.id}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="bg-white dark:bg-zinc-900 p-2 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -441,14 +533,14 @@ export default function MarcacionesReader() {
               ) : (
                 <textarea 
                   value={pastedText} 
-                  onChange={e => setPastedText(e.target.value)} 
+                  onChange={e => { setPastedText(e.target.value); setCandidates([]); }} 
                   placeholder="Pega las filas aquí. No importa si omites los encabezados, la IA encontrará la columna de fecha y deducirá los horarios automáticamente..." 
                   className="w-full h-32 p-4 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-2xl font-mono text-[10px] text-zinc-700 dark:text-zinc-300 outline-none resize-none focus:ring-2 focus:ring-blue-500"
                 />
               )}
             </div>
 
-            <button onClick={handleAudit} disabled={isProcessing || (inputMode === 'FILE' && !docId)} className={`w-full py-4 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg transition-transform active:scale-95 disabled:opacity-50 flex justify-center items-center gap-2 ${activeBg}`}>
+            <button onClick={() => processAudit()} disabled={isProcessing || candidates.length > 0} className={`w-full py-4 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg transition-transform active:scale-95 disabled:opacity-50 flex justify-center items-center gap-2 ${activeBg}`}>
               {isProcessing ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {statusMsg}</> : "Iniciar Auditoría"}
             </button>
           </motion.div>
