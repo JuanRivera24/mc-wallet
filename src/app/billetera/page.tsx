@@ -6,7 +6,8 @@ import Navbar from "@/components/Navbar";
 import { useTheme } from "@/context/ThemeContext";
 import { useHaptics } from "@/hooks/useHaptics";
 import Footer from "@/components/Footer";
-import Link from "next/link"; // ✅ AÑADIDO
+import Link from "next/link"; 
+import BilleteraTutorial from "@/components/BilleteraTutorial"; // ✅ IMPORTAMOS EL TUTORIAL
 
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
@@ -406,14 +407,11 @@ export default function BilleteraPage() {
   const closeTxModal = () => { setTxModalType(null); setAmount(""); setDesc(""); setActiveTarget(null); setShowAddCategory(false); setIsRecurring(false); };
 
   return (
-    // ✅ FIX FOOTER FLOTANTE: flex flex-col en el padre
     <main className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 transition-colors text-zinc-900 dark:text-zinc-100 font-sans">
       <Navbar />
       
-      {/* ✅ FIX FOOTER FLOTANTE: flex-1 en el contenedor para que empuje lo demás */}
       <div className="flex-1 pt-6 px-4 max-w-2xl w-full mx-auto space-y-6 pb-12">
         
-        {/* ✅ BOTÓN VOLVER (FLECHA) */}
         <div className="flex items-center -mb-2">
           <Link 
             href="/servicios" 
@@ -428,9 +426,9 @@ export default function BilleteraPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* 1. DASHBOARD ESTRATÉGICO */}
+        {/* 1. DASHBOARD ESTRATÉGICO (AGREGADO ID) */}
         {/* ========================================================= */}
-        <div className="space-y-3">
+        <div id="wallet-dashboard" className="space-y-3 scroll-mt-24">
           <div className={`p-6 rounded-[2rem] bg-gradient-to-br ${themeColor === 'blue' ? 'from-blue-600 to-blue-500' : 'from-red-600 to-red-500'} text-white shadow-xl relative overflow-hidden`}>
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
             
@@ -481,7 +479,8 @@ export default function BilleteraPage() {
               <h3 className="text-sm font-black text-zinc-900 dark:text-white">Flujo del Mes</h3>
               <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Análisis en tiempo real</p>
             </div>
-            <button onClick={() => { setShowImportModal(true); setPayrollPreview(null); }} className={`text-[10px] font-black uppercase bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm ${activeText} active:scale-95`}>
+            {/* ✅ AGREGADO ID AL BOTÓN DE TRAER NÓMINA */}
+            <button id="wallet-import-btn" onClick={() => { setShowImportModal(true); setPayrollPreview(null); }} className={`text-[10px] font-black uppercase bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm ${activeText} active:scale-95`}>
               📥 Traer Nómina
             </button>
           </header>
@@ -526,9 +525,9 @@ export default function BilleteraPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* 3. BOLSILLOS (METAS) */}
+        {/* 3. BOLSILLOS (METAS) (AGREGADO ID) */}
         {/* ========================================================= */}
-        <section className="space-y-3">
+        <section id="wallet-goals" className="space-y-3 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Bolsillos & Metas 🎯</h3>
@@ -582,9 +581,9 @@ export default function BilleteraPage() {
 
 
         {/* ========================================================= */}
-        {/* 4. DEUDAS */}
+        {/* 4. DEUDAS (AGREGADO ID) */}
         {/* ========================================================= */}
-        <section className="space-y-3 pt-2">
+        <section id="wallet-debts" className="space-y-3 pt-2 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Obligaciones 💸</h3>
@@ -637,9 +636,9 @@ export default function BilleteraPage() {
         </section>
 
         {/* ========================================================= */}
-        {/* 5. HISTORIAL BLINDADO */}
+        {/* 5. HISTORIAL BLINDADO (AGREGADO ID) */}
         {/* ========================================================= */}
-        <section className="space-y-3 pb-8 pt-4">
+        <section id="wallet-ledger" className="space-y-3 pb-8 pt-4 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Libro Contable</h3>
@@ -893,6 +892,9 @@ export default function BilleteraPage() {
         )}
       </AnimatePresence>
       
+      {/* ✅ AQUÍ RENDERIZAMOS EL TUTORIAL JUSTO ANTES DEL FOOTER */}
+      <BilleteraTutorial />
+
       <div className="w-full border-t border-zinc-200 dark:border-zinc-800 pt-8 mt-auto"><Footer /></div>
     </main>
   );
