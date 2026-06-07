@@ -377,7 +377,7 @@ export default function OrquestReader() {
             Exportar Horario IA
           </h4>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs mx-auto">
-            Configura el mes base y sube tu captura de Orquest.
+            Configura el mes base y sube tu captura de Orquest.      Esta sección se encuentra en una versión temprana, si al procesar, aparece algún error, presiona nuevamente procesar.
           </p>
         </header>
 
