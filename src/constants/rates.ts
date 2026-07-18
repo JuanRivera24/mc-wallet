@@ -33,14 +33,14 @@ export const RATES_BY_YEAR: Record<number, Record<Role, any>> = {
   },
   2026: {
     CREW: {
-      ORDINARY: 8294,
-      ORDINARY_NIGHT: 11197,
-      EXTRA_DAY: 10367,
-      EXTRA_NIGHT: 14514,
-      SUNDAY: 14929,
-      SUNDAY_NIGHT: 17832,
-      EXTRA_FESTIVE_DAY: 16588,
-      EXTRA_FESTIVE_NIGHT: 20734,
+      ORDINARY: 8338,
+      ORDINARY_NIGHT: 11256,
+      EXTRA_DAY: 10423,
+      EXTRA_NIGHT: 14592,
+      SUNDAY: 15842,
+      SUNDAY_NIGHT: 18761,
+      EXTRA_FESTIVE_DAY: 17927,
+      EXTRA_FESTIVE_NIGHT: 22096,
     },
     ENTRENADOR: {
       ORDINARY: 9710,
