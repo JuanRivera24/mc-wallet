@@ -38,9 +38,8 @@ const services: ServiceCategory[] = [
     category: "Productividad",
     items: [
       { id: "calc-rapida", title: "Calculadora Rápida", icon: "⚡", desc: "Sin necesidad de guardar, se recomienda iniciar sesion para guardar los turnos", action: "open_calc", requiresAuth: false },
-      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", isBeta: true, requiresAuth: true },
-      // ✅ AÑADIMOS AUDITORÍA DE MARCACIONES AQUÍ
       { id: "marcaciones", title: "Auditoría Marcaciones", icon: "📑", desc: "Cruza y sincroniza tus turnos con las marcaciones del Excel ", action: "open_marcaciones", isBeta: true, requiresAuth: true },
+      { id: "orquest", title: "Lector Orquest", icon: "📸", desc: "Sube tu horario en foto y expórtalo a tu nómina", action: "open_orquest", isBeta: true, requiresAuth: true },
     ]
   },
   {
@@ -53,9 +52,9 @@ const services: ServiceCategory[] = [
     ]
   },
   {
-    category: "Ajustes & Soporte",
+    category: "Soporte",
     items: [
-      { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
+      // { id: "notificaciones", title: "Centro de Notificaciones", icon: "🔔", desc: "Ajusta las alertas antes de tu turno", href: "/servicios/notificaciones", comingSoon: true, requiresAuth: true },
       { id: "contacto", title: "Buzón Crew", icon: "✉️", desc: "Déjanos una sugerencia, queja o recomendación", action: "open_contacto", requiresAuth: false },
     ]
   }

@@ -7,7 +7,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useHaptics } from "@/hooks/useHaptics";
 import Footer from "@/components/Footer";
 import Link from "next/link"; 
-import BilleteraTutorial from "@/components/BilleteraTutorial"; // ✅ IMPORTAMOS EL TUTORIAL
+import BilleteraTutorial from "@/components/BilleteraTutorial";
 
 import { useUser } from "@clerk/nextjs";
 import { db } from "@/lib/firebase";
@@ -58,7 +58,7 @@ export default function BilleteraPage() {
   // ==========================================
   const [showBalances, setShowBalances] = useState(true);
   const [historyFilter, setHistoryFilter] = useState<"ALL" | "INCOME" | "EXPENSE" | "INTERNAL">("ALL");
-  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | null>(null);
+  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | "FUND_POCKET" | "WITHDRAW_POCKET" | null>(null);
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHistoryLimit, setShowHistoryLimit] = useState(5);
@@ -81,14 +81,13 @@ export default function BilleteraPage() {
 
   const [metaTitle, setMetaTitle] = useState("");
   const [metaTarget, setMetaTarget] = useState("");
-  const [metaType, setMetaType] = useState<"GOAL" | "DEBT">("GOAL");
+  const [metaType, setMetaType] = useState<"GOAL" | "DEBT" | "POCKET">("POCKET");
 
   const [importMonth, setImportMonth] = useState(MESES[new Date().getMonth()]);
   const [importQuincena, setImportQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
 
   const activeBg = themeColor === 'blue' ? 'bg-blue-600' : 'bg-red-600';
   const activeText = themeColor === 'blue' ? 'text-blue-500' : 'text-red-500';
-  const activeBorder = themeColor === 'blue' ? 'border-blue-500' : 'border-red-500';
 
   // ==========================================
   // 📡 CONEXIÓN A FIREBASE
@@ -108,8 +107,8 @@ export default function BilleteraPage() {
     const unsubGoals = onSnapshot(qGoals, (snap) => {
       const goalsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       goalsData.sort((a, b) => {
-        const aCompleted = a.currentAmount >= a.targetAmount;
-        const bCompleted = b.currentAmount >= b.targetAmount;
+        const aCompleted = a.targetAmount > 0 && a.currentAmount >= a.targetAmount;
+        const bCompleted = b.targetAmount > 0 && b.currentAmount >= b.targetAmount;
         if (aCompleted === bCompleted) return (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0);
         return aCompleted ? 1 : -1;
       });
@@ -140,7 +139,7 @@ export default function BilleteraPage() {
       const txDate = tx.timestamp ? tx.timestamp.toDate() : new Date();
       const isThisMonth = txDate.getMonth() === currentMonthNum && txDate.getFullYear() === currentYearNum;
 
-      if (tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION') {
+      if (tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION' || tx.type === 'WITHDRAW_POCKET') {
         cash += Number(tx.amount); 
         if (isThisMonth && tx.type === 'INCOME') incomeMonth += Number(tx.amount);
       } else if (tx.type === 'EXPENSE') {
@@ -152,17 +151,19 @@ export default function BilleteraPage() {
           }
           expensesByCategory[tx.category].amount += Number(tx.amount);
         }
-      } else if (tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT') {
+      } else if (tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT' || tx.type === 'FUND_POCKET') {
         cash -= Number(tx.amount); 
       }
     });
 
     let savedInGoals = 0;
     let pendingDebts = 0;
+    let savedInPockets = 0;
     
     metas.forEach(m => {
       if (m.type === 'GOAL') savedInGoals += m.currentAmount;
       if (m.type === 'DEBT') pendingDebts += (m.targetAmount - m.currentAmount);
+      if (m.type === 'POCKET') savedInPockets += m.currentAmount;
     });
 
     const topExpenses = Object.values(expensesByCategory).sort((a, b) => b.amount - a.amount).slice(0, 3);
@@ -176,7 +177,14 @@ export default function BilleteraPage() {
       smartInsight = `💡 El ${percent}% de tus gastos se van en ${highest.label}.`;
     }
 
-    return { cashBalance: cash, goalBalance: savedInGoals, debtBalance: pendingDebts, netWorth: cash + savedInGoals - pendingDebts, incomeMonth, expenseMonth, topExpenses, smartInsight };
+    return { 
+      cashBalance: cash, 
+      goalBalance: savedInGoals, 
+      pocketBalance: savedInPockets,
+      debtBalance: pendingDebts, 
+      netWorth: cash + savedInGoals + savedInPockets - pendingDebts, 
+      incomeMonth, expenseMonth, topExpenses, smartInsight 
+    };
   }, [transactions, metas]);
 
   const currentCategories = useMemo(() => {
@@ -187,14 +195,18 @@ export default function BilleteraPage() {
 
   const filteredTransactions = useMemo(() => {
     if (historyFilter === "ALL") return transactions;
-    if (historyFilter === "INTERNAL") return transactions.filter(t => t.type === 'SAVE_GOAL' || t.type === 'PAY_DEBT' || t.type === 'GOAL_REDEMPTION');
+    if (historyFilter === "INTERNAL") return transactions.filter(t => ['SAVE_GOAL', 'PAY_DEBT', 'GOAL_REDEMPTION', 'FUND_POCKET', 'WITHDRAW_POCKET'].includes(t.type));
     return transactions.filter(t => t.type === historyFilter);
   }, [transactions, historyFilter]);
 
+  const pocketsList = metas.filter(m => m.type === "POCKET");
   const goalsList = metas.filter(m => m.type === "GOAL");
   const debtsList = metas.filter(m => m.type === "DEBT");
 
   const formatCurrency = (val: number) => showBalances ? `$${val.toLocaleString('es-CO')}` : '••••••';
+
+  // Utils para validaciones del Modal
+  const isSpecialTx = ['SAVE_GOAL', 'PAY_DEBT', 'FUND_POCKET', 'WITHDRAW_POCKET'].includes(txModalType as string);
 
   // ==========================================
   // ⚡ ACCIONES CORE DE ESCRITURA
@@ -221,14 +233,23 @@ export default function BilleteraPage() {
     }
     
     setIsSaving(true);
-    const isPaymentOrSave = txModalType === 'SAVE_GOAL' || txModalType === 'PAY_DEBT';
     const categoryData = currentCategories.find(c => c.id === selectedCategory);
 
-    if (isPaymentOrSave && activeTarget) {
-      const pending = activeTarget.targetAmount - activeTarget.currentAmount;
-      if (numAmount > pending) {
-        hapticWarning();
-        if (!confirm(`El abono supera el saldo pendiente ($${pending.toLocaleString('es-CO')}). ¿Guardar de todas formas?`)) {
+    if (isSpecialTx && activeTarget) {
+      if ((txModalType === 'SAVE_GOAL' || txModalType === 'PAY_DEBT')) {
+        const pending = activeTarget.targetAmount - activeTarget.currentAmount;
+        if (numAmount > pending) {
+          hapticWarning();
+          if (!confirm(`El abono supera el saldo pendiente ($${pending.toLocaleString('es-CO')}). ¿Guardar de todas formas?`)) {
+            setIsSaving(false); return;
+          }
+        }
+      }
+      
+      if (txModalType === 'WITHDRAW_POCKET') {
+        if (numAmount > activeTarget.currentAmount) {
+          hapticWarning();
+          alert(`No puedes retirar más del saldo que hay en el bolsillo ($${activeTarget.currentAmount.toLocaleString('es-CO')}).`);
           setIsSaving(false); return;
         }
       }
@@ -237,18 +258,28 @@ export default function BilleteraPage() {
     const batch = writeBatch(db);
     const txRef = doc(collection(db, "wallet_transactions"));
 
+    let txCat = categoryData?.label || "Otros";
+    let txIcon = categoryData?.icon || "💵";
+    
+    if (isSpecialTx) {
+      txIcon = activeTarget.icon;
+      if (txModalType === 'SAVE_GOAL') txCat = `Ahorro: ${activeTarget.title}`;
+      if (txModalType === 'PAY_DEBT') txCat = `Abono: ${activeTarget.title}`;
+      if (txModalType === 'FUND_POCKET') txCat = `Ingreso a Bolsillo: ${activeTarget.title}`;
+      if (txModalType === 'WITHDRAW_POCKET') txCat = `Retiro de Bolsillo: ${activeTarget.title}`;
+    }
+
     try {
       batch.set(txRef, {
         userId: user.id, type: txModalType, amount: numAmount,
-        category: isPaymentOrSave ? (txModalType === 'SAVE_GOAL' ? `Ahorro: ${activeTarget.title}` : `Abono: ${activeTarget.title}`) : (categoryData?.label || "Otros"),
-        icon: isPaymentOrSave ? activeTarget.icon : (categoryData?.icon || "💵"),
-        description: desc.trim(), isRecurring: isRecurring, timestamp: serverTimestamp(),
-        targetId: isPaymentOrSave ? activeTarget.id : null, deleted: false
+        category: txCat, icon: txIcon, description: desc.trim(), isRecurring: isRecurring, 
+        timestamp: serverTimestamp(), targetId: isSpecialTx ? activeTarget.id : null, deleted: false
       });
 
-      if (isPaymentOrSave && activeTarget) {
+      if (isSpecialTx && activeTarget) {
         const goalRef = doc(db, "wallet_goals", activeTarget.id);
-        batch.update(goalRef, { currentAmount: increment(numAmount) });
+        const amountChange = txModalType === 'WITHDRAW_POCKET' ? -numAmount : numAmount;
+        batch.update(goalRef, { currentAmount: increment(amountChange) });
       }
       
       await batch.commit(); 
@@ -258,13 +289,14 @@ export default function BilleteraPage() {
 
   const handleSaveMeta = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numTarget = parseFloat(metaTarget);
-    if (isNaN(numTarget) || numTarget <= 0 || !metaTitle || !user) return hapticError();
+    let numTarget = metaType === "POCKET" ? 0 : parseFloat(metaTarget);
+    
+    if ((metaType !== "POCKET" && (isNaN(numTarget) || numTarget <= 0)) || !metaTitle || !user) return hapticError();
     setIsSaving(true);
     try {
       await addDoc(collection(db, "wallet_goals"), {
         userId: user.id, title: metaTitle.trim(), targetAmount: numTarget, currentAmount: 0, 
-        type: metaType, icon: metaType === "GOAL" ? "🎯" : "💸", timestamp: serverTimestamp()
+        type: metaType, icon: metaType === "GOAL" ? "🎯" : metaType === "POCKET" ? "👛" : "💸", timestamp: serverTimestamp()
       });
       hapticSuccess(); setShowMetaModal(false); setMetaTitle(""); setMetaTarget("");
     } catch (e) { hapticError(); } finally { setIsSaving(false); }
@@ -273,21 +305,24 @@ export default function BilleteraPage() {
   const handleLiquidateGoal = async (goal: any) => {
     if (!user) return;
     const isGoal = goal.type === "GOAL";
+    const isPocket = goal.type === "POCKET";
     
-    let confirmMsg = isGoal 
-      ? `¿Liquidar meta? Los ahorros ($${goal.currentAmount.toLocaleString('es-CO')}) se devolverán a tu Saldo Disponible.`
-      : `¿Eliminar registro de esta Deuda permanentemente?`;
+    let confirmMsg = "";
+    if (isGoal) confirmMsg = `¿Liquidar meta? Los ahorros ($${goal.currentAmount.toLocaleString('es-CO')}) se devolverán a tu Saldo Disponible.`;
+    else if (isPocket) confirmMsg = `¿Eliminar bolsillo? El saldo ($${goal.currentAmount.toLocaleString('es-CO')}) se devolverá a tu Saldo Disponible.`;
+    else confirmMsg = `¿Eliminar registro de esta Deuda permanentemente?`;
       
     if (!confirm(confirmMsg)) return;
     hapticWarning();
 
     const batch = writeBatch(db);
     try {
-      if (isGoal && goal.currentAmount > 0) {
+      if ((isGoal || isPocket) && goal.currentAmount > 0) {
         const txRef = doc(collection(db, "wallet_transactions"));
         batch.set(txRef, {
           userId: user.id, type: "GOAL_REDEMPTION", amount: goal.currentAmount,
-          category: `Retiro de Meta: ${goal.title}`, icon: "🎉", description: "Liquidación y retorno de ahorros",
+          category: isPocket ? `Retiro de Bolsillo: ${goal.title}` : `Retiro de Meta: ${goal.title}`, 
+          icon: isPocket ? "👛" : "🎉", description: "Liquidación y retorno de dinero",
           timestamp: serverTimestamp(), deleted: false
         });
       }
@@ -297,7 +332,7 @@ export default function BilleteraPage() {
       
       await batch.commit();
       hapticSuccess();
-      if(isGoal && goal.currentAmount >= goal.targetAmount) {
+      if(isGoal && goal.currentAmount >= goal.targetAmount && goal.targetAmount > 0) {
         alert("¡Felicidades! Meta cumplida y dinero liberado a tu cuenta.");
       }
     } catch (e) { hapticError(); alert("Fallo al procesar la liquidación."); }
@@ -318,11 +353,12 @@ export default function BilleteraPage() {
 
     const batch = writeBatch(db);
     try {
-      if ((tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT') && tx.targetId) {
+      if (['SAVE_GOAL', 'PAY_DEBT', 'FUND_POCKET', 'WITHDRAW_POCKET'].includes(tx.type) && tx.targetId) {
         const targetGoal = metas.find(m => m.id === tx.targetId);
         if(targetGoal) {
           const goalRef = doc(db, "wallet_goals", tx.targetId);
-          batch.update(goalRef, { currentAmount: increment(-tx.amount) });
+          const amountChange = tx.type === 'WITHDRAW_POCKET' ? tx.amount : -tx.amount;
+          batch.update(goalRef, { currentAmount: increment(amountChange) });
         }
       }
       
@@ -334,13 +370,11 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); alert("No se pudo revertir."); }
   };
 
-  // ✅ AQUÍ INTEGRAMOS TODOS LOS CÁLCULOS (BigVenta, Primas y Deducciones Extra)
   const previewPayroll = async () => {
     if (!user) return;
     
     let grandTotal = 0;
 
-    // 1. Horas / Turnos
     const qShifts = query(collection(db, "shifts"), where("userId", "==", user.id), where("month", "==", importMonth), where("year", "==", currentYearNum));
     const snapShifts = await getDocs(qShifts);
     snapShifts.forEach(doc => {
@@ -353,21 +387,18 @@ export default function BilleteraPage() {
       }
     });
 
-    // 2. Big Venta (Aplica retención del 8% directo en el cálculo neto)
     const qBV = query(collection(db, "bigVentas"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
     const snapBV = await getDocs(qBV);
     snapBV.forEach(doc => {
       grandTotal += (Number(doc.data().value) || 0) * 0.92;
     });
 
-    // 3. Primas
     const qPrima = query(collection(db, "primas"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
     const snapPrima = await getDocs(qPrima);
     snapPrima.forEach(doc => {
       grandTotal += (Number(doc.data().value) || 0);
     });
 
-    // 4. Deducciones Extra (Se restan)
     const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id), where("month", "==", importMonth), where("quincena", "==", importQuincena), where("year", "==", currentYearNum));
     const snapED = await getDocs(qED);
     snapED.forEach(doc => {
@@ -406,6 +437,18 @@ export default function BilleteraPage() {
 
   const closeTxModal = () => { setTxModalType(null); setAmount(""); setDesc(""); setActiveTarget(null); setShowAddCategory(false); setIsRecurring(false); };
 
+  const getModalTitle = () => {
+    switch(txModalType) {
+        case 'SAVE_GOAL': return `Ahorrar en ${activeTarget?.title}`;
+        case 'PAY_DEBT': return `Pagar ${activeTarget?.title}`;
+        case 'FUND_POCKET': return `Ingresar a ${activeTarget?.title}`;
+        case 'WITHDRAW_POCKET': return `Retirar de ${activeTarget?.title}`;
+        case 'INCOME': return 'Registrar Ingreso';
+        case 'EXPENSE': return 'Registrar Gasto';
+        default: return '';
+    }
+  }
+
   return (
     <main className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 transition-colors text-zinc-900 dark:text-zinc-100 font-sans">
       <Navbar />
@@ -426,7 +469,7 @@ export default function BilleteraPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* 1. DASHBOARD ESTRATÉGICO (AGREGADO ID) */}
+        {/* 1. DASHBOARD ESTRATÉGICO */}
         {/* ========================================================= */}
         <div id="wallet-dashboard" className="space-y-3 scroll-mt-24">
           <div className={`p-6 rounded-[2rem] bg-gradient-to-br ${themeColor === 'blue' ? 'from-blue-600 to-blue-500' : 'from-red-600 to-red-500'} text-white shadow-xl relative overflow-hidden`}>
@@ -455,12 +498,16 @@ export default function BilleteraPage() {
               <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Patrimonio Neto</span>
               <span className="text-lg font-black mt-1">{formatCurrency(analytics.netWorth)}</span>
             </div>
-            <div className="grid grid-rows-2 gap-2">
-              <div className="bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900/50 p-3 rounded-2xl flex justify-between items-center">
-                <span className="text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-500">Ahorros</span>
+            <div className="grid grid-rows-3 gap-2">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/50 p-2.5 rounded-2xl flex justify-between items-center">
+                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-500">Bolsillos</span>
+                <span className="text-xs font-black text-blue-700 dark:text-blue-400">{formatCurrency(analytics.pocketBalance)}</span>
+              </div>
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900/50 p-2.5 rounded-2xl flex justify-between items-center">
+                <span className="text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-500">Metas</span>
                 <span className="text-xs font-black text-green-700 dark:text-green-400">{formatCurrency(analytics.goalBalance)}</span>
               </div>
-              <div className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 p-3 rounded-2xl flex justify-between items-center">
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50 p-2.5 rounded-2xl flex justify-between items-center">
                 <span className="text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-500">Deudas</span>
                 <span className="text-xs font-black text-red-700 dark:text-red-400">{showBalances ? `-${formatCurrency(analytics.debtBalance)}` : '••••••'}</span>
               </div>
@@ -479,7 +526,6 @@ export default function BilleteraPage() {
               <h3 className="text-sm font-black text-zinc-900 dark:text-white">Flujo del Mes</h3>
               <p className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Análisis en tiempo real</p>
             </div>
-            {/* ✅ AGREGADO ID AL BOTÓN DE TRAER NÓMINA */}
             <button id="wallet-import-btn" onClick={() => { setShowImportModal(true); setPayrollPreview(null); }} className={`text-[10px] font-black uppercase bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm ${activeText} active:scale-95`}>
               📥 Traer Nómina
             </button>
@@ -525,12 +571,60 @@ export default function BilleteraPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* 3. BOLSILLOS (METAS) (AGREGADO ID) */}
+        {/* 3. BOLSILLOS (POCKETS) */}
         {/* ========================================================= */}
-        <section id="wallet-goals" className="space-y-3 scroll-mt-24">
+        <section id="wallet-pockets" className="space-y-3 pt-2 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
             <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Bolsillos & Metas 🎯</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Bolsillos 👛</h3>
+              <p className="text-[8px] text-zinc-400 mt-0.5">Divide tu dinero disponible</p>
+            </div>
+            <button onClick={() => { setMetaType("POCKET"); setShowMetaModal(true); }} className="text-[10px] font-black uppercase text-blue-500 hover:text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-lg active:scale-95 transition-all">
+              + Crear Bolsillo
+            </button>
+          </div>
+          
+          {pocketsList.length === 0 ? (
+            <div className="bg-transparent border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center">
+              <p className="text-xs text-zinc-400 font-bold">No tienes bolsillos. Úsalos para separar efectivo, Nequi o ahorros libres.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {pocketsList.map(pocket => (
+                <div key={pocket.id} className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                      <span className="text-xl">{pocket.icon}</span> {pocket.title}
+                    </span>
+                    <span className="text-base font-black text-blue-600 dark:text-blue-400">
+                      {formatCurrency(pocket.currentAmount)}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 items-center mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800/80">
+                    <button onClick={() => { setActiveTarget(pocket); setTxModalType("FUND_POCKET"); setAmount(""); }} className="flex-1 text-[10px] font-black text-green-600 bg-green-50 dark:bg-green-900/20 py-2.5 rounded-lg hover:bg-green-100 transition-colors shadow-sm active:scale-95">
+                      + AGREGAR
+                    </button>
+                    <button onClick={() => { setActiveTarget(pocket); setTxModalType("WITHDRAW_POCKET"); setAmount(""); }} className="flex-1 text-[10px] font-black text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 py-2.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors shadow-sm active:scale-95">
+                      - RETIRAR
+                    </button>
+                    <button onClick={() => handleLiquidateGoal(pocket)} className="w-10 flex items-center justify-center text-zinc-400 bg-zinc-50 dark:bg-zinc-800 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors py-2.5">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+
+        {/* ========================================================= */}
+        {/* 4. METAS (GOALS) */}
+        {/* ========================================================= */}
+        <section id="wallet-goals" className="space-y-3 pt-2 scroll-mt-24">
+          <div className="flex justify-between items-center px-2">
+            <div>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Metas 🎯</h3>
             </div>
             <button onClick={() => { setMetaType("GOAL"); setShowMetaModal(true); }} className="text-[10px] font-black uppercase text-green-500 hover:text-green-600 bg-green-50 dark:bg-green-950/30 px-3 py-1.5 rounded-lg active:scale-95 transition-all">
               + Crear Meta
@@ -539,7 +633,7 @@ export default function BilleteraPage() {
           
           {goalsList.length === 0 ? (
             <div className="bg-transparent border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center">
-              <p className="text-xs text-zinc-400 font-bold">No tienes metas activas. Separa tu dinero en bolsillos.</p>
+              <p className="text-xs text-zinc-400 font-bold">No tienes metas con objetivo. Úsalas para compras futuras.</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -579,9 +673,8 @@ export default function BilleteraPage() {
           )}
         </section>
 
-
         {/* ========================================================= */}
-        {/* 4. DEUDAS (AGREGADO ID) */}
+        {/* 5. DEUDAS */}
         {/* ========================================================= */}
         <section id="wallet-debts" className="space-y-3 pt-2 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
@@ -636,7 +729,7 @@ export default function BilleteraPage() {
         </section>
 
         {/* ========================================================= */}
-        {/* 5. HISTORIAL BLINDADO (AGREGADO ID) */}
+        {/* 6. HISTORIAL BLINDADO */}
         {/* ========================================================= */}
         <section id="wallet-ledger" className="space-y-3 pb-8 pt-4 scroll-mt-24">
           <div className="flex justify-between items-center px-2">
@@ -660,8 +753,8 @@ export default function BilleteraPage() {
               const hoursSinceCreation = (Date.now() - txTime) / (1000 * 60 * 60);
               const isDeletable = hoursSinceCreation <= 24;
 
-              const isIncome = tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION';
-              const isTransfer = tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT';
+              const isIncome = tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION' || tx.type === 'WITHDRAW_POCKET';
+              const isTransfer = tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT' || tx.type === 'FUND_POCKET';
               
               return (
                 <div key={tx.id} className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
@@ -734,7 +827,7 @@ export default function BilleteraPage() {
               
               <div className="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-4">
                 <h3 className="font-black text-lg text-zinc-900 dark:text-white">
-                  {txModalType === 'SAVE_GOAL' ? `Ahorrar en ${activeTarget?.title}` : txModalType === 'PAY_DEBT' ? `Pagar ${activeTarget?.title}` : txModalType === 'INCOME' ? 'Registrar Ingreso' : 'Registrar Gasto'}
+                  {getModalTitle()}
                 </h3>
                 <button onClick={closeTxModal} className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 font-bold hover:bg-zinc-200 transition-colors">✕</button>
               </div>
@@ -745,7 +838,7 @@ export default function BilleteraPage() {
                   <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="w-full text-5xl font-black text-center bg-transparent outline-none py-4 text-zinc-900 dark:text-white" autoFocus />
                 </div>
 
-                {txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
+                {!isSpecialTx && (
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1 flex justify-between">
                       <span>Categoría</span>
@@ -765,7 +858,7 @@ export default function BilleteraPage() {
                 )}
 
                 <AnimatePresence>
-                  {showAddCategory && txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
+                  {showAddCategory && !isSpecialTx && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex gap-2 overflow-hidden bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                       <input value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} placeholder="🎨" className="w-12 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-center text-lg outline-none focus:border-blue-500" maxLength={2} />
                       <input value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="Ej: Transporte (3 bloques)" className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 text-xs font-bold text-zinc-900 dark:text-white outline-none focus:border-blue-500" />
@@ -780,7 +873,7 @@ export default function BilleteraPage() {
                     <input type="text" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Opcional: Detalles del movimiento..." className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 py-3.5 px-4 rounded-2xl text-xs font-bold outline-none text-zinc-900 dark:text-white" />
                   </div>
                   
-                  {txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && (
+                  {!isSpecialTx && (
                     <label className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 rounded-2xl cursor-pointer">
                       <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className={`w-5 h-5 rounded-md border-zinc-300 text-blue-600 focus:ring-blue-500`} />
                       <div>
@@ -792,7 +885,7 @@ export default function BilleteraPage() {
                 </div>
 
                 <div className="pt-2">
-                  <button type="submit" disabled={isSaving || !amount || (txModalType !== 'SAVE_GOAL' && txModalType !== 'PAY_DEBT' && !selectedCategory)} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${activeBg}`}>
+                  <button type="submit" disabled={isSaving || !amount || (!isSpecialTx && !selectedCategory)} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${activeBg}`}>
                     {isSaving ? 'Registrando...' : 'Confirmar Movimiento'}
                   </button>
                 </div>
@@ -803,40 +896,53 @@ export default function BilleteraPage() {
       </AnimatePresence>
 
       {/* ============================================================== */}
-      {/* 🎯 MODAL: NUEVA META O DEUDA */}
+      {/* 🎯 MODAL: NUEVA META, DEUDA O BOLSILLO */}
       {/* ============================================================== */}
       <AnimatePresence>
         {showMetaModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white dark:bg-zinc-950 w-full max-w-sm rounded-[2rem] p-6 space-y-6 shadow-2xl border border-zinc-100 dark:border-zinc-800">
+            <motion.div layout initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white dark:bg-zinc-950 w-full max-w-sm rounded-[2rem] p-6 space-y-6 shadow-2xl border border-zinc-100 dark:border-zinc-800">
               
               <div className="flex gap-2 p-1.5 bg-zinc-100 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                <button onClick={() => setMetaType("GOAL")} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${metaType === "GOAL" ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-500'}`}>🎯 Ahorro Libre</button>
-                <button onClick={() => setMetaType("DEBT")} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${metaType === "DEBT" ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-500'}`}>💸 Obligación</button>
+                <button onClick={() => setMetaType("POCKET")} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${metaType === "POCKET" ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-500'}`}>👛 Bolsillo</button>
+                <button onClick={() => setMetaType("GOAL")} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${metaType === "GOAL" ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-500'}`}>🎯 Meta</button>
+                <button onClick={() => setMetaType("DEBT")} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${metaType === "DEBT" ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-500'}`}>💸 Deuda</button>
               </div>
 
               <form onSubmit={handleSaveMeta} className="space-y-4">
-                <div className="space-y-1.5">
+                <motion.div layout className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">Título del Objetivo</label>
-                  <input value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder={metaType === "GOAL" ? "Ej: Enganche moto..." : "Ej: Préstamo familiar..."} className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-bold outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
-                </div>
+                  <input autoComplete="off" name="meta-title-no-autofill" value={metaTitle} onChange={e => setMetaTitle(e.target.value)} placeholder={metaType === "POCKET" ? "Ej: Efectivo, Nequi, etc." : metaType === "GOAL" ? "Ej: Enganche moto..." : "Ej: Préstamo familiar..."} className="w-full p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs font-bold outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
+                </motion.div>
                 
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">Monto a alcanzar</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-zinc-400">$</span>
-                    <input type="number" step="0.01" value={metaTarget} onChange={e => setMetaTarget(e.target.value)} placeholder="0" className="w-full p-4 pl-8 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm font-black outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
-                  </div>
-                </div>
+                <AnimatePresence mode="popLayout">
+                  {metaType !== "POCKET" && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }} 
+                      animate={{ opacity: 1, height: "auto" }} 
+                      exit={{ opacity: 0, height: 0 }} 
+                      transition={{ opacity: { duration: 0.2 } }}
+                      className="overflow-hidden"
+                    >
+                      <div className="space-y-1.5 pt-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">Monto a alcanzar</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-zinc-400">$</span>
+                          <input autoComplete="off" name="meta-target-no-autofill" type="number" step="0.01" value={metaTarget} onChange={e => setMetaTarget(e.target.value)} placeholder="0" className="w-full p-4 pl-8 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm font-black outline-none text-zinc-900 dark:text-white focus:border-blue-500 transition-colors" />
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                <div className="pt-4 space-y-3 flex flex-col">
-                  <button type="submit" disabled={isSaving || !metaTitle || !metaTarget} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${metaType === "GOAL" ? 'bg-green-600' : 'bg-red-600'}`}>
-                    Crear Objetivo
+                <motion.div layout className="pt-4 space-y-3 flex flex-col">
+                  <button type="submit" disabled={isSaving || !metaTitle || (metaType !== 'POCKET' && !metaTarget)} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${metaType === "POCKET" ? 'bg-blue-600' : metaType === "GOAL" ? 'bg-green-600' : 'bg-red-600'}`}>
+                    Crear {metaType === "POCKET" ? 'Bolsillo' : 'Objetivo'}
                   </button>
                   <button type="button" onClick={() => setShowMetaModal(false)} className="w-full py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
                     Cancelar
                   </button>
-                </div>
+                </motion.div>
               </form>
             </motion.div>
           </motion.div>
@@ -892,7 +998,6 @@ export default function BilleteraPage() {
         )}
       </AnimatePresence>
       
-      {/* ✅ AQUÍ RENDERIZAMOS EL TUTORIAL JUSTO ANTES DEL FOOTER */}
       <BilleteraTutorial />
 
       <div className="w-full border-t border-zinc-200 dark:border-zinc-800 pt-8 mt-auto"><Footer /></div>
