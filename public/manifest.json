@@ -41,6 +41,12 @@
       "short_name": "Nóminas",
       "url": "/nominas",
       "description": "Ver historial de turnos"
+    },
+    {
+      "name": "Mi Billetera",
+      "short_name": "Billetera",
+      "url": "/billetera",
+      "description": "Salud financiera"
     }
   ]
 }
