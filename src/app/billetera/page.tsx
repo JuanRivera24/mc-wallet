@@ -1054,7 +1054,7 @@ export default function BilleteraPage() {
           >
             <motion.div 
               key="meta-modal-content"
-              layout initial={{ y: "100%", sm: {y: 0, scale: 0.95} }} animate={{ y: 0, scale: 1 }} exit={{ y: "100%", sm: {y: 0, scale: 0.95} }} 
+              layout initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} 
               transition={{ type: "spring", damping: 25, stiffness: 300 }} 
               className="bg-white dark:bg-zinc-950 w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2rem] p-5 sm:p-6 space-y-5 shadow-2xl border border-zinc-100 dark:border-zinc-800 pb-safe"
             >
@@ -1128,7 +1128,7 @@ export default function BilleteraPage() {
           >
             <motion.div 
               key="import-modal-content"
-              initial={{ y: "100%", sm: {y: 0, scale: 0.95} }} animate={{ y: 0, scale: 1 }} exit={{ y: "100%", sm: {y: 0, scale: 0.95} }} 
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} 
               transition={{ type: "spring", damping: 25, stiffness: 300 }} 
               className="bg-white dark:bg-zinc-950 w-full max-w-sm rounded-t-[2.5rem] sm:rounded-[2rem] p-5 sm:p-6 space-y-5 shadow-2xl border border-zinc-100 dark:border-zinc-800 pb-safe"
             >
