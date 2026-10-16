@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { motion, AnimatePresence, Reorder } from "framer-motion";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { motion, AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import { useTheme } from "@/context/ThemeContext";
 import { useHaptics } from "@/hooks/useHaptics";
@@ -48,6 +48,64 @@ const POCKET_COLORS = [
 ];
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// ==========================================
+// 🧩 SUB-COMPONENTE: BOLSILLO ARRASTRABLE (DRAG DELAY)
+// ==========================================
+const DraggablePocketItem = ({ pocket, formatCurrency, openModal, handleLiquidateGoal, hapticLight }: any) => {
+  const controls = useDragControls();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startDrag = (e: React.PointerEvent) => {
+    timerRef.current = setTimeout(() => {
+      controls.start(e);
+      hapticLight(); // Vibración para indicar que ya se puede mover
+    }, 250); 
+  };
+
+  const cancelDrag = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const colorConfig = POCKET_COLORS.find(c => c.id === (pocket.color || 'zinc')) || POCKET_COLORS[0];
+
+  return (
+    <Reorder.Item 
+      value={pocket} 
+      dragListener={false} // Desactivamos el drag automático
+      dragControls={controls} // Inyectamos nuestro control manual
+      onPointerDown={startDrag}
+      onPointerUp={cancelDrag}
+      onPointerCancel={cancelDrag}
+      onPointerLeave={cancelDrag}
+      className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all cursor-pointer active:cursor-grabbing hover:shadow-md ${colorConfig.bg} ${colorConfig.border}`}
+    >
+      <div className="flex justify-between items-center mb-1">
+        <span className={`text-sm font-bold flex items-center gap-2 truncate pr-2 ${colorConfig.text}`}>
+          <span className="text-xl shrink-0">{pocket.icon}</span> <span className="truncate">{pocket.title}</span>
+        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-sm sm:text-base font-black ${colorConfig.text}`}>
+            {formatCurrency(pocket.currentAmount)}
+          </span>
+          <span className="text-black/10 dark:text-white/10 px-1 hidden sm:block">⠿</span>
+        </div>
+      </div>
+
+      <div className="flex flex-nowrap gap-2 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full">
+        <button onClick={() => openModal("FUND_POCKET", "", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-green-700 bg-green-500/10 py-2.5 rounded-lg hover:bg-green-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
+          + AGREGAR
+        </button>
+        <button onClick={() => openModal("WITHDRAW_POCKET", "comida", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-red-700 dark:text-red-400 bg-red-500/10 py-2.5 rounded-lg hover:bg-red-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
+          - GASTAR
+        </button>
+        <button onClick={() => handleLiquidateGoal(pocket)} className="w-10 shrink-0 flex items-center justify-center text-zinc-500 bg-black/5 dark:bg-white/5 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors py-2.5 h-[34px] sm:h-[38px]">
+          ✕
+        </button>
+      </div>
+    </Reorder.Item>
+  );
+};
 
 export default function BilleteraPage() {
   const theme = useTheme?.(); 
@@ -99,7 +157,7 @@ export default function BilleteraPage() {
   const [metaTitle, setMetaTitle] = useState("");
   const [metaTarget, setMetaTarget] = useState("");
   const [metaType, setMetaType] = useState<"GOAL" | "DEBT" | "POCKET">("POCKET");
-  const [pocketColor, setPocketColor] = useState("zinc"); // Nuevo estado de color
+  const [pocketColor, setPocketColor] = useState("zinc"); 
 
   const [importMonth, setImportMonth] = useState(MESES[new Date().getMonth()]);
   const [importQuincena, setImportQuincena] = useState(new Date().getDate() <= 15 ? 1 : 2);
@@ -419,7 +477,6 @@ export default function BilleteraPage() {
     } catch (e) { hapticError(); } finally { setIsSaving(false); }
   };
 
-  // Función para reordenar en Firebase
   const handleReorderPockets = async (newOrder: any[]) => {
     setLocalPockets(newOrder); // Actualización optimista
     hapticLight();
@@ -683,7 +740,7 @@ export default function BilleteraPage() {
           <div className="flex flex-row justify-between items-center px-2 gap-2">
             <div className="shrink-0">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Bolsillos 👛</h3>
-              <p className="text-[8px] text-zinc-400 mt-0.5 hidden sm:block">Manten presionado para reordenar</p>
+              <p className="text-[8px] text-zinc-400 mt-0.5 hidden sm:block">Manten presionado 0.5s para reordenar</p>
             </div>
             <button onClick={() => { setMetaType("POCKET"); setShowMetaModal(true); setPocketColor("zinc"); }} className="text-[9px] sm:text-[10px] font-black uppercase text-blue-500 hover:text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-lg active:scale-95 transition-all truncate">
               + Crear Bolsillo
@@ -696,40 +753,16 @@ export default function BilleteraPage() {
             </div>
           ) : (
             <Reorder.Group axis="y" values={localPockets} onReorder={handleReorderPockets} className="flex flex-col gap-3">
-              {localPockets.map(pocket => {
-                const colorConfig = POCKET_COLORS.find(c => c.id === (pocket.color || 'zinc')) || POCKET_COLORS[0];
-                return (
-                  <Reorder.Item 
-                    key={pocket.id} 
-                    value={pocket} 
-                    className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all cursor-grab active:cursor-grabbing hover:shadow-md ${colorConfig.bg} ${colorConfig.border}`}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className={`text-sm font-bold flex items-center gap-2 truncate pr-2 ${colorConfig.text}`}>
-                        <span className="text-xl shrink-0">{pocket.icon}</span> <span className="truncate">{pocket.title}</span>
-                      </span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-sm sm:text-base font-black ${colorConfig.text}`}>
-                          {formatCurrency(pocket.currentAmount)}
-                        </span>
-                        <span className="text-black/10 dark:text-white/10 px-1 hidden sm:block">⠿</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-nowrap gap-2 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full">
-                      <button onClick={() => openModal("FUND_POCKET", "", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-green-700 bg-green-500/10 py-2.5 rounded-lg hover:bg-green-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
-                        + AGREGAR
-                      </button>
-                      <button onClick={() => openModal("WITHDRAW_POCKET", "comida", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-red-700 dark:text-red-400 bg-red-500/10 py-2.5 rounded-lg hover:bg-red-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
-                        - GASTAR
-                      </button>
-                      <button onClick={() => handleLiquidateGoal(pocket)} className="w-10 shrink-0 flex items-center justify-center text-zinc-500 bg-black/5 dark:bg-white/5 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors py-2.5 h-[34px] sm:h-[38px]">
-                        ✕
-                      </button>
-                    </div>
-                  </Reorder.Item>
-                );
-              })}
+              {localPockets.map(pocket => (
+                <DraggablePocketItem 
+                  key={pocket.id}
+                  pocket={pocket}
+                  formatCurrency={formatCurrency}
+                  openModal={openModal}
+                  handleLiquidateGoal={handleLiquidateGoal}
+                  hapticLight={hapticLight}
+                />
+              ))}
             </Reorder.Group>
           )}
         </section>
