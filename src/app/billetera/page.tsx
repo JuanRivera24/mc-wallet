@@ -50,37 +50,47 @@ const POCKET_COLORS = [
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 // ==========================================
-// 🧩 SUB-COMPONENTE: BOLSILLO ARRASTRABLE (DRAG DELAY)
+// ✋ COMPONENTE INDIVIDUAL DE BOLSILLO DRAGGABLE
 // ==========================================
-const DraggablePocketItem = ({ pocket, formatCurrency, openModal, handleLiquidateGoal, hapticLight }: any) => {
+function DraggablePocket({ pocket, formatCurrency, openModal, handleLiquidateGoal, hapticLight }: any) {
   const controls = useDragControls();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startDrag = (e: React.PointerEvent) => {
+  const colorConfig = POCKET_COLORS.find(c => c.id === (pocket.color || 'zinc')) || POCKET_COLORS[0];
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Solo permitir drag con el dedo principal o click izquierdo
+    if (e.button !== 0 && e.button !== undefined) return;
+    
+    // Iniciar temporizador de 250ms (1/4 segundo)
     timerRef.current = setTimeout(() => {
       controls.start(e);
-      hapticLight(); // Vibración para indicar que ya se puede mover
-    }, 250); 
+      hapticLight(); // Feedback para saber que ya se puede arrastrar
+    }, 250);
   };
 
-  const cancelDrag = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+  const handlePointerCancelOrUp = () => {
+    // Si el usuario suelta o mueve la pantalla para hacer scroll antes de los 250ms, cancelamos el drag
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   };
-
-  const colorConfig = POCKET_COLORS.find(c => c.id === (pocket.color || 'zinc')) || POCKET_COLORS[0];
 
   return (
     <Reorder.Item 
       value={pocket} 
-      dragListener={false} // Desactivamos el drag automático
-      dragControls={controls} // Inyectamos nuestro control manual
-      onPointerDown={startDrag}
-      onPointerUp={cancelDrag}
-      onPointerCancel={cancelDrag}
-      onPointerLeave={cancelDrag}
-      className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all cursor-pointer active:cursor-grabbing hover:shadow-md ${colorConfig.bg} ${colorConfig.border}`}
+      dragListener={false} // Desactivamos el arrastre instantáneo nativo
+      dragControls={controls} // Lo controlamos manualmente
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerCancelOrUp}
+      onPointerCancel={handlePointerCancelOrUp}
+      onPointerLeave={handlePointerCancelOrUp}
+      // Bloquear selección de texto nativa en iOS/Android
+      style={{ WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
+      className={`select-none p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all hover:shadow-md cursor-grab active:cursor-grabbing ${colorConfig.bg} ${colorConfig.border}`}
     >
-      <div className="flex justify-between items-center mb-1">
+      <div className="flex justify-between items-center mb-1 pointer-events-none">
         <span className={`text-sm font-bold flex items-center gap-2 truncate pr-2 ${colorConfig.text}`}>
           <span className="text-xl shrink-0">{pocket.icon}</span> <span className="truncate">{pocket.title}</span>
         </span>
@@ -92,7 +102,11 @@ const DraggablePocketItem = ({ pocket, formatCurrency, openModal, handleLiquidat
         </div>
       </div>
 
-      <div className="flex flex-nowrap gap-2 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full">
+      {/* Se detiene la propagación para que los botones funcionen normal y no arrastren */}
+      <div 
+        onPointerDown={(e) => e.stopPropagation()} 
+        className="flex flex-nowrap gap-2 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full"
+      >
         <button onClick={() => openModal("FUND_POCKET", "", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-green-700 bg-green-500/10 py-2.5 rounded-lg hover:bg-green-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
           + AGREGAR
         </button>
@@ -105,7 +119,7 @@ const DraggablePocketItem = ({ pocket, formatCurrency, openModal, handleLiquidat
       </div>
     </Reorder.Item>
   );
-};
+}
 
 export default function BilleteraPage() {
   const theme = useTheme?.(); 
@@ -187,7 +201,6 @@ export default function BilleteraPage() {
     const unsubGoals = onSnapshot(qGoals, (snap) => {
       const goalsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       goalsData.sort((a, b) => {
-        // Los bolsillos usan su propiedad 'order' para el drag and drop
         if (a.type === 'POCKET' && b.type === 'POCKET') return (a.order || 0) - (b.order || 0);
         
         const aCompleted = a.targetAmount > 0 && a.currentAmount >= a.targetAmount;
@@ -211,7 +224,6 @@ export default function BilleteraPage() {
     return () => { unsubTx(); unsubGoals(); unsubCats(); unsubRecurring(); };
   }, [user]);
 
-  // Sincronizar el estado local de bolsillos (para Drag & Drop fluido)
   useEffect(() => {
     setLocalPockets(metas.filter(m => m.type === "POCKET"));
   }, [metas]);
@@ -478,7 +490,7 @@ export default function BilleteraPage() {
   };
 
   const handleReorderPockets = async (newOrder: any[]) => {
-    setLocalPockets(newOrder); // Actualización optimista
+    setLocalPockets(newOrder);
     hapticLight();
     const batch = writeBatch(db);
     newOrder.forEach((pocket, index) => {
@@ -740,7 +752,7 @@ export default function BilleteraPage() {
           <div className="flex flex-row justify-between items-center px-2 gap-2">
             <div className="shrink-0">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Bolsillos 👛</h3>
-              <p className="text-[8px] text-zinc-400 mt-0.5 hidden sm:block">Manten presionado 0.5s para reordenar</p>
+              <p className="text-[8px] text-zinc-400 mt-0.5 hidden sm:block">Mantén presionado para reordenar</p>
             </div>
             <button onClick={() => { setMetaType("POCKET"); setShowMetaModal(true); setPocketColor("zinc"); }} className="text-[9px] sm:text-[10px] font-black uppercase text-blue-500 hover:text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-1.5 rounded-lg active:scale-95 transition-all truncate">
               + Crear Bolsillo
@@ -754,7 +766,7 @@ export default function BilleteraPage() {
           ) : (
             <Reorder.Group axis="y" values={localPockets} onReorder={handleReorderPockets} className="flex flex-col gap-3">
               {localPockets.map(pocket => (
-                <DraggablePocketItem 
+                <DraggablePocket 
                   key={pocket.id}
                   pocket={pocket}
                   formatCurrency={formatCurrency}
