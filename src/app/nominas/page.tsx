@@ -96,6 +96,7 @@ export default function NominasPage() {
   const [hasExtraDeduction, setHasExtraDeduction] = useState(false);
   const [extraDeductionValue, setExtraDeductionValue] = useState<number | "">("");
   const [extraDeductionDesc, setExtraDeductionDesc] = useState("");
+  const [extraDeductionIsFixed, setExtraDeductionIsFixed] = useState(false);
   const [editingExtraDeductionId, setEditingExtraDeductionId] = useState<string | null>(null);
 
   const [extraIncomes, setExtraIncomes] = useState<any[]>([]);
@@ -139,6 +140,11 @@ export default function NominasPage() {
 
   const currentQuincenaActual = today.getDate() <= 15 ? 1 : 2;
 
+  const getQScore = (y: number, m: string, q: number) => {
+    const mIdx = mesesFull.indexOf(m);
+    return y * 1000 + (mIdx >= 0 ? mIdx : 0) * 10 + q;
+  };
+
   const goToStep = (newStep: number) => {
     hapticLight();
     window.history.pushState({ step: newStep }, '', `?step=${newStep}`);
@@ -168,10 +174,10 @@ export default function NominasPage() {
 
   useEffect(() => {
     if (!user) return;
-    const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id), where("year", "==", selectedYear));
+    const qED = query(collection(db, "extraDeductions"), where("userId", "==", user.id));
     const unsubED = onSnapshot(qED, (snap) => setExtraDeductions(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     return () => unsubED();
-  }, [user, selectedYear]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -227,16 +233,44 @@ export default function NominasPage() {
       }).reduce((acc, curr) => acc + (Number(curr.netPay) || 0), 0);
       const bvNeto = bigVentas.filter(b => b.month === m).reduce((acc, curr) => acc + ((Number(curr.value) || 0) * 0.92), 0);
       const pNeto = primas.filter(p => p.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-      const edNeto = extraDeductions.filter(ed => ed.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
+      const edNeto = extraDeductions.filter(ed => {
+        if (ed.isFixed) {
+          const startScore = ed.startScore ?? getQScore(ed.startYear || ed.year, ed.startMonth || ed.month, ed.startQuincena || ed.quincena);
+          const q1Score = getQScore(selectedYear, m, 1);
+          const q2Score = getQScore(selectedYear, m, 2);
+          let sum = 0;
+          if (q1Score >= startScore && (!ed.endScore || q1Score <= ed.endScore)) sum += Number(ed.value) || 0;
+          if (q2Score >= startScore && (!ed.endScore || q2Score <= ed.endScore)) sum += Number(ed.value) || 0;
+          return sum > 0;
+        }
+        return ed.month === m && ed.year === selectedYear;
+      }).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+
       const eiNeto = extraIncomes.filter(ei => ei.month === m).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
       return { month: m.substring(0, 3).toUpperCase(), net: turnosNeto + bvNeto + pNeto + eiNeto - edNeto };
     });
   }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedYear]);
 
+  const currentExtraDeductions = useMemo(() => {
+    if (!selectedMonth || !selectedQuincena) return [];
+    const currentScore = getQScore(selectedYear, selectedMonth, selectedQuincena);
+    return extraDeductions.filter(ed => {
+      if (ed.isFixed) {
+        const startScore = ed.startScore ?? getQScore(ed.startYear || ed.year, ed.startMonth || ed.month, ed.startQuincena || ed.quincena);
+        const isAfterStart = currentScore >= startScore;
+        const isBeforeEnd = !ed.endScore || currentScore <= ed.endScore;
+        return isAfterStart && isBeforeEnd;
+      }
+      return ed.month === selectedMonth && ed.quincena === selectedQuincena && ed.year === selectedYear;
+    });
+  }, [extraDeductions, selectedYear, selectedMonth, selectedQuincena]);
+
   const statsQuincenas = useMemo(() => {
     const calcQ = (isQ1: boolean) => {
       const currentQ = isQ1 ? 1 : 2;
+      const currentScore = getQScore(selectedYear, selectedMonth, currentQ);
       const filteredShifts = shiftsDelAno.filter(s => {
         let day = parseInt(s.date.split('-')[2]);
         let q = day <= 15 ? 1 : 2;
@@ -253,7 +287,13 @@ export default function NominasPage() {
       const filteredPrima = primas.find(p => p.month === selectedMonth && p.quincena === currentQ);
       const pNeto = filteredPrima ? Number(filteredPrima.value) || 0 : 0;
 
-      const filteredED = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === currentQ);
+      const filteredED = extraDeductions.filter(ed => {
+        if (ed.isFixed) {
+          const startScore = ed.startScore ?? getQScore(ed.startYear || ed.year, ed.startMonth || ed.month, ed.startQuincena || ed.quincena);
+          return currentScore >= startScore && (!ed.endScore || currentScore <= ed.endScore);
+        }
+        return ed.month === selectedMonth && ed.quincena === currentQ && ed.year === selectedYear;
+      });
       const edNeto = filteredED.reduce((a, b) => a + (Number(b.value) || 0), 0);
 
       const filteredEI = extraIncomes.filter(ei => ei.month === selectedMonth && ei.quincena === currentQ);
@@ -272,7 +312,7 @@ export default function NominasPage() {
       moneyData: [{ name: 'Quincena 1', value: q1.dinero }, { name: 'Quincena 2', value: q2.dinero }],
       hoursData: [{ name: 'Q1', value: q1.horas }, { name: 'Q2', value: q2.horas }]
     };
-  }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedMonth]);
+  }, [shiftsDelAno, bigVentas, primas, extraDeductions, extraIncomes, selectedMonth, selectedYear]);
 
   const turnosLista = useMemo(() => {
     return shiftsDelAno.filter(s => {
@@ -355,7 +395,6 @@ export default function NominasPage() {
 
   }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
 
-  const currentExtraDeductions = extraDeductions.filter(ed => ed.month === selectedMonth && ed.quincena === selectedQuincena);
   const extraDeductionsTotal = currentExtraDeductions.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 
   const currentExtraIncomes = extraIncomes.filter(ei => ei.month === selectedMonth && ei.quincena === selectedQuincena);
@@ -817,22 +856,106 @@ export default function NominasPage() {
       hapticError();
       return;
     }
+
+    if (!selectedQuincena) return;
+    const currentScore = getQScore(selectedYear, selectedMonth, selectedQuincena);
+
     if (editingExtraDeductionId) {
-      await setDoc(doc(db, "extraDeductions", editingExtraDeductionId), { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraDeductionValue), desc: extraDeductionDesc, timestamp: serverTimestamp() }, { merge: true });
+      const existingED = extraDeductions.find(ed => ed.id === editingExtraDeductionId);
+      const startScore = existingED?.startScore ?? getQScore(existingED?.startYear || existingED?.year || selectedYear, existingED?.startMonth || existingED?.month || selectedMonth, existingED?.startQuincena || existingED?.quincena || selectedQuincena);
+
+      let updateData: any = {
+        value: Number(extraDeductionValue),
+        desc: extraDeductionDesc,
+        timestamp: serverTimestamp()
+      };
+
+      if (extraDeductionIsFixed) {
+        updateData.isFixed = true;
+        if (!existingED?.isFixed) {
+          updateData.startYear = selectedYear;
+          updateData.startMonth = selectedMonth;
+          updateData.startQuincena = selectedQuincena;
+          updateData.startScore = currentScore;
+        }
+      } else {
+        if (existingED?.isFixed) {
+          if (currentScore > startScore) {
+            const prevQ = selectedQuincena === 1 ? 2 : 1;
+            const prevM = selectedQuincena === 1 ? mesesFull[(mesesFull.indexOf(selectedMonth) + 11) % 12] : selectedMonth;
+            const prevY = (selectedQuincena === 1 && selectedMonth === "enero") ? selectedYear - 1 : selectedYear;
+            updateData.endScore = getQScore(prevY, prevM, prevQ);
+            updateData.isFixed = true;
+          } else {
+            updateData.isFixed = false;
+          }
+        } else {
+          updateData.isFixed = false;
+        }
+      }
+
+      await setDoc(doc(db, "extraDeductions", editingExtraDeductionId), updateData, { merge: true });
     } else {
       const newRef = doc(collection(db, "extraDeductions"));
-      await setDoc(newRef, { userId: user.id, year: selectedYear, month: selectedMonth, quincena: selectedQuincena, value: Number(extraDeductionValue), desc: extraDeductionDesc, timestamp: serverTimestamp() });
+      const payload: any = {
+        userId: user.id,
+        year: selectedYear,
+        month: selectedMonth,
+        quincena: selectedQuincena,
+        value: Number(extraDeductionValue),
+        desc: extraDeductionDesc,
+        isFixed: extraDeductionIsFixed,
+        timestamp: serverTimestamp()
+      };
+
+      if (extraDeductionIsFixed) {
+        payload.startYear = selectedYear;
+        payload.startMonth = selectedMonth;
+        payload.startQuincena = selectedQuincena;
+        payload.startScore = currentScore;
+      }
+
+      await setDoc(newRef, payload);
     }
+
     hapticSuccess();
-    setHasExtraDeduction(false); setIsEditingExtraDeduction(false); setExtraDeductionValue(""); setExtraDeductionDesc(""); setEditingExtraDeductionId(null);
+    setHasExtraDeduction(false);
+    setIsEditingExtraDeduction(false);
+    setExtraDeductionValue("");
+    setExtraDeductionDesc("");
+    setExtraDeductionIsFixed(false);
+    setEditingExtraDeductionId(null);
   };
 
   const deleteExtraDeduction = async (id: string) => {
     hapticWarning();
-    if (confirm("¿Eliminar deducción extra?")) {
-      await deleteDoc(doc(db, "extraDeductions", id));
-      hapticSuccess();
-      setIsEditingExtraDeduction(false); setHasExtraDeduction(false); setEditingExtraDeductionId(null);
+    const ed = extraDeductions.find(item => item.id === id);
+    if (!ed || !selectedQuincena) return;
+
+    const currentScore = getQScore(selectedYear, selectedMonth, selectedQuincena);
+    const startScore = ed.startScore ?? getQScore(ed.startYear || ed.year, ed.startMonth || ed.month, ed.startQuincena || ed.quincena);
+
+    if (ed.isFixed && currentScore > startScore) {
+      if (confirm("¿Desactivar esta deducción fija a partir de esta quincena? (Se conservará en las quincenas anteriores)")) {
+        const prevQ = selectedQuincena === 1 ? 2 : 1;
+        const prevM = selectedQuincena === 1 ? mesesFull[(mesesFull.indexOf(selectedMonth) + 11) % 12] : selectedMonth;
+        const prevY = (selectedQuincena === 1 && selectedMonth === "enero") ? selectedYear - 1 : selectedYear;
+        const prevScore = getQScore(prevY, prevM, prevQ);
+
+        await setDoc(doc(db, "extraDeductions", id), { endScore: prevScore }, { merge: true });
+        hapticSuccess();
+        setIsEditingExtraDeduction(false);
+        setHasExtraDeduction(false);
+        setEditingExtraDeductionId(null);
+      }
+    } else {
+      if (confirm("¿Eliminar deducción extra?")) {
+        await deleteDoc(doc(db, "extraDeductions", id));
+        hapticSuccess();
+        setIsEditingExtraDeduction(false);
+        setHasExtraDeduction(false);
+        setEditingExtraDeductionId(null);
+      }
     }
   };
 
@@ -1186,6 +1309,7 @@ export default function NominasPage() {
                         hasExtraDeduction={hasExtraDeduction} setHasExtraDeduction={setHasExtraDeduction}
                         extraDeductionValue={extraDeductionValue} setExtraDeductionValue={setExtraDeductionValue}
                         extraDeductionDesc={extraDeductionDesc} setExtraDeductionDesc={setExtraDeductionDesc}
+                        extraDeductionIsFixed={extraDeductionIsFixed} setExtraDeductionIsFixed={setExtraDeductionIsFixed}
                         saveExtraDeduction={saveExtraDeduction} deleteExtraDeduction={deleteExtraDeduction} setEditingExtraDeductionId={setEditingExtraDeductionId}
                         
                         currentExtraIncomes={currentExtraIncomes}
