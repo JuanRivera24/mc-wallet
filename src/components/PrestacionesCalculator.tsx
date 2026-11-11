@@ -13,6 +13,13 @@ const MESES_FULL = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "juli
 
 type CalcType = 'VACACIONES' | 'CESANTIAS' | 'LIQUIDACION';
 
+// Helper para parsear fechas de inputs sin desfases de zona horaria (UTC vs Local)
+const parseLocalDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
 export default function PrestacionesCalculator() {
   const { user } = useUser();
   const { themeColor } = useTheme();
@@ -20,7 +27,6 @@ export default function PrestacionesCalculator() {
 
   const activeBg = themeColor === 'blue' ? 'bg-blue-500' : 'bg-red-500';
   const activeText = themeColor === 'blue' ? 'text-blue-500' : 'text-red-500';
-  const activeBorder = themeColor === 'blue' ? 'border-blue-500' : 'border-red-500';
 
   const currentYear = new Date().getFullYear();
   const baseTransport = TRANSPORT_AUX_BY_YEAR[currentYear] || 162000;
@@ -107,35 +113,74 @@ export default function PrestacionesCalculator() {
   }, [shifts, bigVentas]);
 
   // ==========================================
-  // CÁLCULO DÍAS 
+  // CÁLCULO DÍAS TOTALES (Cesantías / Vacaciones)
   // ==========================================
   const calculatedDays = useMemo(() => {
     if (daysMode === 'MANUAL') return Number(manualDays) || 0;
     if (daysMode === 'DATES') {
       if (!startDate || !endDate) return 0;
-      const d1 = new Date(startDate);
-      const d2 = new Date(endDate);
+      const d1 = parseLocalDate(startDate);
+      const d2 = parseLocalDate(endDate);
       
       if (d2 < d1) return 0; 
       
       const diffTime = d2.getTime() - d1.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      return diffDays; 
+      return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; 
     }
     return 0;
   }, [daysMode, manualDays, startDate, endDate]);
 
   // ==========================================
-  // VARIABLES FINALES
+  // CÁLCULO DÍAS PRIMA (Solo Semestre en Curso)
+  // ==========================================
+  const primaDays = useMemo(() => {
+    if (daysMode === 'MANUAL') {
+      const numDays = Number(manualDays) || 0;
+      // En modo manual para liquidación, la prima no puede exceder los 180 días de un semestre
+      return Math.min(numDays, 180);
+    }
+    
+    if (daysMode === 'DATES') {
+      if (!startDate || !endDate) return 0;
+      
+      const userStartDate = parseLocalDate(startDate);
+      const userEndDate = parseLocalDate(endDate);
+      
+      if (userEndDate < userStartDate) return 0;
+
+      const endYear = userEndDate.getFullYear();
+      const endMonth = userEndDate.getMonth() + 1; // 1 a 12
+
+      // Determinar la fecha de inicio del semestre correspondiente a la fecha de terminación:
+      // Semestre 1: 1 de Enero | Semestre 2: 1 de Julio
+      const semStartMonth = endMonth <= 6 ? 0 : 6; // 0 = Enero, 6 = Julio
+      const semesterStartDate = new Date(endYear, semStartMonth, 1);
+
+      // La prima se liquida desde el inicio del semestre O desde que ingresó (la fecha más reciente)
+      const actualPrimaStart = userStartDate > semesterStartDate ? userStartDate : semesterStartDate;
+
+      if (userEndDate < actualPrimaStart) return 0;
+
+      const diffTime = userEndDate.getTime() - actualPrimaStart.getTime();
+      return Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    return 0;
+  }, [daysMode, manualDays, startDate, endDate]);
+
+  // ==========================================
+  // VARIABLES FINALES & FÓRMULAS DE LEY
   // ==========================================
   const finalSalary = salaryMode === 'AUTO' ? avgGrossSalary : (Number(manualSalary) || 0);
   const finalTransport = salaryMode === 'AUTO' ? avgTransport : (Number(manualTransport) || 0);
   const salarySinTransporte = Math.max(0, finalSalary - finalTransport);
 
-  // FÓRMULAS DE LEY
+  // FÓRMULAS CST COLOMBIA
   const valCesantias = Math.floor((finalSalary * calculatedDays) / 360);
   const valIntereses = Math.floor((valCesantias * calculatedDays * 0.12) / 360);
-  const valPrima = Math.floor((finalSalary * calculatedDays) / 360);
+  
+  // ✅ Prima calculada estrictamente sobre los días del semestre activo
+  const valPrima = Math.floor((finalSalary * primaDays) / 360);
   const valVacaciones = Math.floor((salarySinTransporte * calculatedDays) / 720);
 
   const totalLiquidacion = valCesantias + valIntereses + valPrima + valVacaciones;
@@ -163,6 +208,7 @@ export default function PrestacionesCalculator() {
         startDate,
         endDate,
         calculatedDays,
+        primaDays,
         resultAmount,
         timestamp: serverTimestamp()
       };
@@ -196,7 +242,6 @@ export default function PrestacionesCalculator() {
     setEndDate(record.endDate || "");
     setEditingId(record.id);
     
-    // ✅ Scroll corregido: sube suavemente hasta el id de ESTE componente
     const formTop = document.getElementById("prestaciones-top");
     if (formTop) {
       formTop.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -222,7 +267,6 @@ export default function PrestacionesCalculator() {
   };
 
   return (
-    // ✅ ID agregado aquí para el target del scroll
     <div id="prestaciones-top" className="w-full space-y-6 pb-6">
       
       {/* 1. HEADER INTEGRADO & SELECTOR DE PRESTACIÓN */}
@@ -319,7 +363,12 @@ export default function PrestacionesCalculator() {
                   <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full p-3 rounded-xl bg-white dark:bg-black border border-gray-200 dark:border-gray-700 font-bold outline-none dark:text-white text-sm" />
                 </div>
               </div>
-              <p className="text-center text-[10px] font-black uppercase tracking-widest text-gray-500">Total: <span className={activeText}>{calculatedDays} Días</span></p>
+              <div className="flex justify-around items-center text-[10px] font-black uppercase tracking-widest text-gray-500 pt-1">
+                <span>Días Contrato: <strong className={activeText}>{calculatedDays}</strong></span>
+                {calcType === 'LIQUIDACION' && (
+                  <span>Días Prima (Semestre): <strong className="text-emerald-500 dark:text-emerald-400">{primaDays}</strong></span>
+                )}
+              </div>
             </motion.div>
           ) : (
             <motion.div key="manual" initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>
@@ -345,7 +394,7 @@ export default function PrestacionesCalculator() {
         {calcType === 'LIQUIDACION' && (
           <div className="mt-6 space-y-2 text-left relative z-10 bg-black/10 dark:bg-white/10 p-4 rounded-2xl">
             <div className="flex justify-between items-center text-[11px] font-bold">
-              <span className="opacity-80 uppercase tracking-wider">Cesantías</span>
+              <span className="opacity-80 uppercase tracking-wider">Cesantías ({calculatedDays}d)</span>
               <span>${valCesantias.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] font-bold">
@@ -353,18 +402,18 @@ export default function PrestacionesCalculator() {
               <span>${valIntereses.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] font-bold">
-              <span className="opacity-80 uppercase tracking-wider">Prima Prop.</span>
+              <span className="opacity-80 uppercase tracking-wider">Prima Semestre ({primaDays}d)</span>
               <span>${valPrima.toLocaleString()}</span>
             </div>
             <div className="flex justify-between items-center text-[11px] font-bold">
-              <span className="opacity-80 uppercase tracking-wider">Vacaciones Prop.</span>
+              <span className="opacity-80 uppercase tracking-wider">Vacaciones Prop. ({calculatedDays}d)</span>
               <span>${valVacaciones.toLocaleString()}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* ✅ BOTÓN DE GUARDAR / ACTUALIZAR CON EL COLOR SOLICITADO */}
+      {/* BOTÓN DE GUARDAR / ACTUALIZAR */}
       <div className="pt-2 flex flex-col gap-2">
         <button 
           onClick={handleSaveCalculation} 
@@ -432,7 +481,7 @@ export default function PrestacionesCalculator() {
                       <div className="bg-white dark:bg-black p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-400">Vacaciones</p>
                         <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                          (Salario Sin Transporte × Días) / 720
+                          (Salario Sin Transporte × Días Totales) / 720
                         </p>
                         <p className="text-xs font-black text-black dark:text-white">
                           (${salarySinTransporte.toLocaleString()} × {calculatedDays}) ÷ 720 = <span className="text-blue-500 dark:text-blue-400">${valVacaciones.toLocaleString()}</span>
@@ -443,7 +492,7 @@ export default function PrestacionesCalculator() {
                       <div className="bg-white dark:bg-black p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-orange-500 dark:text-orange-400">Cesantías</p>
                         <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                          (Salario Bruto × Días) / 360
+                          (Salario Bruto × Días Totales) / 360
                         </p>
                         <p className="text-xs font-black text-black dark:text-white">
                           (${finalSalary.toLocaleString()} × {calculatedDays}) ÷ 360 = <span className="text-orange-500 dark:text-orange-400">${valCesantias.toLocaleString()}</span>
@@ -455,19 +504,19 @@ export default function PrestacionesCalculator() {
                         <div className="bg-white dark:bg-black p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
                           <p className="text-[10px] font-black uppercase tracking-widest text-purple-500 dark:text-purple-400">Intereses Cesantías</p>
                           <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                            (Cesantías × Días × 0.12) / 360
+                            (Cesantías × Días Totales × 0.12) / 360
                           </p>
                           <p className="text-xs font-black text-black dark:text-white">
                             (${valCesantias.toLocaleString()} × {calculatedDays} × 0.12) ÷ 360 = <span className="text-purple-500 dark:text-purple-400">${valIntereses.toLocaleString()}</span>
                           </p>
                         </div>
                         <div className="bg-white dark:bg-black p-3 rounded-xl border border-gray-100 dark:border-gray-800 space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400">Prima Proporcional</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 dark:text-emerald-400">Prima Proporcional (Semestre Activo)</p>
                           <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                            (Salario Bruto × Días) / 360
+                            (Salario Bruto × Días del Semestre) / 360
                           </p>
                           <p className="text-xs font-black text-black dark:text-white">
-                            (${finalSalary.toLocaleString()} × {calculatedDays}) ÷ 360 = <span className="text-emerald-500 dark:text-emerald-400">${valPrima.toLocaleString()}</span>
+                            (${finalSalary.toLocaleString()} × {primaDays}) ÷ 360 = <span className="text-emerald-500 dark:text-emerald-400">${valPrima.toLocaleString()}</span>
                           </p>
                         </div>
                       </>
@@ -481,7 +530,7 @@ export default function PrestacionesCalculator() {
         </AnimatePresence>
       </div>
 
-      {/* ✅ SECCIÓN DE CÁLCULOS GUARDADOS */}
+      {/* SECCIÓN DE CÁLCULOS GUARDADOS */}
       {savedRecords.length > 0 && (
         <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800/50">
           <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 px-2">Cálculos Guardados ({selectedYear})</h4>
@@ -497,7 +546,7 @@ export default function PrestacionesCalculator() {
                       {record.type}
                     </span>
                     <span className="text-[8px] bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                      {record.calculatedDays} Días
+                      {record.calculatedDays} Días {record.primaDays ? `(Prima: ${record.primaDays}d)` : ''}
                     </span>
                   </div>
                   <p className="font-black text-xl text-black dark:text-white">
