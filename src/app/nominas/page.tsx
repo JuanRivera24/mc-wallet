@@ -97,6 +97,7 @@ export default function NominasPage() {
   const [extraDeductionValue, setExtraDeductionValue] = useState<number | "">("");
   const [extraDeductionDesc, setExtraDeductionDesc] = useState("");
   const [extraDeductionIsFixed, setExtraDeductionIsFixed] = useState(false);
+  const [extraDeductionDuration, setExtraDeductionDuration] = useState<number | "">("");
   const [editingExtraDeductionId, setEditingExtraDeductionId] = useState<string | null>(null);
 
   const [extraIncomes, setExtraIncomes] = useState<any[]>([]);
@@ -143,6 +144,17 @@ export default function NominasPage() {
   const getQScore = (y: number, m: string, q: number) => {
     const mIdx = mesesFull.indexOf(m);
     return y * 1000 + (mIdx >= 0 ? mIdx : 0) * 10 + q;
+  };
+
+  const addQuincenasToScore = (startY: number, startM: string, startQ: number, nQuincenas: number) => {
+    const mIdx = mesesFull.indexOf(startM);
+    const totalQIndex = (startY * 12 + mIdx) * 2 + (startQ - 1) + (nQuincenas - 1);
+    const targetTotalMIndex = Math.floor(totalQIndex / 2);
+    const targetQ = (totalQIndex % 2) + 1;
+    const targetY = Math.floor(targetTotalMIndex / 12);
+    const targetMIdx = targetTotalMIndex % 12;
+    const targetM = mesesFull[targetMIdx];
+    return getQScore(targetY, targetM, targetQ);
   };
 
   const goToStep = (newStep: number) => {
@@ -354,7 +366,7 @@ export default function NominasPage() {
 
     const isJunio = selectedMonth === "junio";
     const semesterMonths = isJunio ? mesesFull.slice(0, 6) : mesesFull.slice(6, 12);
-    
+
     const semesterShifts = shiftsDelAno.filter(s => semesterMonths.includes(s.month) && !s.isOff);
     const semesterBigVentas = bigVentas.filter(b => semesterMonths.includes(b.month));
 
@@ -389,9 +401,7 @@ export default function NominasPage() {
     const totalValidGross = validMonths.reduce((sum, m) => sum + m.grossIncome, 0);
     const averageMonthlyGross = totalValidGross / validMonths.length;
 
-    const primaEstimada = Math.floor(averageMonthlyGross / 2);
-
-    return primaEstimada;
+    return Math.floor(averageMonthlyGross / 2);
 
   }, [shiftsDelAno, bigVentas, selectedMonth, selectedYear, role, isPrimaSeason]);
 
@@ -862,7 +872,9 @@ export default function NominasPage() {
 
     if (editingExtraDeductionId) {
       const existingED = extraDeductions.find(ed => ed.id === editingExtraDeductionId);
-      const startScore = existingED?.startScore ?? getQScore(existingED?.startYear || existingED?.year || selectedYear, existingED?.startMonth || existingED?.month || selectedMonth, existingED?.startQuincena || existingED?.quincena || selectedQuincena);
+      const startY = existingED?.startYear || existingED?.year || selectedYear;
+      const startM = existingED?.startMonth || existingED?.month || selectedMonth;
+      const startQ = existingED?.startQuincena || existingED?.quincena || selectedQuincena;
 
       let updateData: any = {
         value: Number(extraDeductionValue),
@@ -878,8 +890,22 @@ export default function NominasPage() {
           updateData.startQuincena = selectedQuincena;
           updateData.startScore = currentScore;
         }
+
+        if (extraDeductionDuration && Number(extraDeductionDuration) > 0) {
+          const dur = Number(extraDeductionDuration);
+          updateData.durationQuincenas = dur;
+          updateData.endScore = addQuincenasToScore(
+            updateData.startYear || startY,
+            updateData.startMonth || startM,
+            updateData.startQuincena || startQ,
+            dur
+          );
+        } else {
+          updateData.durationQuincenas = null;
+        }
       } else {
         if (existingED?.isFixed) {
+          const startScore = existingED?.startScore ?? getQScore(startY, startM, startQ);
           if (currentScore > startScore) {
             const prevQ = selectedQuincena === 1 ? 2 : 1;
             const prevM = selectedQuincena === 1 ? mesesFull[(mesesFull.indexOf(selectedMonth) + 11) % 12] : selectedMonth;
@@ -888,9 +914,11 @@ export default function NominasPage() {
             updateData.isFixed = true;
           } else {
             updateData.isFixed = false;
+            updateData.durationQuincenas = null;
           }
         } else {
           updateData.isFixed = false;
+          updateData.durationQuincenas = null;
         }
       }
 
@@ -913,6 +941,12 @@ export default function NominasPage() {
         payload.startMonth = selectedMonth;
         payload.startQuincena = selectedQuincena;
         payload.startScore = currentScore;
+
+        if (extraDeductionDuration && Number(extraDeductionDuration) > 0) {
+          const dur = Number(extraDeductionDuration);
+          payload.durationQuincenas = dur;
+          payload.endScore = addQuincenasToScore(selectedYear, selectedMonth, selectedQuincena, dur);
+        }
       }
 
       await setDoc(newRef, payload);
@@ -924,6 +958,7 @@ export default function NominasPage() {
     setExtraDeductionValue("");
     setExtraDeductionDesc("");
     setExtraDeductionIsFixed(false);
+    setExtraDeductionDuration("");
     setEditingExtraDeductionId(null);
   };
 
@@ -936,7 +971,13 @@ export default function NominasPage() {
     const startScore = ed.startScore ?? getQScore(ed.startYear || ed.year, ed.startMonth || ed.month, ed.startQuincena || ed.quincena);
 
     if (ed.isFixed && currentScore > startScore) {
-      if (confirm("¿Desactivar esta deducción fija a partir de esta quincena? (Se conservará en las quincenas anteriores)")) {
+      const choice = window.confirm(
+        `¿Cómo deseas eliminar esta deducción fija?\n\n` +
+        `• [Aceptar]: DESACTIVAR de aquí en adelante (se conservará en las quincenas anteriores).\n` +
+        `• [Cancelar]: Ver opción para BORRAR POR COMPLETO todo el historial.`
+      );
+
+      if (choice) {
         const prevQ = selectedQuincena === 1 ? 2 : 1;
         const prevM = selectedQuincena === 1 ? mesesFull[(mesesFull.indexOf(selectedMonth) + 11) % 12] : selectedMonth;
         const prevY = (selectedQuincena === 1 && selectedMonth === "enero") ? selectedYear - 1 : selectedYear;
@@ -947,6 +988,14 @@ export default function NominasPage() {
         setIsEditingExtraDeduction(false);
         setHasExtraDeduction(false);
         setEditingExtraDeductionId(null);
+      } else {
+        if (window.confirm("⚠️ ¿Seguro que deseas ELIMINAR COMPLETAMENTE esta deducción de TODAS las quincenas (pasadas y futuras)?")) {
+          await deleteDoc(doc(db, "extraDeductions", id));
+          hapticSuccess();
+          setIsEditingExtraDeduction(false);
+          setHasExtraDeduction(false);
+          setEditingExtraDeductionId(null);
+        }
       }
     } else {
       if (confirm("¿Eliminar deducción extra?")) {
@@ -1301,6 +1350,7 @@ export default function NominasPage() {
                     <div id="step-3-summary">
                       <QuincenaSummary
                         totals={totalsData} getDineroColor={getDineroColor}
+                        selectedYear={selectedYear} selectedMonth={selectedMonth} selectedQuincena={selectedQuincena}
                         currentBigVenta={currentBigVenta} isEditingBigVenta={isEditingBigVenta} setIsEditingBigVenta={setIsEditingBigVenta} hasBigVenta={hasBigVenta} setHasBigVenta={setHasBigVenta} bigVentaValue={bigVentaValue} setBigVentaValue={setBigVentaValue} saveBigVenta={saveBigVenta} deleteBigVenta={deleteBigVenta}
                         isPrimaSeason={isPrimaSeason} currentPrima={currentPrima} isEditingPrima={isEditingPrima} setIsEditingPrima={setIsEditingPrima} hasPrima={hasPrima} setHasPrima={setHasPrima} primaValue={primaValue} setPrimaValue={setPrimaValue} savePrima={savePrima} deletePrima={deletePrima} suggestedPrima={suggestedPrima}
                         
@@ -1310,6 +1360,7 @@ export default function NominasPage() {
                         extraDeductionValue={extraDeductionValue} setExtraDeductionValue={setExtraDeductionValue}
                         extraDeductionDesc={extraDeductionDesc} setExtraDeductionDesc={setExtraDeductionDesc}
                         extraDeductionIsFixed={extraDeductionIsFixed} setExtraDeductionIsFixed={setExtraDeductionIsFixed}
+                        extraDeductionDuration={extraDeductionDuration} setExtraDeductionDuration={setExtraDeductionDuration}
                         saveExtraDeduction={saveExtraDeduction} deleteExtraDeduction={deleteExtraDeduction} setEditingExtraDeductionId={setEditingExtraDeductionId}
                         
                         currentExtraIncomes={currentExtraIncomes}

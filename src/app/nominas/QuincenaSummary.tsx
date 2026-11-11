@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
+
 export interface QuincenaTotals {
   totalListaHoras: number;
   totalListaDinero: number;
@@ -26,6 +27,11 @@ export interface QuincenaTotals {
 interface QuincenaSummaryProps {
   totals: QuincenaTotals;
   getDineroColor: (dinero: number) => string;
+
+  // Contexto de la quincena actual
+  selectedYear: number;
+  selectedMonth: string;
+  selectedQuincena: number;
 
   // Big Venta Props
   currentBigVenta: any;
@@ -63,6 +69,8 @@ interface QuincenaSummaryProps {
   setExtraDeductionDesc: (v: string) => void;
   extraDeductionIsFixed: boolean;
   setExtraDeductionIsFixed: (v: boolean) => void;
+  extraDeductionDuration: number | "";
+  setExtraDeductionDuration: (v: number | "") => void;
   saveExtraDeduction: () => void;
   deleteExtraDeduction: (id: string) => void;
   setEditingExtraDeductionId: (id: string | null) => void;
@@ -82,12 +90,31 @@ interface QuincenaSummaryProps {
   setEditingExtraIncomeId: (id: string | null) => void;
 }
 
+const mesesFull = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+const getQuincenasAgoText = (startY: number, startM: string, startQ: number, currentY: number, currentM: string, currentQ: number) => {
+  const mIdxStart = mesesFull.indexOf(startM);
+  const mIdxCurrent = mesesFull.indexOf(currentM);
+  if (mIdxStart === -1 || mIdxCurrent === -1) return `Desde ${startM.slice(0, 3)} Q${startQ}`;
+
+  const totalQStart = (startY * 12 + mIdxStart) * 2 + (startQ - 1);
+  const totalQCurrent = (currentY * 12 + mIdxCurrent) * 2 + (currentQ - 1);
+  const diff = totalQCurrent - totalQStart;
+
+  if (diff <= 0) return `Activada esta quincena (${startM.slice(0, 3)} Q${startQ})`;
+  if (diff === 1) return `Activada hace 1 quincena (${startM.slice(0, 3)} Q${startQ})`;
+  return `Activada hace ${diff} quincenas (${startM.slice(0, 3)} Q${startQ})`;
+};
+
 export default function QuincenaSummary({
   totals,
   getDineroColor,
+  selectedYear,
+  selectedMonth,
+  selectedQuincena,
   currentBigVenta, isEditingBigVenta, setIsEditingBigVenta, hasBigVenta, setHasBigVenta, bigVentaValue, setBigVentaValue, saveBigVenta, deleteBigVenta,
   isPrimaSeason, currentPrima, isEditingPrima, setIsEditingPrima, hasPrima, setHasPrima, primaValue, setPrimaValue, savePrima, deletePrima, suggestedPrima,
-  currentExtraDeductions, isEditingExtraDeduction, setIsEditingExtraDeduction, hasExtraDeduction, setHasExtraDeduction, extraDeductionValue, setExtraDeductionValue, extraDeductionDesc, setExtraDeductionDesc, extraDeductionIsFixed, setExtraDeductionIsFixed, saveExtraDeduction, deleteExtraDeduction, setEditingExtraDeductionId,
+  currentExtraDeductions, isEditingExtraDeduction, setIsEditingExtraDeduction, hasExtraDeduction, setHasExtraDeduction, extraDeductionValue, setExtraDeductionValue, extraDeductionDesc, setExtraDeductionDesc, extraDeductionIsFixed, setExtraDeductionIsFixed, extraDeductionDuration, setExtraDeductionDuration, saveExtraDeduction, deleteExtraDeduction, setEditingExtraDeductionId,
   currentExtraIncomes, isEditingExtraIncome, setIsEditingExtraIncome, hasExtraIncome, setHasExtraIncome, extraIncomeValue, setExtraIncomeValue, extraIncomeDesc, setExtraIncomeDesc, saveExtraIncome, deleteExtraIncome, setEditingExtraIncomeId
 }: QuincenaSummaryProps) {
 
@@ -190,7 +217,7 @@ export default function QuincenaSummary({
               <p className={`font-black text-xl md:text-2xl ${tTransportExtra > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400 dark:text-gray-600'}`}>+${Math.floor(tTransportExtra).toLocaleString()}</p>
             </div>
 
-            <div 
+            <div
               className={`col-span-2 md:col-span-4 ${tDeductionsFinal > 0 ? "cursor-pointer active:scale-[0.98] transition-transform" : "opacity-30"} pt-3`}
               onClick={() => tDeductionsFinal > 0 && setShowSplit(!showSplit)}
             >
@@ -209,12 +236,12 @@ export default function QuincenaSummary({
 
           {/* DEDUCCIONES E INGRESOS EXTRAS - COMPACTOS EN MÓVIL */}
           <div className="grid md:grid-cols-2 gap-4 mt-5 w-full">
-            
-            {/* 1. DEDUCCIONES EXTRAS (Arriba/Izquierda) */}
+
+            {/* 1. DEDUCCIONES EXTRAS */}
             <div className="flex flex-col gap-2.5 w-full">
               {currentExtraDeductions.map(ed => (
                 <div key={ed.id} className="flex justify-between items-center bg-red-50 dark:bg-red-900/10 p-2.5 md:p-4 rounded-2xl border border-red-100 dark:border-red-900/30">
-                  <div>
+                  <div className="flex flex-col gap-0.5">
                     <div className="flex items-center gap-1.5">
                       <p className="text-[9px] md:text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest leading-tight mb-0.5">{ed.desc}</p>
                       {ed.isFixed && (
@@ -223,10 +250,34 @@ export default function QuincenaSummary({
                         </span>
                       )}
                     </div>
+                    
                     <p className="font-black text-base md:text-xl text-black dark:text-white leading-none">-${Math.floor(ed.value).toLocaleString()}</p>
+
+                    {/* INDICADOR DE ANTIGÜEDAD Y FECHA FIN */}
+                    {ed.isFixed && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="text-[8px] font-bold text-gray-500 dark:text-gray-400">
+                          • {getQuincenasAgoText(ed.startYear || ed.year || selectedYear, ed.startMonth || ed.month, ed.startQuincena || ed.quincena, selectedYear, selectedMonth, selectedQuincena)}
+                        </span>
+                        {ed.durationQuincenas && (
+                          <span className="text-[8px] font-black text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-950/60 px-1.5 py-0.5 rounded-md">
+                            Duración: {ed.durationQuincenas} Qs
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
+
                   <div className="flex gap-1.5 md:gap-2">
-                    <button onClick={() => { setIsEditingExtraDeduction(true); setHasExtraDeduction(true); setExtraDeductionValue(ed.value); setExtraDeductionDesc(ed.desc); setExtraDeductionIsFixed(!!ed.isFixed); setEditingExtraDeductionId(ed.id); }} className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-white dark:bg-gray-800 rounded-lg hover:bg-red-500 hover:text-white transition-colors shadow-sm text-xs md:text-sm">✏️</button>
+                    <button onClick={() => { 
+                      setIsEditingExtraDeduction(true); 
+                      setHasExtraDeduction(true); 
+                      setExtraDeductionValue(ed.value); 
+                      setExtraDeductionDesc(ed.desc); 
+                      setExtraDeductionIsFixed(!!ed.isFixed); 
+                      setExtraDeductionDuration(ed.durationQuincenas || "");
+                      setEditingExtraDeductionId(ed.id); 
+                    }} className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-white dark:bg-gray-800 rounded-lg hover:bg-red-500 hover:text-white transition-colors shadow-sm text-xs md:text-sm">✏️</button>
                     <button onClick={() => deleteExtraDeduction(ed.id)} className="w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-white dark:bg-gray-800 rounded-lg hover:bg-red-500 hover:text-white transition-colors shadow-sm text-xs md:text-sm">🗑️</button>
                   </div>
                 </div>
@@ -236,10 +287,10 @@ export default function QuincenaSummary({
                 <div className="bg-red-50/50 dark:bg-red-900/10 p-3 md:p-4 rounded-2xl border border-red-100 dark:border-red-900/30 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] md:text-[10px] font-black uppercase text-red-600 dark:text-red-400 tracking-widest">{isEditingExtraDeduction ? "Editando Deducción" : "Nueva Deducción"}</span>
-                    <button onClick={() => { setHasExtraDeduction(false); setIsEditingExtraDeduction(false); setEditingExtraDeductionId(null); setExtraDeductionDesc(""); setExtraDeductionValue(""); setExtraDeductionIsFixed(false); }} className="text-red-400 text-[10px] font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded-md">✖</button>
+                    <button onClick={() => { setHasExtraDeduction(false); setIsEditingExtraDeduction(false); setEditingExtraDeductionId(null); setExtraDeductionDesc(""); setExtraDeductionValue(""); setExtraDeductionIsFixed(false); setExtraDeductionDuration(""); }} className="text-red-400 text-[10px] font-bold bg-white dark:bg-gray-800 px-2 py-1 rounded-md">✖</button>
                   </div>
                   <input type="text" placeholder="Ej. Portanombres" className="bg-white dark:bg-gray-800 border-none rounded-xl p-2.5 md:p-3 text-xs md:text-sm font-bold w-full outline-none text-black dark:text-white shadow-sm" value={extraDeductionDesc} onChange={e => setExtraDeductionDesc(e.target.value)} />
-                  
+
                   {/* INTERRUPTOR DE DEDUCCIÓN FIJA */}
                   <div className="flex items-center justify-between p-2 md:p-2.5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-red-100/50 dark:border-red-900/20">
                     <span className="text-[9px] md:text-[10px] font-black uppercase text-gray-700 dark:text-gray-300 tracking-wider">
@@ -254,19 +305,39 @@ export default function QuincenaSummary({
                     </button>
                   </div>
 
+                  {/* CAMPO OPCIONAL DE DURACIÓN EN QUINCENAS */}
+                  {extraDeductionIsFixed && (
+                    <div className="flex flex-col gap-1.5 p-2 md:p-2.5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-red-100/50 dark:border-red-900/20 animate-in fade-in">
+                      <label className="text-[9px] md:text-[10px] font-black uppercase text-gray-400">
+                        Duración Opcional (N° de Quincenas)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Ej: 4 (2 meses) o vacío = indefinido"
+                        value={extraDeductionDuration}
+                        onChange={(e) => setExtraDeductionDuration(e.target.value ? Number(e.target.value) : "")}
+                        className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-2 text-xs font-bold text-black dark:text-white outline-none focus:ring-1 ring-red-500"
+                      />
+                      <p className="text-[8px] text-gray-400 font-bold">
+                        {extraDeductionDuration ? `Se aplicará automáticamente durante ${extraDeductionDuration} quincena(s).` : 'Se repetirá en todas las quincenas hasta que la desactives.'}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <input type="number" placeholder="Monto" className="flex-1 bg-white dark:bg-gray-800 border-none rounded-xl p-2.5 md:p-3 text-xs md:text-sm font-bold w-full outline-none text-black dark:text-white shadow-sm" value={extraDeductionValue} onChange={e => setExtraDeductionValue(e.target.value ? Number(e.target.value) : "")} />
                     <button onClick={saveExtraDeduction} className="bg-red-500 text-white font-black px-3 md:px-4 rounded-xl uppercase text-[9px] tracking-widest hover:bg-red-600 shadow-sm active:scale-95 transition-all">Guardar</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setHasExtraDeduction(true); setExtraDeductionIsFixed(false); }} className="flex items-center justify-center gap-2 border border-dashed border-red-200 dark:border-red-900/50 rounded-2xl py-2.5 px-3 md:p-3 text-red-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-800 transition-colors text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/10 w-full mx-auto">
+                <button onClick={() => { setHasExtraDeduction(true); setExtraDeductionIsFixed(false); setExtraDeductionDuration(""); }} className="flex items-center justify-center gap-2 border border-dashed border-red-200 dark:border-red-900/50 rounded-2xl py-2.5 px-3 md:p-3 text-red-400 hover:text-red-500 hover:border-red-300 dark:hover:border-red-800 transition-colors text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/10 w-full mx-auto">
                   <span>➖</span> Agregar Deducción Extra
                 </button>
               )}
             </div>
 
-            {/* 2. INGRESOS EXTRAS (Abajo/Derecha) */}
+            {/* 2. INGRESOS EXTRAS */}
             <div className="flex flex-col gap-2.5 w-full">
               {currentExtraIncomes.map(ei => (
                 <div key={ei.id} className="flex justify-between items-center bg-green-50 dark:bg-green-900/10 p-2.5 md:p-4 rounded-2xl border border-green-200 dark:border-green-900/30">
