@@ -59,18 +59,15 @@ function DraggablePocket({ pocket, formatCurrency, openModal, handleLiquidateGoa
   const colorConfig = POCKET_COLORS.find(c => c.id === (pocket.color || 'zinc')) || POCKET_COLORS[0];
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Solo permitir drag con el dedo principal o click izquierdo
     if (e.button !== 0 && e.button !== undefined) return;
     
-    // Iniciar temporizador de 250ms (1/4 segundo)
     timerRef.current = setTimeout(() => {
       controls.start(e);
-      hapticLight(); // Feedback para saber que ya se puede arrastrar
+      hapticLight();
     }, 250);
   };
 
   const handlePointerCancelOrUp = () => {
-    // Si el usuario suelta o mueve la pantalla para hacer scroll antes de los 250ms, cancelamos el drag
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -80,13 +77,12 @@ function DraggablePocket({ pocket, formatCurrency, openModal, handleLiquidateGoa
   return (
     <Reorder.Item 
       value={pocket} 
-      dragListener={false} // Desactivamos el arrastre instantáneo nativo
-      dragControls={controls} // Lo controlamos manualmente
+      dragListener={false}
+      dragControls={controls}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerCancelOrUp}
       onPointerCancel={handlePointerCancelOrUp}
       onPointerLeave={handlePointerCancelOrUp}
-      // Bloquear selección de texto nativa en iOS/Android
       style={{ WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       className={`select-none p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all hover:shadow-md cursor-grab active:cursor-grabbing ${colorConfig.bg} ${colorConfig.border}`}
     >
@@ -102,18 +98,20 @@ function DraggablePocket({ pocket, formatCurrency, openModal, handleLiquidateGoa
         </div>
       </div>
 
-      {/* Se detiene la propagación para que los botones funcionen normal y no arrastren */}
       <div 
         onPointerDown={(e) => e.stopPropagation()} 
-        className="flex flex-nowrap gap-2 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full"
+        className="grid grid-cols-4 gap-1.5 items-center mt-3 pt-3 border-t border-black/5 dark:border-white/5 w-full"
       >
-        <button onClick={() => openModal("FUND_POCKET", "", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-green-700 bg-green-500/10 py-2.5 rounded-lg hover:bg-green-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
-          + AGREGAR
+        <button onClick={() => openModal("FUND_POCKET", "", pocket)} className="text-[8px] sm:text-[9px] font-black text-green-700 dark:text-green-400 bg-green-500/10 py-2 rounded-lg hover:bg-green-500/20 transition-colors shadow-sm active:scale-95 px-0.5 truncate text-center">
+          + CARGAR
         </button>
-        <button onClick={() => openModal("WITHDRAW_POCKET", "comida", pocket)} className="flex-1 min-w-0 text-[9px] sm:text-[10px] font-black text-red-700 dark:text-red-400 bg-red-500/10 py-2.5 rounded-lg hover:bg-red-500/20 transition-colors shadow-sm active:scale-95 px-1 truncate">
+        <button onClick={() => openModal("TRANSFER_POCKET", "", pocket)} className="text-[8px] sm:text-[9px] font-black text-blue-700 dark:text-blue-400 bg-blue-500/10 py-2 rounded-lg hover:bg-blue-500/20 transition-colors shadow-sm active:scale-95 px-0.5 truncate text-center">
+          ⇄ PASAR
+        </button>
+        <button onClick={() => openModal("WITHDRAW_POCKET", "comida", pocket)} className="text-[8px] sm:text-[9px] font-black text-red-700 dark:text-red-400 bg-red-500/10 py-2 rounded-lg hover:bg-red-500/20 transition-colors shadow-sm active:scale-95 px-0.5 truncate text-center">
           - GASTAR
         </button>
-        <button onClick={() => handleLiquidateGoal(pocket)} className="w-10 shrink-0 flex items-center justify-center text-zinc-500 bg-black/5 dark:bg-white/5 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors py-2.5 h-[34px] sm:h-[38px]">
+        <button onClick={() => handleLiquidateGoal(pocket)} className="flex items-center justify-center text-zinc-500 bg-black/5 dark:bg-white/5 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors py-2 text-center text-xs font-bold">
           ✕
         </button>
       </div>
@@ -140,7 +138,8 @@ export default function BilleteraPage() {
   // ==========================================
   const [showBalances, setShowBalances] = useState(true);
   const [historyFilter, setHistoryFilter] = useState<"ALL" | "INCOME" | "EXPENSE" | "INTERNAL">("ALL");
-  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | "FUND_POCKET" | "WITHDRAW_POCKET" | null>(null);
+  const [txModalType, setTxModalType] = useState<"INCOME" | "EXPENSE" | "SAVE_GOAL" | "PAY_DEBT" | "FUND_POCKET" | "WITHDRAW_POCKET" | "TRANSFER_POCKET" | null>(null);
+  const [transferDestination, setTransferDestination] = useState<string>("CASH");
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHistoryLimit, setShowHistoryLimit] = useState(5);
@@ -282,7 +281,7 @@ export default function BilleteraPage() {
       const txDate = tx.timestamp ? tx.timestamp.toDate() : new Date();
       const isThisMonth = txDate.getMonth() === currentMonthNum && txDate.getFullYear() === currentYearNum;
 
-      if (tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION') {
+      if (tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION' || tx.type === 'POCKET_TO_CASH') {
         cash += Number(tx.amount); 
         if (isThisMonth && tx.type === 'INCOME') incomeMonth += Number(tx.amount);
       } else if (tx.type === 'EXPENSE' || tx.type === 'WITHDRAW_POCKET') {
@@ -367,7 +366,7 @@ export default function BilleteraPage() {
 
   const filteredTransactions = useMemo(() => {
     if (historyFilter === "ALL") return transactions;
-    if (historyFilter === "INTERNAL") return transactions.filter(t => ['SAVE_GOAL', 'PAY_DEBT', 'GOAL_REDEMPTION', 'FUND_POCKET', 'WITHDRAW_POCKET'].includes(t.type));
+    if (historyFilter === "INTERNAL") return transactions.filter(t => ['SAVE_GOAL', 'PAY_DEBT', 'GOAL_REDEMPTION', 'FUND_POCKET', 'WITHDRAW_POCKET', 'POCKET_TO_CASH', 'POCKET_TRANSFER'].includes(t.type));
     return transactions.filter(t => t.type === historyFilter);
   }, [transactions, historyFilter]);
 
@@ -376,12 +375,12 @@ export default function BilleteraPage() {
 
   const formatCurrency = (val: number) => showBalances ? `$${val.toLocaleString('es-CO')}` : '••••••';
 
-  const isSpecialTx = ['SAVE_GOAL', 'PAY_DEBT', 'FUND_POCKET', 'WITHDRAW_POCKET'].includes(txModalType as string);
+  const isSpecialTx = ['SAVE_GOAL', 'PAY_DEBT', 'FUND_POCKET', 'WITHDRAW_POCKET', 'TRANSFER_POCKET'].includes(txModalType as string);
   const showCategorySelector = ['INCOME', 'EXPENSE', 'WITHDRAW_POCKET'].includes(txModalType as string);
 
   const openModal = useCallback((type: any, defaultCat: string = "", target: any = null) => {
     hapticLight(); setAmount(""); setDesc(""); setIsRecurring(false); setRecurringDay(new Date().getDate());
-    setShowAddCategory(false); setActiveTarget(target); setSelectedCategory(defaultCat); setTxModalType(type);
+    setShowAddCategory(false); setActiveTarget(target); setSelectedCategory(defaultCat); setTransferDestination("CASH"); setTxModalType(type);
   }, [hapticLight]);
 
   // ==========================================
@@ -422,10 +421,10 @@ export default function BilleteraPage() {
           }
         }
       }
-      if (txModalType === 'WITHDRAW_POCKET') {
+      if (txModalType === 'WITHDRAW_POCKET' || txModalType === 'TRANSFER_POCKET') {
         if (numAmount > activeTarget.currentAmount) {
           hapticWarning();
-          alert(`No puedes retirar más del saldo que hay en el bolsillo ($${activeTarget.currentAmount.toLocaleString('es-CO')}).`);
+          alert(`No puedes disponer de más saldo del que hay en el bolsillo ($${activeTarget.currentAmount.toLocaleString('es-CO')}).`);
           setIsSaving(false); return;
         }
       }
@@ -436,26 +435,50 @@ export default function BilleteraPage() {
 
     let txCat = categoryData?.label || "Otros";
     let txIcon = categoryData?.icon || "💵";
+    let finalTxType = txModalType as string;
+    let targetToId: string | null = null;
+    let targetToName: string | null = null;
     
-    if (isSpecialTx) {
-      if (txModalType !== 'WITHDRAW_POCKET') txIcon = activeTarget.icon;
+    if (isSpecialTx && activeTarget) {
+      if (txModalType !== 'WITHDRAW_POCKET' && txModalType !== 'TRANSFER_POCKET') txIcon = activeTarget.icon;
       if (txModalType === 'SAVE_GOAL') txCat = `Ahorro: ${activeTarget.title}`;
       if (txModalType === 'PAY_DEBT') txCat = `Abono: ${activeTarget.title}`;
       if (txModalType === 'FUND_POCKET') txCat = `Ingreso a Bolsillo: ${activeTarget.title}`;
+      
+      if (txModalType === 'TRANSFER_POCKET') {
+        if (transferDestination === "CASH") {
+          finalTxType = 'POCKET_TO_CASH';
+          txCat = `Traspaso a Cash: ${activeTarget.title}`;
+          txIcon = "💵";
+          targetToId = 'CASH';
+          targetToName = 'Cash Disponible';
+        } else {
+          const destPocket = localPockets.find(p => p.id === transferDestination);
+          if (!destPocket) {
+            hapticError(); alert("Bolsillo destino no válido."); setIsSaving(false); return;
+          }
+          finalTxType = 'POCKET_TRANSFER';
+          txCat = `Traspaso: ${activeTarget.title} ➔ ${destPocket.title}`;
+          txIcon = "⇄";
+          targetToId = destPocket.id;
+          targetToName = destPocket.title;
+        }
+      }
     }
 
     try {
       batch.set(txRef, {
-        userId: user.id, type: txModalType, amount: numAmount,
+        userId: user.id, type: finalTxType, amount: numAmount,
         category: txCat, icon: txIcon, description: desc.trim(), isRecurring: isRecurring, 
         timestamp: serverTimestamp(), targetId: isSpecialTx ? activeTarget.id : null, 
-        targetName: isSpecialTx ? activeTarget.title : null, deleted: false
+        targetName: isSpecialTx ? activeTarget.title : null,
+        toTargetId: targetToId, toTargetName: targetToName, deleted: false
       });
 
       if (isRecurring && showCategorySelector) {
         const recurringRef = doc(collection(db, "wallet_recurring"));
         batch.set(recurringRef, {
-          userId: user.id, type: txModalType, amount: numAmount, category: txCat,
+          userId: user.id, type: finalTxType, amount: numAmount, category: txCat,
           icon: txIcon, description: desc.trim() || 'Suscripción Creada Manualmente',
           chargeDay: recurringDay, targetId: isSpecialTx ? activeTarget.id : null,
           targetName: isSpecialTx ? activeTarget.title : null, active: true,
@@ -464,9 +487,18 @@ export default function BilleteraPage() {
       }
 
       if (isSpecialTx && activeTarget) {
-        const goalRef = doc(db, "wallet_goals", activeTarget.id);
-        const amountChange = txModalType === 'WITHDRAW_POCKET' ? -numAmount : numAmount;
-        batch.update(goalRef, { currentAmount: increment(amountChange) });
+        const originRef = doc(db, "wallet_goals", activeTarget.id);
+        
+        if (txModalType === 'TRANSFER_POCKET') {
+          batch.update(originRef, { currentAmount: increment(-numAmount) });
+          if (transferDestination !== "CASH") {
+            const destRef = doc(db, "wallet_goals", transferDestination);
+            batch.update(destRef, { currentAmount: increment(numAmount) });
+          }
+        } else {
+          const amountChange = txModalType === 'WITHDRAW_POCKET' ? -numAmount : numAmount;
+          batch.update(originRef, { currentAmount: increment(amountChange) });
+        }
       }
       
       await batch.commit(); hapticSuccess(); setTxModalType(null);
@@ -558,6 +590,14 @@ export default function BilleteraPage() {
           const amountChange = tx.type === 'WITHDRAW_POCKET' ? tx.amount : -tx.amount;
           batch.update(goalRef, { currentAmount: increment(amountChange) });
         }
+      } else if (tx.type === 'POCKET_TO_CASH' && tx.targetId) {
+        const originRef = doc(db, "wallet_goals", tx.targetId);
+        batch.update(originRef, { currentAmount: increment(tx.amount) });
+      } else if (tx.type === 'POCKET_TRANSFER' && tx.targetId && tx.toTargetId) {
+        const originRef = doc(db, "wallet_goals", tx.targetId);
+        const destRef = doc(db, "wallet_goals", tx.toTargetId);
+        batch.update(originRef, { currentAmount: increment(tx.amount) });
+        batch.update(destRef, { currentAmount: increment(-tx.amount) });
       }
       
       const txRef = doc(db, "wallet_transactions", tx.id);
@@ -629,6 +669,7 @@ export default function BilleteraPage() {
         case 'PAY_DEBT': return `Pagar ${activeTarget?.title}`;
         case 'FUND_POCKET': return `Ingresar a ${activeTarget?.title}`;
         case 'WITHDRAW_POCKET': return `Gastar desde ${activeTarget?.title}`;
+        case 'TRANSFER_POCKET': return `Transferir desde ${activeTarget?.title}`;
         case 'INCOME': return 'Registrar Ingreso';
         case 'EXPENSE': return 'Registrar Gasto';
         default: return '';
@@ -795,7 +836,7 @@ export default function BilleteraPage() {
           
           {goalsList.length === 0 ? (
             <div className="bg-transparent border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 text-center">
-              <p className="text-[10px] sm:text-xs text-zinc-400 font-bold">No tienes metas con objetivo. Úsalas para compras futuras.</p>
+              <p className="text-[10px] sm:text-xs text-zinc-400 font-bold">No tienes metas con objetivo. Úsalos para compras futuras.</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -916,9 +957,9 @@ export default function BilleteraPage() {
               const isDeletable = hoursSinceCreation <= 24;
 
               // 🎨 LÓGICA DE COLORES DEL HISTORIAL
-              const isIncome = tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION';
+              const isIncome = tx.type === 'INCOME' || tx.type === 'GOAL_REDEMPTION' || tx.type === 'POCKET_TO_CASH';
               const isExpense = tx.type === 'EXPENSE' || tx.type === 'WITHDRAW_POCKET';
-              const isTransfer = tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT' || tx.type === 'FUND_POCKET';
+              const isTransfer = tx.type === 'SAVE_GOAL' || tx.type === 'PAY_DEBT' || tx.type === 'FUND_POCKET' || tx.type === 'POCKET_TRANSFER';
               
               const amountColor = isIncome ? 'text-green-500' : isExpense ? 'text-red-500' : isTransfer ? 'text-blue-500' : 'text-zinc-900 dark:text-white';
               
@@ -942,7 +983,7 @@ export default function BilleteraPage() {
                       </div>
                     </div>
                     <span className={`text-xs sm:text-sm font-black shrink-0 pl-2 ${amountColor}`}>
-                      {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
+                      {isIncome ? '+' : isExpense ? '-' : '⇄ '}{formatCurrency(tx.amount)}
                     </span>
                   </button>
 
@@ -987,7 +1028,7 @@ export default function BilleteraPage() {
       </div>
 
       {/* ============================================================== */}
-      {/* 🟢 MODAL: NUEVA TRANSACCIÓN (RESPONSIVE & ANTI-PARPADEO) */}
+      {/* 🟢 MODAL: NUEVA TRANSACCIÓN / TRASPASO */}
       {/* ============================================================== */}
       <AnimatePresence mode="wait">
         {txModalType && (
@@ -1015,6 +1056,57 @@ export default function BilleteraPage() {
                     <span className="absolute left-2 sm:left-4 text-2xl sm:text-3xl font-black text-zinc-300 dark:text-zinc-700">$</span>
                     <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="w-full text-4xl sm:text-5xl font-black text-center bg-transparent outline-none py-2 text-zinc-900 dark:text-white" autoFocus />
                   </div>
+
+                  {/* ⇄ SELECCIÓN DE DESTINO PARA TRANSFERENCIAS */}
+                  {txModalType === 'TRANSFER_POCKET' && (
+                    <div className="space-y-2">
+                      <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400 pl-1">
+                        Destino del Dinero
+                      </label>
+                      <div className="grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setTransferDestination("CASH")}
+                          className={`p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
+                            transferDestination === "CASH"
+                              ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 font-bold shadow-sm'
+                              : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xl">💵</span>
+                            <div>
+                              <p className="text-xs font-black">Cash Disponible</p>
+                              <p className="text-[9px] text-zinc-400">Volver a tu disponible general</p>
+                            </div>
+                          </div>
+                          {transferDestination === "CASH" && <span className="text-blue-500 font-black text-xs">✓</span>}
+                        </button>
+
+                        {localPockets.filter(p => p.id !== activeTarget?.id).map(targetPocket => (
+                          <button
+                            key={targetPocket.id}
+                            type="button"
+                            onClick={() => setTransferDestination(targetPocket.id)}
+                            className={`p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all ${
+                              transferDestination === targetPocket.id
+                                ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100 font-bold shadow-sm'
+                                : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xl">{targetPocket.icon}</span>
+                              <div>
+                                <p className="text-xs font-black">{targetPocket.title}</p>
+                                <p className="text-[9px] text-zinc-400">Saldo: ${targetPocket.currentAmount.toLocaleString('es-CO')}</p>
+                              </div>
+                            </div>
+                            {transferDestination === targetPocket.id && <span className="text-blue-500 font-black text-xs">✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {showCategorySelector && (
                     <div className="space-y-2">
@@ -1078,7 +1170,7 @@ export default function BilleteraPage() {
               </div>
 
               <div className="pt-2 shrink-0 border-t border-zinc-100 dark:border-zinc-800 mt-2">
-                <button type="submit" form="tx-form" disabled={isSaving || !amount || (showCategorySelector && !selectedCategory)} className={`w-full py-3.5 sm:py-4 rounded-2xl text-white font-black uppercase text-[10px] sm:text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${txModalType === 'WITHDRAW_POCKET' ? 'bg-red-600' : activeBg}`}>
+                <button type="submit" form="tx-form" disabled={isSaving || !amount || (showCategorySelector && !selectedCategory)} className={`w-full py-3.5 sm:py-4 rounded-2xl text-white font-black uppercase text-[10px] sm:text-xs tracking-widest shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${txModalType === 'WITHDRAW_POCKET' ? 'bg-red-600' : txModalType === 'TRANSFER_POCKET' ? 'bg-blue-600' : activeBg}`}>
                   {isSaving ? 'Registrando...' : 'Confirmar Movimiento'}
                 </button>
               </div>
