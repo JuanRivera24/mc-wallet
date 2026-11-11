@@ -55,29 +55,69 @@ export default function ShiftList({
     }
   };
 
-  // Función para copiar uno o múltiples turnos desde el modo selección
+  // Función para copiar uno o múltiples turnos/eventos desde la lista
   const handleCopySelected = () => {
     const selectedShifts = turnosLista.filter(ts => selectedIds.includes(ts.id));
     if (selectedShifts.length === 0) return;
 
-    // 1. Si es uno solo, guardarlo también en el localStorage de la app para permitir pegar en modal
+    // 1. Si es un solo registro y tiene horarios, guardarlo en el localStorage de la app para poder pegarlo en modales
     if (selectedShifts.length === 1) {
       const s = selectedShifts[0];
-      const shiftData = {
-        startTime: s.originalStartTime || s.startTime || "13:00",
-        endTime: s.originalEndTime || s.endTime || "20:00",
-        hasBreak: s.hasBreak !== undefined ? s.hasBreak : true,
-        isManualBreak: s.isManualBreak !== undefined ? s.isManualBreak : false,
-        breakStart: s.breakStart || "16:30",
-        breakEnd: s.breakEnd || "17:00"
-      };
-      localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+      const startTimeStr = s.originalStartTime || s.startTime;
+      const endTimeStr = s.originalEndTime || s.endTime;
+
+      if (!s.isOff && startTimeStr && endTimeStr) {
+        const shiftData = {
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+          hasBreak: s.hasBreak !== undefined ? s.hasBreak : true,
+          isManualBreak: s.isManualBreak !== undefined ? s.isManualBreak : false,
+          breakStart: s.breakStart || "16:30",
+          breakEnd: s.breakEnd || "17:00"
+        };
+        localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+      }
     }
 
-    // 2. Formatear la lista para el portapapeles del dispositivo (WhatsApp/Notas)
+    // 2. Formatear el texto nativo para el portapapeles (WhatsApp / Notas)
     const formattedText = selectedShifts.map(s => {
       const [y, m, d] = s.date.split('-');
       const dateFormatted = `${d}/${m}/${y}`;
+
+      // Caso A: Día OFF
+      if (s.isOff) {
+        return `${dateFormatted}\nDía de descanso`;
+      }
+
+      // Caso B: Reunión
+      if (s.type === 'REUNION') {
+        const hrs = Number(s.totalHours || 0).toFixed(1);
+        return `${dateFormatted}\nReunión (${hrs}H)`;
+      }
+
+      // Caso C: Compensatorio
+      if (s.type === 'COMPENSATORIO') {
+        const hrs = Number(s.totalHours || 0).toFixed(1);
+        return `${dateFormatted}\nCompensatorio (${hrs}H)`;
+      }
+
+      // Caso D: Incapacidad
+      if (s.type === 'INCAPACIDAD') {
+        const startTimeStr = s.originalStartTime || s.startTime;
+        const endTimeStr = s.originalEndTime || s.endTime;
+
+        if (startTimeStr && endTimeStr) {
+          const breakStr = s.hasBreak && s.breakStart && s.breakEnd
+            ? `Break: ${s.breakStart} - ${s.breakEnd}`
+            : "Break: Sin break";
+          return `${dateFormatted}\nIncapacidad (Turno)\nEntrada: ${startTimeStr}\n${breakStr}\nSalida: ${endTimeStr}`;
+        } else {
+          const hrs = Number(s.totalHours || 0).toFixed(1);
+          return `${dateFormatted}\nIncapacidad (${hrs}H)`;
+        }
+      }
+
+      // Caso E: Turno Normal (SHIFT)
       const startTimeStr = s.originalStartTime || s.startTime || "--:--";
       const endTimeStr = s.originalEndTime || s.endTime || "--:--";
       const breakStr = s.hasBreak && s.breakStart && s.breakEnd
@@ -92,7 +132,7 @@ export default function ShiftList({
     }
 
     hapticLight();
-    alert(selectedShifts.length === 1 ? "¡Turno copiado al portapapeles!" : `¡${selectedShifts.length} turnos copiados al portapapeles!`);
+    alert(selectedShifts.length === 1 ? "¡Copiado al portapapeles!" : `¡${selectedShifts.length} registros copiados al portapapeles!`);
     setSelectedIds([]);
   };
   
