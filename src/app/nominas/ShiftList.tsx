@@ -36,7 +36,6 @@ export default function ShiftList({
   const pressTimer = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
   
-  // Instanciamos el hook de haptics
   const { vibrate, hapticLight } = useHaptics();
 
   const handleTouchStart = (id: string) => {
@@ -44,11 +43,7 @@ export default function ShiftList({
     isLongPress.current = false;
     pressTimer.current = setTimeout(() => {
       isLongPress.current = true;
-      
-      // Usamos el método vibrate del hook en lugar del objeto nativo. 
-      // Puedes usar vibrate(50) para mantener el pulso original o cambiar a hapticSuccess()
       vibrate(50); 
-      
       setSelectedIds(prev => prev.includes(id) ? prev : [...prev, id]);
     }, 800);
   };
@@ -58,6 +53,47 @@ export default function ShiftList({
       clearTimeout(pressTimer.current);
       pressTimer.current = null;
     }
+  };
+
+  // Función para copiar uno o múltiples turnos desde el modo selección
+  const handleCopySelected = () => {
+    const selectedShifts = turnosLista.filter(ts => selectedIds.includes(ts.id));
+    if (selectedShifts.length === 0) return;
+
+    // 1. Si es uno solo, guardarlo también en el localStorage de la app para permitir pegar en modal
+    if (selectedShifts.length === 1) {
+      const s = selectedShifts[0];
+      const shiftData = {
+        startTime: s.originalStartTime || s.startTime || "13:00",
+        endTime: s.originalEndTime || s.endTime || "20:00",
+        hasBreak: s.hasBreak !== undefined ? s.hasBreak : true,
+        isManualBreak: s.isManualBreak !== undefined ? s.isManualBreak : false,
+        breakStart: s.breakStart || "16:30",
+        breakEnd: s.breakEnd || "17:00"
+      };
+      localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+    }
+
+    // 2. Formatear la lista para el portapapeles del dispositivo (WhatsApp/Notas)
+    const formattedText = selectedShifts.map(s => {
+      const [y, m, d] = s.date.split('-');
+      const dateFormatted = `${d}/${m}/${y}`;
+      const startTimeStr = s.originalStartTime || s.startTime || "--:--";
+      const endTimeStr = s.originalEndTime || s.endTime || "--:--";
+      const breakStr = s.hasBreak && s.breakStart && s.breakEnd
+        ? `Break: ${s.breakStart} - ${s.breakEnd}`
+        : "Break: Sin break";
+
+      return `${dateFormatted}\nEntrada: ${startTimeStr}\n${breakStr}\nSalida: ${endTimeStr}`;
+    }).join("\n\n");
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(formattedText).catch(() => {});
+    }
+
+    hapticLight();
+    alert(selectedShifts.length === 1 ? "¡Turno copiado al portapapeles!" : `¡${selectedShifts.length} turnos copiados al portapapeles!`);
+    setSelectedIds([]);
   };
   
   return (
@@ -86,12 +122,11 @@ export default function ShiftList({
                   return;
                 }
                 if (selectionMode) {
-                  // Opcional: un toque suave cada vez que se selecciona/deselecciona algo en modo múltiple
                   hapticLight(); 
                   setSelectedIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
                 } else {
                   if (!s.isOff) {
-                    hapticLight(); // Opcional: Feedback suave al expandir tarjeta
+                    hapticLight();
                     handleToggleExpand(s.id);
                   }
                 }
@@ -154,17 +189,23 @@ export default function ShiftList({
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                   >
+                    {/* BOTÓN EDITAR / COPIAR MULTIPLE */}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (selectionMode) return;
-                        handleOpenEdit(e, s);
+                        if (selectionMode) {
+                          handleCopySelected();
+                        } else {
+                          handleOpenEdit(e, s);
+                        }
                       }} 
                       className={`p-1 md:p-1.5 text-xs md:text-sm scale-[1.3] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm transition-colors z-10 ${
-                        selectionMode ? 'opacity-30 grayscale cursor-not-allowed' : 'hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black'
+                        selectionMode ? 'hover:bg-green-500 hover:text-white ring-1 ring-green-500' : 'hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black'
                       }`} 
-                      title="Editar Turno"
-                    >✏️</button>
+                      title={selectionMode ? "Copiar seleccionado(s)" : "Editar Turno"}
+                    >
+                      {selectionMode ? "📄" : "✏️"}
+                    </button>
                     
                     <button 
                       onClick={async (e) => {

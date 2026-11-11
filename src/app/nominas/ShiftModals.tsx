@@ -16,7 +16,6 @@ interface NormalModalProps {
   breakError: string | null;
   autoCalculateBreak: (start: string, end: string) => void;
   handleSaveShift: (isOff: boolean) => void;
-  // Props actualizadas para navegación perfecta
   handleNavigateDay?: (direction: number) => void;
   handleDeleteShift?: () => void;
 }
@@ -34,12 +33,30 @@ export function NormalShiftModal({
 
   if (!showModal) return null;
 
+  // Función para copiar al portapapeles nativo del dispositivo (WhatsApp, Notas, etc.)
+  const copyToSystemClipboard = (date: Date | null, start: string, end: string, hBreak: boolean, bStart: string, bEnd: string) => {
+    let dateStr = "";
+    if (date) {
+      const d = String(date.getDate()).padStart(2, '0');
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const y = date.getFullYear();
+      dateStr = `${d}/${m}/${y}`;
+    }
+    const breakStr = hBreak && bStart && bEnd ? `Break: ${bStart} - ${bEnd}` : "Break: Sin break";
+    const formattedText = `${dateStr}\nEntrada: ${start}\n${breakStr}\nSalida: ${end}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(formattedText).catch(() => {});
+    }
+  };
+
   // LÓGICA DEL PORTAPAPELES Y MENÚ
   const handleCopy = () => {
     const shiftData = { startTime, endTime, hasBreak, isManualBreak, breakStart, breakEnd };
     localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+    copyToSystemClipboard(selectedDate, startTime, endTime, hasBreak, breakStart, breakEnd);
     setShowMenu(false);
-    alert("¡Turno copiado! Ve a otro día y presiona 'Pegar'.");
+    alert("¡Turno copiado al portapapeles!");
   };
 
   const handlePaste = () => {
@@ -58,6 +75,7 @@ export function NormalShiftModal({
   const handleCut = () => {
     const shiftData = { startTime, endTime, hasBreak, isManualBreak, breakStart, breakEnd };
     localStorage.setItem('mc_shift_clipboard', JSON.stringify(shiftData));
+    copyToSystemClipboard(selectedDate, startTime, endTime, hasBreak, breakStart, breakEnd);
     setShowMenu(false);
     if (handleDeleteShift) handleDeleteShift();
   };
