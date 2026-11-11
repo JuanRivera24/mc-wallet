@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useHaptics } from "@/hooks/useHaptics";
 import { useTheme } from "@/context/ThemeContext";
@@ -45,18 +45,36 @@ export default function MarcacionesReader() {
   const [fileObj, setFileObj] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState("");
   
-  // Búsqueda Inteligente
+  // Búsqueda Inteligente & Recordar Empleado
   const [searchQuery, setSearchQuery] = useState("");
+  const [rememberEmployee, setRememberEmployee] = useState(false);
   const [candidates, setCandidates] = useState<{id: string, name: string}[]>([]);
 
   // Motor de Auditoría
   const [isProcessing, setIsProcessing] = useState(false);
   const [auditResults, setAuditResults] = useState<DiffResult[]>([]);
+  const [selectedResultDates, setSelectedResultDates] = useState<string[]>([]);
   const [statusMsg, setStatusMsg] = useState("");
   const [employeeName, setEmployeeName] = useState("");
 
-  const activeColor = themeColor === "blue" ? "text-blue-500" : "text-red-500";
   const activeBg = themeColor === "blue" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700";
+  const glowShadow = themeColor === "blue" 
+    ? "border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.18)] dark:shadow-[0_0_25px_rgba(59,130,246,0.12)]" 
+    : "border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.18)] dark:shadow-[0_0_25px_rgba(239,68,68,0.12)]";
+
+  // Cargar preferencia guardada de empleado
+  useEffect(() => {
+    const saved = localStorage.getItem("mc_audit_saved_employee");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+        setRememberEmployee(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
 
   // --- PARSERS ---
   const parseDate = (d: any): string | null => {
@@ -99,24 +117,6 @@ export default function MarcacionesReader() {
     return str;
   };
 
-  const toMins = (tStr: string | null) => {
-    if (!tStr) return 0;
-    const [h, m] = tStr.split(":").map(Number);
-    return (h * 60) + m;
-  };
-
-  const hasNightHours = (start: string | null, end: string | null) => {
-    if (!start || !end) return false;
-    let s = toMins(start);
-    let e = toMins(end);
-    if (e < s) e += 1440; 
-    for (let i = s; i < e; i++) {
-      const minOfDay = i % 1440;
-      if (minOfDay >= 1260 || minOfDay < 360) return true;
-    }
-    return false;
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     hapticLight();
     setCandidates([]);
@@ -151,7 +151,7 @@ export default function MarcacionesReader() {
         rawRows = lines.map(line => line.split('\t').map(c => c.trim()));
       }
 
-      // 2. Escaneo de Candidatos (Detectar quién es quién)
+      // 2. Escaneo de Candidatos
       let uniqueEmployees = new Map<string, {id: string, name: string}>();
 
       for (const row of rawRows) {
@@ -176,7 +176,6 @@ export default function MarcacionesReader() {
 
       let target = forcedTarget;
 
-      // Si no viene un objetivo forzado, buscamos coincidencias
       if (!target) {
         let matches = Array.from(uniqueEmployees.values());
         
@@ -193,19 +192,29 @@ export default function MarcacionesReader() {
           setCandidates(matches);
           setIsProcessing(false);
           hapticLight();
-          return; // Pausar para que el usuario seleccione
+          return;
         }
         
         target = matches[0];
       }
 
-      setCandidates([]); // Limpiar candidatos si ya tenemos uno
+      // Guardar o limpiar preferencia según el switch
+      if (rememberEmployee && target) {
+        localStorage.setItem("mc_audit_saved_employee", JSON.stringify({ 
+          id: target.id, 
+          name: target.name, 
+          searchQuery: searchQuery || target.name 
+        }));
+      } else if (!rememberEmployee) {
+        localStorage.removeItem("mc_audit_saved_employee");
+      }
+
+      setCandidates([]);
       setEmployeeName(target.name);
       setStatusMsg(`Analizando turnos de ${target.name}...`);
 
       let inputShifts: any[] = [];
 
-      // 3. Extracción Definitiva de Turnos
       for (const row of rawRows) {
         if (!Array.isArray(row) || row.length < 5) continue; 
 
@@ -221,7 +230,6 @@ export default function MarcacionesReader() {
         const cNombre = dateIdx >= 1 ? String(row[dateIdx - 1]).trim() : "";
         const fullName = `${cNombre} ${cApellido}`.trim();
 
-        // Filtro Estricto
         if (fullName !== target.name || cId !== target.id) continue;
 
         const cDate = parseDate(row[dateIdx]);
@@ -275,51 +283,58 @@ export default function MarcacionesReader() {
         const saved = savedShifts.find(s => s.date === dateStr);
 
         if (saved && input) {
-          let currentSeverity: MismatchSeverity = 'LEVE';
           const diffs: string[] = [];
+          let hasTimeMismatch = false;
+          let hasBreakMismatch = false;
+          let isMissingOfficialTime = false;
 
           if (!input.startTime || !input.endTime) {
-            currentSeverity = 'GRAVE';
+            isMissingOfficialTime = true;
             diffs.push("Faltan horas de entrada o salida en el reporte oficial.");
           }
 
           if (saved.startTime !== input.startTime) {
+            hasTimeMismatch = true;
             diffs.push(`Entrada: ${saved.startTime || '--'} ➔ ${input.startTime || '--'}`);
-            if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO';
           }
           if (saved.endTime !== input.endTime) {
+            hasTimeMismatch = true;
             diffs.push(`Salida: ${saved.endTime || '--'} ➔ ${input.endTime || '--'}`);
-            if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO';
           }
           
           if (input.breakStart && input.breakEnd && saved.breakStart && saved.breakEnd) {
              if (saved.breakStart !== input.breakStart || saved.breakEnd !== input.breakEnd) {
-                 diffs.push(`Break: ${saved.breakStart}-${saved.breakEnd} ➔ ${input.breakStart}-${input.breakEnd}`);
-                 
-                 let sBreakDur = toMins(saved.breakEnd) - toMins(saved.breakStart);
-                 if (sBreakDur < 0) sBreakDur += 1440;
-                 let iBreakDur = toMins(input.breakEnd) - toMins(input.breakStart);
-                 if (iBreakDur < 0) iBreakDur += 1440;
-
-                 const sBreakNight = hasNightHours(saved.breakStart, saved.breakEnd);
-                 const iBreakNight = hasNightHours(input.breakStart, input.breakEnd);
-
-                 if (sBreakDur !== iBreakDur) {
-                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; 
-                 } else if (sBreakNight !== iBreakNight) {
-                   if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO'; 
-                 }
+                hasBreakMismatch = true;
+                diffs.push(`Break: ${saved.breakStart}-${saved.breakEnd} ➔ ${input.breakStart}-${input.breakEnd}`);
              }
           } else if ((input.breakStart && !saved.breakStart) || (!input.breakStart && saved.breakStart)) {
+             hasBreakMismatch = true;
              diffs.push("Diferencia en existencia de Break.");
-             if (currentSeverity !== 'GRAVE') currentSeverity = 'MODERADO';
           }
 
           if (diffs.length > 0) {
-            results.push({ date: dateStr, status: 'MISMATCH', severity: currentSeverity, savedShift: saved, inputShift: input, differences: diffs });
+            let severity: MismatchSeverity = 'LEVE';
+
+            if (isMissingOfficialTime) {
+              severity = 'GRAVE';
+            } else if (hasTimeMismatch) {
+              severity = 'MODERADO';
+            } else if (hasBreakMismatch) {
+              severity = 'LEVE';
+            }
+
+            results.push({ 
+              date: dateStr, 
+              status: 'MISMATCH', 
+              severity, 
+              savedShift: saved, 
+              inputShift: input, 
+              differences: diffs 
+            });
           } else {
             results.push({ date: dateStr, status: 'MATCH', savedShift: saved, inputShift: input });
           }
+
         } else if (!saved && input) {
           results.push({ date: dateStr, status: 'MISSING_IN_APP', severity: 'GRAVE', inputShift: input });
         } else if (saved && !input) {
@@ -327,7 +342,16 @@ export default function MarcacionesReader() {
         }
       });
 
-      setAuditResults(results);
+      // ARRIBA: Turnos con novedades (ordenados por fecha)
+      // ABAJO: Turnos perfectos (ordenados por fecha)
+      const discrepants = results.filter(r => r.status !== 'MATCH').sort((a, b) => a.date.localeCompare(b.date));
+      const matches = results.filter(r => r.status === 'MATCH').sort((a, b) => a.date.localeCompare(b.date));
+      const sortedResults = [...discrepants, ...matches];
+
+      setAuditResults(sortedResults);
+      const defaultSelected = discrepants.map(r => r.date);
+      setSelectedResultDates(defaultSelected);
+
       hapticSuccess();
       setStep(3);
 
@@ -341,23 +365,77 @@ export default function MarcacionesReader() {
     }
   };
 
-  // --- SINCRONIZACIÓN OFICIAL ---
+  // --- SELECCIÓN Y COPIADO EN ORDEN DE DÍAS ---
+  const toggleSelectDate = (date: string) => {
+    hapticLight();
+    setSelectedResultDates(prev => 
+      prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date]
+    );
+  };
+
+  const toggleSelectAllDiscrepancies = () => {
+    hapticLight();
+    const allDiscrepantDates = auditResults.filter(r => r.status !== 'MATCH').map(r => r.date);
+    if (selectedResultDates.length === allDiscrepantDates.length) {
+      setSelectedResultDates([]);
+    } else {
+      setSelectedResultDates(allDiscrepantDates);
+    }
+  };
+
+  const handleCopySelectedDiscrepancies = () => {
+    const itemsToCopy = auditResults
+      .filter(r => selectedResultDates.includes(r.date) && r.status !== 'MATCH')
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (itemsToCopy.length === 0) {
+      return alert("Selecciona al menos una marcación para copiar.");
+    }
+
+    const formattedText = itemsToCopy.map(r => {
+      const [y, m, d] = r.date.split('-');
+      const dateFormatted = `${d}/${m}/${y}`;
+      const s = r.savedShift || r.inputShift;
+
+      const startTimeStr = s?.originalStartTime || s?.startTime || "--:--";
+      const endTimeStr = s?.originalEndTime || s?.endTime || "--:--";
+      const hasBreak = s?.hasBreak !== undefined ? s.hasBreak : !!(s?.breakStart && s?.breakEnd);
+      const breakStr = hasBreak && s?.breakStart && s?.breakEnd
+        ? `Break: ${s.breakStart} - ${s.breakEnd}`
+        : "Break: Sin break";
+
+      return `${dateFormatted}\nEntrada: ${startTimeStr}\n${breakStr}\nSalida: ${endTimeStr}`;
+    }).join("\n\n");
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(formattedText).catch(() => {});
+    }
+
+    hapticLight();
+    alert(itemsToCopy.length === 1 ? "¡Copiado al portapapeles!" : `¡${itemsToCopy.length} registros copiados al portapapeles!`);
+  };
+
+  // --- SINCRONIZACIÓN OFICIAL SELECTIVA ---
   const handleSyncToOfficial = async () => {
     if (!user) return;
+
+    const toSync = auditResults.filter(r => (r.status === 'MISMATCH' || r.status === 'MISSING_IN_APP') && selectedResultDates.includes(r.date));
+
+    if (toSync.length === 0) {
+      return alert("Selecciona al menos un turno desfasado para sincronizar.");
+    }
+
     hapticWarning();
-    if (!confirm("¿Reemplazar tus turnos guardados con las marcaciones oficiales?")) return;
+    if (!confirm(`¿Reemplazar ${toSync.length} turno(s) seleccionado(s) con las marcaciones oficiales?`)) return;
 
     setIsProcessing(true);
     setStatusMsg("Sincronizando nómina oficial...");
 
     try {
-      const toSync = auditResults.filter(r => r.status === 'MISMATCH' || r.status === 'MISSING_IN_APP');
-
       for (const res of toSync) {
         const input = res.inputShift;
         const baseDocId = `${user.id}_${input.date}`;
 
-        // Limpieza Defensiva 1: Si había un error (MISMATCH), borramos el turno anterior desde la raíz.
         if (res.status === 'MISMATCH' && res.savedShift) {
           const baseId = res.savedShift.id.replace(/_split.*/, '');
           await deleteDoc(doc(db, "shifts", baseId));
@@ -365,7 +443,6 @@ export default function MarcacionesReader() {
           await deleteDoc(doc(db, "shifts", `${baseId}_split_2`));
         }
 
-        // Limpieza Defensiva 2: Nos aseguramos que el ID de destino esté completamente despejado antes de escribir fragmentos nuevos.
         await deleteDoc(doc(db, "shifts", baseDocId));
         await deleteDoc(doc(db, "shifts", `${baseDocId}_split`));
         await deleteDoc(doc(db, "shifts", `${baseDocId}_split_2`));
@@ -378,8 +455,6 @@ export default function MarcacionesReader() {
         await Promise.all(calcArray.map(async (calc: any, i: number) => {
           const idToSave = i === 0 ? baseDocId : i === 1 ? `${baseDocId}_split` : `${baseDocId}_split_${i}`;
           
-          // ✅ EXTRACCIÓN DINÁMICA: Este paso es crucial para asignar 
-          // el mes y año correcto si el fragmento divido cruza la medianoche.
           const dateParts = calc.date.split('-');
           const calcYear = parseInt(dateParts[0], 10);
           const calcMonthVal = mesesFull[parseInt(dateParts[1], 10) - 1];
@@ -395,8 +470,8 @@ export default function MarcacionesReader() {
             breakEnd: input.breakEnd || "",
             ...calc, 
             isOff: false, 
-            month: calcMonthVal, // <-- Asignación dinámica del mes
-            year: calcYear,      // <-- Asignación dinámica del año
+            month: calcMonthVal,
+            year: calcYear,
             timestamp: serverTimestamp()
           };
           
@@ -405,7 +480,7 @@ export default function MarcacionesReader() {
       }
 
       hapticSuccess();
-      alert(`✨ ¡Se han sincronizado ${toSync.length} turnos exitosamente!`);
+      alert(`✨ ¡Se han sincronizado ${toSync.length} turno(s) exitosamente!`);
       window.location.reload();
 
     } catch (error) {
@@ -434,9 +509,7 @@ export default function MarcacionesReader() {
 
       <AnimatePresence mode="wait">
         
-        {/* ==========================================
-            PASO 1: CONFIGURACIÓN
-        ========================================== */}
+        {/* PASO 1: CONFIGURACIÓN */}
         {step === 1 && (
           <motion.div key="step1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="text-center mb-8">
@@ -458,9 +531,13 @@ export default function MarcacionesReader() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-zinc-900 p-5 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest ml-1">Modo de Análisis</label>
-                <div className="flex bg-zinc-100 dark:bg-[#0a0a0a] p-1 rounded-xl mt-2">
+              {/* Casilla Modo de Análisis con Iluminación Destacada */}
+              <div className={`bg-white dark:bg-zinc-900 p-5 rounded-3xl border transition-all ${glowShadow}`}>
+                <label className="text-[10px] font-black text-zinc-400 dark:text-zinc-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                  <span>Modo de Análisis</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+                </label>
+                <div className="flex bg-zinc-100 dark:bg-[#0a0a0a] p-1 rounded-xl mt-2 border border-zinc-200/50 dark:border-zinc-800/80">
                   <button onClick={() => setAuditMode('COMPLETA')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${auditMode === 'COMPLETA' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-400'}`}>Completa</button>
                   <button onClick={() => setAuditMode('PARCIAL')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${auditMode === 'PARCIAL' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-400'}`}>Parcial</button>
                 </div>
@@ -474,9 +551,7 @@ export default function MarcacionesReader() {
           </motion.div>
         )}
 
-        {/* ==========================================
-            PASO 2: INGRESO DE DATOS
-        ========================================== */}
+        {/* PASO 2: INGRESO DE DATOS */}
         {step === 2 && (
           <motion.div key="step2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="flex items-center justify-between mb-4">
@@ -489,6 +564,7 @@ export default function MarcacionesReader() {
                 <span>Buscar Empleado</span>
                 <span className="text-[8px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full">Nombre o CC</span>
               </label>
+              
               <input 
                 type="text" 
                 value={searchQuery} 
@@ -496,11 +572,24 @@ export default function MarcacionesReader() {
                 placeholder="Ej. Raul o 1000123456" 
                 className="w-full mt-2 p-3.5 bg-zinc-50 dark:bg-[#0a0a0a] border border-zinc-200 dark:border-zinc-800 rounded-xl font-black text-sm text-zinc-800 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
               />
-              <p className="text-[9px] font-bold text-zinc-400 mt-1.5 ml-1">
-                La IA aislará tus turnos buscando por nombre, apellido o cédula.
-              </p>
+              
+              {/* Switch discreto para recordar empleado */}
+              <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800/80">
+                <span className="text-[10px] font-bold text-zinc-400">Recordar este empleado para próximos archivos</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hapticLight();
+                    const next = !rememberEmployee;
+                    setRememberEmployee(next);
+                    if (!next) localStorage.removeItem("mc_audit_saved_employee");
+                  }}
+                  className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer ${rememberEmployee ? 'bg-blue-600' : 'bg-zinc-200 dark:bg-zinc-700'}`}
+                >
+                  <div className={`w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${rememberEmployee ? 'translate-x-3.5' : 'translate-x-0'}`} />
+                </button>
+              </div>
 
-              {/* Selector si hay múltiples coincidencias */}
               <AnimatePresence>
                 {candidates.length > 0 && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
@@ -546,9 +635,7 @@ export default function MarcacionesReader() {
           </motion.div>
         )}
 
-        {/* ==========================================
-            PASO 3: RESULTADOS DE LA AUDITORÍA
-        ========================================== */}
+        {/* PASO 3: RESULTADOS DE LA AUDITORÍA */}
         {step === 3 && (
           <motion.div key="step3" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
             <div className="flex items-center justify-between mb-4">
@@ -556,14 +643,23 @@ export default function MarcacionesReader() {
               <h2 className="text-xl font-black italic uppercase text-zinc-900 dark:text-white">Diagnóstico</h2>
             </div>
 
-            {/* Banner Empleado Detectado */}
             {employeeName && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-3xl border border-blue-200 dark:border-blue-800/50 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-xl shrink-0 shadow-sm">👤</div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Auditoría a nombre de</p>
-                  <p className="text-sm font-black text-zinc-900 dark:text-white leading-tight mt-0.5">{employeeName}</p>
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-3xl border border-blue-200 dark:border-blue-800/50 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-800/50 flex items-center justify-center text-xl shrink-0 shadow-sm">👤</div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Auditoría a nombre de</p>
+                    <p className="text-sm font-black text-zinc-900 dark:text-white leading-tight mt-0.5">{employeeName}</p>
+                  </div>
                 </div>
+                {auditResults.some(r => r.status !== 'MATCH') && (
+                  <button 
+                    onClick={toggleSelectAllDiscrepancies}
+                    className="text-[10px] font-black uppercase bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-all"
+                  >
+                    {selectedResultDates.length === auditResults.filter(r => r.status !== 'MATCH').length ? 'Deseleccionar' : 'Seleccionar Todo'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -587,70 +683,111 @@ export default function MarcacionesReader() {
               </div>
             </div>
 
-            {/* Lista Detallada */}
+            {/* Lista Detallada (Novedades primero por día, luego perfectos por día) */}
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-4 max-h-72 overflow-y-auto space-y-3">
               {auditResults.length === 0 ? (
                 <p className="text-center text-xs font-bold text-zinc-400 py-6">No se encontraron datos para auditar.</p>
               ) : (
-                auditResults.sort((a, b) => {
-                  const s = { 'GRAVE': 3, 'MODERADO': 2, 'LEVE': 1, undefined: 0 };
-                  return (s[b.severity as keyof typeof s] || 0) - (s[a.severity as keyof typeof s] || 0);
-                }).map((res, i) => (
-                  <div key={i} className={`p-4 rounded-2xl border ${
-                    res.status === 'MATCH' ? 'bg-green-50/50 border-green-100 dark:bg-green-900/10 dark:border-green-800/30' :
-                    res.severity === 'LEVE' ? 'bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/10 dark:border-yellow-800/50' :
-                    res.severity === 'MODERADO' ? 'bg-orange-50/50 border-orange-200 dark:bg-orange-900/10 dark:border-orange-800/50' :
-                    'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800/50'
-                  }`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-black text-sm text-zinc-800 dark:text-zinc-200">{res.date.split("-").reverse().join("/")}</span>
-                      <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md tracking-widest shadow-sm ${
-                        res.status === 'MATCH' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' :
-                        res.severity === 'LEVE' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' :
-                        res.severity === 'MODERADO' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400' :
-                        'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
-                      }`}>
-                        {res.status === 'MATCH' ? '✓ Perfecto' : res.severity === 'LEVE' ? '⚠️ Leve' : res.severity === 'MODERADO' ? '⚠️ Medio' : '❌ Grave'}
-                      </span>
-                    </div>
+                auditResults.map((res, i) => {
+                  const isSelected = selectedResultDates.includes(res.date);
+                  const isDiscrepant = res.status !== 'MATCH';
 
-                    {res.status === 'MISMATCH' && res.differences && (
-                      <div className={`space-y-1 mt-3 border-t pt-2 ${
-                        res.severity === 'LEVE' ? 'border-yellow-200/50 dark:border-yellow-800/50' :
-                        res.severity === 'MODERADO' ? 'border-orange-200/50 dark:border-orange-800/50' :
-                        'border-red-200/50 dark:border-red-800/50'
-                      }`}>
-                        {res.differences.map((diff, idx) => (
-                          <p key={idx} className={`text-[11px] font-bold ${
-                            res.severity === 'LEVE' ? 'text-yellow-800 dark:text-yellow-300' :
-                            res.severity === 'MODERADO' ? 'text-orange-800 dark:text-orange-300' :
-                            'text-red-800 dark:text-red-300'
-                          }`}>
-                            <span className="mr-1 opacity-70">•</span> {diff}
-                          </p>
-                        ))}
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => isDiscrepant && toggleSelectDate(res.date)}
+                      className={`p-4 rounded-2xl border transition-all ${isDiscrepant ? 'cursor-pointer select-none' : ''} ${
+                        isSelected ? 'ring-1 ring-blue-500 shadow-sm' : ''
+                      } ${
+                        res.status === 'MATCH' ? 'bg-green-50/50 border-green-100 dark:bg-green-900/10 dark:border-green-800/30' :
+                        res.severity === 'LEVE' ? 'bg-yellow-50/50 border-yellow-200 dark:bg-yellow-900/10 dark:border-yellow-800/50' :
+                        res.severity === 'MODERADO' ? 'bg-orange-50/50 border-orange-200 dark:bg-orange-900/10 dark:border-orange-800/50' :
+                        'bg-red-50/50 border-red-200 dark:bg-red-900/10 dark:border-red-800/50'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          {isDiscrepant && (
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected} 
+                              onChange={() => toggleSelectDate(res.date)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          )}
+                          <span className="font-black text-sm text-zinc-800 dark:text-zinc-200">{res.date.split("-").reverse().join("/")}</span>
+                        </div>
+
+                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md tracking-widest shadow-sm ${
+                          res.status === 'MATCH' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' :
+                          res.severity === 'LEVE' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400' :
+                          res.severity === 'MODERADO' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400' :
+                          'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                        }`}>
+                          {res.status === 'MATCH' ? '✓ Perfecto' : res.severity === 'LEVE' ? '⚠️ Leve' : res.severity === 'MODERADO' ? '⚠️ Medio' : '❌ Grave'}
+                        </span>
                       </div>
-                    )}
-                    
-                    {res.status === 'MISSING_IN_FILE' && (
-                      <p className="text-[10px] font-bold text-red-600 dark:text-red-400 mt-1">Este turno está en tu app pero NO aparece en el reporte oficial.</p>
-                    )}
-                    
-                    {res.status === 'MISSING_IN_APP' && (
-                      <p className="text-[10px] font-bold text-red-600 dark:text-red-400 mt-1">Turno faltante en tu app: ({res.inputShift.startTime} - {res.inputShift.endTime}).</p>
-                    )}
-                  </div>
-                ))
+
+                      {res.status === 'MISMATCH' && res.differences && (
+                        <div className={`space-y-1 mt-3 border-t pt-2 ${
+                          res.severity === 'LEVE' ? 'border-yellow-200/50 dark:border-yellow-800/50' :
+                          res.severity === 'MODERADO' ? 'border-orange-200/50 dark:border-orange-800/50' :
+                          'border-red-200/50 dark:border-red-800/50'
+                        }`}>
+                          {res.differences.map((diff, idx) => (
+                            <p key={idx} className={`text-[11px] font-bold ${
+                              res.severity === 'LEVE' ? 'text-yellow-800 dark:text-yellow-300' :
+                              res.severity === 'MODERADO' ? 'text-orange-800 dark:text-orange-300' :
+                              'text-red-800 dark:text-red-300'
+                            }`}>
+                              <span className="mr-1 opacity-70">•</span> {diff}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {res.status === 'MISSING_IN_FILE' && (
+                        <p className="text-[10px] font-bold text-red-600 dark:text-red-400 mt-1">Este turno está en tu app pero NO aparece en el reporte oficial.</p>
+                      )}
+                      
+                      {res.status === 'MISSING_IN_APP' && (
+                        <p className="text-[10px] font-bold text-red-600 dark:text-red-400 mt-1">Turno faltante en tu app: ({res.inputShift.startTime} - {res.inputShift.endTime}).</p>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
 
-            {/* Acción Final */}
-            {auditResults.some(r => r.status === 'MISMATCH' || r.status === 'MISSING_IN_APP') && (
-              <div className="pt-4">
-                <button onClick={handleSyncToOfficial} disabled={isProcessing} className="w-full py-4 rounded-2xl font-black text-white uppercase tracking-widest shadow-lg transition-transform active:scale-95 bg-zinc-900 hover:bg-black dark:bg-zinc-100 dark:text-black dark:hover:bg-white flex justify-center items-center gap-2">
-                  {isProcessing ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Sincronizando...</> : "Sincronizar Oficial"}
+            {/* Acciones Finales */}
+            {auditResults.some(r => r.status !== 'MATCH') && (
+              <div className="pt-2 space-y-3">
+                <button 
+                  onClick={handleSyncToOfficial} 
+                  disabled={isProcessing || selectedResultDates.length === 0} 
+                  className="w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg transition-transform active:scale-95 bg-zinc-900 hover:bg-black text-white dark:bg-zinc-100 dark:text-black dark:hover:bg-white disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Sincronizando...</>
+                  ) : (
+                    `Sincronizar (${selectedResultDates.length})`
+                  )}
                 </button>
-                <p className="text-[9px] font-bold text-zinc-400 text-center mt-3">Esto actualizará todos los descuadres usando los tiempos exactos de tus marcaciones.</p>
+
+                <div className="flex justify-center">
+                  <button 
+                    onClick={handleCopySelectedDiscrepancies} 
+                    disabled={selectedResultDates.length === 0}
+                    className="py-2 px-4 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    📋 Copiar Novedades
+                  </button>
+                </div>
+
+                <p className="text-[9px] font-bold text-zinc-400 text-center">
+                  Sincroniza los turnos seleccionados con las marcaciones oficiales o copia los registros desfasados al portapapeles.
+                </p>
               </div>
             )}
           </motion.div>
